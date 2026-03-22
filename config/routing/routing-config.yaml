@@ -1,0 +1,26 @@
+# NemoClaw Model Routing Config v1.0 - Approved March 22 2026
+providers:
+  cheap_openai:
+    provider: openai
+    model: gpt-4o-mini
+    max_tokens: 4096
+    notes: Default path. Classification, structured output, short tasks.
+  reasoning_claude:
+    provider: anthropic_bridge
+    model: claude-sonnet-4-6
+    max_tokens: 8096
+    notes: Complex reasoning, long context, code, synthesis.
+    bridge_status: TEMPORARY
+  vision_openai:
+    provider: openai
+    model: gpt-4o
+    max_tokens: 4096
+    notes: Vision and image tasks only.
+  fallback_openai:
+    provider: openai
+    model: gpt-4o
+    max_tokens: 8096
+    notes: Fallback for Claude failures on complex tasks only.
+defaults:
+  default_alias: cheap_openai
+  active_gateway_provider: openai

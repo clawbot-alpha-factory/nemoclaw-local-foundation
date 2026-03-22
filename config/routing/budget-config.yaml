@@ -1,0 +1,34 @@
+# NemoClaw Budget Config v1.0 - Approved March 22 2026
+budgets:
+  anthropic:
+    total_usd: 10.00
+    tracking: cumulative_across_sessions
+    threshold_warn: 0.90
+    threshold_hard_stop: 1.00
+    warn_message: "YOU HIT 90% OF YOUR BUDGET"
+    exhausted_message: "PROVIDER BUDGET EXHAUSTED — SWITCHED TO FALLBACK"
+    log_to_file: true
+    log_to_terminal: true
+  openai:
+    total_usd: 10.00
+    tracking: cumulative_across_sessions
+    threshold_warn: 0.90
+    threshold_hard_stop: 1.00
+    warn_message: "YOU HIT 90% OF YOUR BUDGET"
+    exhausted_message: "PROVIDER BUDGET EXHAUSTED — SWITCHED TO FALLBACK"
+    log_to_file: true
+    log_to_terminal: true
+log:
+  path: ~/.nemoclaw/logs/provider-usage.jsonl
+  fields:
+    - timestamp
+    - task_class
+    - alias_selected
+    - model_used
+    - provider
+    - estimated_cost_usd
+    - provider_cumulative_spend_usd
+    - provider_budget_remaining_usd
+    - provider_budget_pct_used
+    - fallback_used
+    - override
