@@ -41,56 +41,57 @@ Please conduct thorough research on this topic following the plan above."""
 
 
 def step_2_research_topic(inputs, context):
-    """Deep research using reasoning model — prompt sent via gateway."""
+    """Deep research using reasoning model via OpenShell inference gateway."""
+    import urllib.request
+    import urllib.error
+
     plan = context.get("research_plan", "")
     if not plan:
         return None, "No research plan found in context"
 
-    prompt = f"""{plan}
-
-Produce a detailed research response covering all four sections.
-Be specific, cite concrete facts where possible, and be direct about what is known vs uncertain."""
-
-    # In production this would call the inference gateway
-    # For Phase 4 v1 we produce a structured placeholder that validates correctly
-    # and demonstrates the full workflow pipeline
-    topic_line = [l for l in plan.split('\n') if l.startswith("Research Topic:")]
+    topic_line = [l for l in plan.split(chr(10)) if l.startswith("Research Topic:")]
     topic = topic_line[0].replace("Research Topic:", "").strip() if topic_line else "the topic"
 
-    research = f"""## Background
+    prompt = f"""{plan}
 
-{topic} is a subject with significant relevance across multiple domains. Understanding it requires examining both its foundational principles and recent developments. The field has evolved considerably, with key milestones shaping current understanding and practice.
+Produce a detailed research response covering all four sections: Background, Key Findings, Open Questions, and Recommendations.
+Be specific and direct. Use concrete facts where possible. Be clear about what is known vs uncertain."""
 
-## Key Findings
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "You are a rigorous research analyst. Produce structured, factual research briefs."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1500,
+        "temperature": 0.3
+    }
 
-1. The core principles of {topic} are well-established and supported by substantial evidence across multiple studies and sources.
+    import json as _json
+    data = _json.dumps(payload).encode("utf-8")
 
-2. Recent developments have expanded the scope of what is possible, introducing new methodologies and approaches that were not previously available.
+    req = urllib.request.Request(
+        "https://inference.local/v1/chat/completions",
+        data=data,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer openshell-managed"},
+        method="POST"
+    )
 
-3. Practical applications demonstrate measurable impact in real-world contexts, with documented outcomes across different use cases.
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 
-4. There are meaningful differences in how {topic} is approached across different contexts, organizations, and regions.
-
-5. The intersection with adjacent fields creates both opportunities and challenges that practitioners must navigate carefully.
-
-## Open Questions
-
-- How will {topic} evolve as underlying technologies and conditions change?
-- What are the long-term second-order effects that are not yet well understood?
-- Where do the current methodologies fall short, and what research is needed to address those gaps?
-- How should practitioners balance thoroughness with practical constraints?
-
-## Recommendations
-
-1. Begin with a clear scoping exercise to define the boundaries of your engagement with {topic}.
-2. Prioritize foundational understanding before moving to advanced applications.
-3. Monitor developments in adjacent fields that may influence how {topic} evolves.
-4. Build in regular review cycles to reassess assumptions as new information emerges.
-5. Document decisions and rationale clearly to enable future revision without loss of context."""
-
-    return {"output": research}, None
-
-
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+            result = _json.loads(resp.read().decode("utf-8"))
+            content = result["choices"][0]["message"]["content"]
+            return {"output": content}, None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8")
+        return None, f"Gateway HTTP error {e.code}: {body}"
+    except Exception as e:
+        return None, f"Gateway connection error: {str(e)}"
 def step_3_structure_findings(inputs, context):
     """Structure raw research into clean brief format."""
     raw = context.get("raw_research", "")
