@@ -210,3 +210,7 @@ __marimo__/
 openclaw.json/
 openclaw.json/
 checkpoints/*.json
+
+# Skills outputs
+skills/research-brief/outputs/*
+!skills/research-brief/outputs/.gitkeep
