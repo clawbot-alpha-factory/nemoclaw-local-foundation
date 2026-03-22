@@ -209,3 +209,4 @@ __marimo__/
 .env
 openclaw.json/
 openclaw.json/
+checkpoints/*.json
