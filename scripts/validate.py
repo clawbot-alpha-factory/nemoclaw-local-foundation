@@ -260,7 +260,11 @@ def c6_skill_runner_exists():
     path = os.path.join(REPO, "skills/skill-runner.py")
     if not os.path.exists(path):
         return FAIL, "skills/skill-runner.py not found"
-    return PASS, path
+    with open(path) as f:
+        content = f.read()
+    if "SqliteSaver" not in content:
+        return WARN, "skill-runner.py exists but SqliteSaver not detected — may be old version"
+    return PASS, "skill-runner.py v3.0 with SqliteSaver"
 
 def c6_skill_yaml_valid():
     path = os.path.join(REPO, "skills/research-brief/skill.yaml")
@@ -281,6 +285,12 @@ def c6_outputs_dir():
         return FAIL, "skills/research-brief/outputs/ not found"
     if not os.access(path, os.W_OK):
         return FAIL, "outputs/ not writable"
+    return PASS, path
+
+def c6_checkpoint_db():
+    path = os.path.expanduser("~/.nemoclaw/checkpoints/langgraph.db")
+    if not os.path.exists(path):
+        return FAIL, "langgraph.db not found — run skill once to initialize"
     return PASS, path
 
 # ── Run all checks ────────────────────────────────────────────────────────────
@@ -326,6 +336,7 @@ def main():
     check("Skills", 22, "skill-runner.py exists",           c6_skill_runner_exists)
     check("Skills", 23, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
     check("Skills", 24, "research-brief/outputs/ writable", c6_outputs_dir)
+    check("Skills", 25, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-NemoClaw Skill Runner v2.0 — LangGraph Edition
-Phase 6: Rewritten as LangGraph graph. No OpenShell dependency.
-Nodes map to skill steps. Shared state carries context between nodes.
-Budget enforcer wired into each node. Checkpoint system integrated.
+NemoClaw Skill Runner v3.0 — LangGraph + SqliteSaver
+Phase 7 Hardening: Single checkpoint system via LangGraph SqliteSaver.
+checkpoint_utils.py deprecated. No dual state system.
 """
 
 import argparse
@@ -12,18 +11,18 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timezone
-from typing import TypedDict, Any
+from typing import TypedDict, Annotated
+import operator
 
 import yaml
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.sqlite import SqliteSaver
 
-SKILLS_DIR  = os.path.dirname(os.path.abspath(__file__))
-SCRIPTS_DIR = os.path.join(os.path.dirname(SKILLS_DIR), "scripts")
-REPO_BASE   = os.path.dirname(SKILLS_DIR)
-RUNNER_VERSION = "2.0.0"
-
-sys.path.insert(0, SCRIPTS_DIR)
-import checkpoint_utils as cp
+SKILLS_DIR     = os.path.dirname(os.path.abspath(__file__))
+SCRIPTS_DIR    = os.path.join(os.path.dirname(SKILLS_DIR), "scripts")
+REPO_BASE      = os.path.dirname(SKILLS_DIR)
+RUNNER_VERSION = "3.0.0"
+CHECKPOINT_DB  = os.path.expanduser("~/.nemoclaw/checkpoints/langgraph.db")
 
 
 # ── Shared State Schema ───────────────────────────────────────────────────────
@@ -32,8 +31,7 @@ class SkillState(TypedDict):
     workflow_id:      str
     inputs:           dict
     context:          dict
-    current_step:     str
-    completed_steps:  list
+    completed_steps:  Annotated[list, operator.add]
     artifact_path:    str
     error:            str
     status:           str
@@ -124,26 +122,25 @@ def validate_output(skill, output_text):
 
 # ── Node Factory ──────────────────────────────────────────────────────────────
 def make_node(skill, skill_dir, step):
-    """Create a LangGraph node function for a skill step."""
     step_id    = step["id"]
     task_class = step.get("task_class", "general_short")
     idm        = step.get("idempotency", {})
 
     def node_fn(state: SkillState) -> SkillState:
-        wf_id   = state["workflow_id"]
         context = state["context"].copy()
         inputs  = state["inputs"]
 
-        # Idempotency check
+        # Idempotency — LangGraph replays nodes on resume
+        # completed_steps list is persisted in SqliteSaver state
         if step_id in state["completed_steps"]:
             if idm.get("never_auto_rerun", False):
-                print(f"  [skip] {step_id} — never_auto_rerun, already complete")
-                return state
+                print(f"  [skip] {step_id} — never_auto_rerun")
+                return {"completed_steps": []}
             if idm.get("cached", False):
-                print(f"  [cached] {step_id} — using prior output")
-                return state
-            print(f"  [skip] {step_id} — already completed")
-            return state
+                print(f"  [cached] {step_id}")
+                return {"completed_steps": []}
+            print(f"  [skip] {step_id} — already done")
+            return {"completed_steps": []}
 
         print(f"\n  [node] {step_id}: {step['name']}")
 
@@ -151,50 +148,48 @@ def make_node(skill, skill_dir, step):
         if step.get("requires_human_approval", False):
             ans = input(f"  [approval] {step_id} requires approval. Proceed? (yes/no): ").strip().lower()
             if ans != "yes":
-                cp.pause(wf_id, "paused_manual", f"User declined {step_id}")
-                return {**state, "status": "paused_manual", "error": f"Approval declined at {step_id}"}
+                return {
+                    "status": "paused_approval",
+                    "error": f"Approval declined at {step_id}",
+                    "completed_steps": [],
+                }
 
-        # Budget enforcement (skip for artifact write step)
+        # Budget enforcement
         if step_id != "step_5":
             try:
                 budget = call_budget_enforcer(task_class)
                 context["last_budget"] = budget
             except RuntimeError as e:
-                return {**state, "status": "failed", "error": str(e)}
+                return {"status": "failed", "error": str(e), "completed_steps": []}
 
-        # Execute step
+        # Execute step logic
         output, error = call_run_py(skill_dir, step_id, inputs, context)
-
         if error or not output:
-            cp.pause(wf_id, "paused_manual", f"Step {step_id} failed: {error}")
-            return {**state, "status": "failed", "error": f"Step {step_id}: {error}"}
+            return {
+                "status": "failed",
+                "error": f"Step {step_id}: {error}",
+                "completed_steps": [],
+            }
 
-        # Handle artifact write
+        # Artifact write
         artifact_path = state.get("artifact_path", "")
         if step_id == "step_5":
             content = context.get("validated_brief", context.get("structured_brief", ""))
-            artifact_path = write_artifact(skill, wf_id, content)
-            output = {"brief_file": artifact_path}
+            artifact_path = write_artifact(skill, state["workflow_id"], content)
             print(f"  [artifact] Written to: {artifact_path}")
 
-        # Update context with step output
+        # Update context
         output_key = step.get("output_key", step_id)
         new_context = {**context}
         new_context[output_key] = output.get("output", output.get(output_key, ""))
         if "validated_brief" in output:
             new_context["validated_brief"] = output["validated_brief"]
 
-        # Mark step complete in checkpoint
-        completed = list(state["completed_steps"]) + [step_id]
-        cp.complete_step(wf_id, step_id,
-                         files_created=[artifact_path] if artifact_path else [])
         print(f"  [done] {step_id}")
 
         return {
-            **state,
             "context":         new_context,
-            "completed_steps": completed,
-            "current_step":    step_id,
+            "completed_steps": [step_id],
             "artifact_path":   artifact_path,
             "status":          "running",
             "error":           "",
@@ -205,19 +200,14 @@ def make_node(skill, skill_dir, step):
 
 
 # ── Graph Builder ─────────────────────────────────────────────────────────────
-def build_graph(skill, skill_dir):
-    """Build LangGraph StateGraph from skill.yaml step definitions."""
+def build_graph(skill, skill_dir, checkpointer):
     steps    = skill["steps"]
     step_ids = [s["id"] for s in steps]
 
     graph = StateGraph(SkillState)
-
-    # Add one node per step
     for step in steps:
-        node_fn = make_node(skill, skill_dir, step)
-        graph.add_node(step["id"], node_fn)
+        graph.add_node(step["id"], make_node(skill, skill_dir, step))
 
-    # Linear edges: step_1 → step_2 → ... → END
     for i, step_id in enumerate(step_ids):
         if i < len(step_ids) - 1:
             graph.add_edge(step_id, step_ids[i + 1])
@@ -225,65 +215,60 @@ def build_graph(skill, skill_dir):
             graph.add_edge(step_id, END)
 
     graph.set_entry_point(step_ids[0])
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def run_skill(skill_name, inputs, workflow_id=None, resume=False):
+def run_skill(skill_name, inputs, thread_id=None, resume=False):
     skill_dir = os.path.join(SKILLS_DIR, skill_name)
     if not os.path.exists(os.path.join(skill_dir, "skill.yaml")):
         print(f"ERROR: Skill not found: {skill_name}")
         sys.exit(1)
 
     skill = load_skill_yaml(skill_dir)
-
-    # Validate inputs
     errors, inputs = validate_inputs(skill, inputs)
     if errors:
         print("ERROR: Input validation failed:\n  " + "\n  ".join(errors))
         sys.exit(1)
 
-    steps    = skill["steps"]
-    step_ids = [s["id"] for s in steps]
+    # Use thread_id as the LangGraph checkpoint thread
+    if not thread_id:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        import uuid
+        thread_id = f"skill-{skill_name}-{ts}-{str(uuid.uuid4())[:8]}"
 
-    # Checkpoint setup
-    if resume and workflow_id:
-        checkpoint, err = cp.resume(workflow_id)
-        if err:
-            print(f"ERROR: Cannot resume: {err}")
-            sys.exit(1)
-        completed_steps = checkpoint["completed_steps"]
-        print(f"\nResuming workflow: {workflow_id}")
-        print(f"Resuming from: {checkpoint['resume_point']['step']}")
-    else:
-        workflow_id     = cp.generate_workflow_id(f"skill-{skill_name}")
-        checkpoint      = cp.create(workflow_id, skill_name, step_ids)
-        completed_steps = []
-        print(f"\nStarting skill: {skill['name']} v{skill['version']}")
-        print(f"Workflow ID: {workflow_id}")
+    os.makedirs(os.path.dirname(CHECKPOINT_DB), exist_ok=True)
 
-    # Build and run graph
-    app = build_graph(skill, skill_dir)
+    print(f"\n{'Resuming' if resume else 'Starting'} skill: {skill['name']} v{skill['version']}")
+    print(f"Thread ID: {thread_id}")
 
-    initial_state: SkillState = {
-        "skill_name":      skill_name,
-        "workflow_id":     workflow_id,
-        "inputs":          inputs,
-        "context":         {},
-        "current_step":    step_ids[0],
-        "completed_steps": completed_steps,
-        "artifact_path":   "",
-        "error":           "",
-        "status":          "running",
-    }
+    config = {"configurable": {"thread_id": thread_id}}
 
-    final_state = app.invoke(initial_state)
+    with SqliteSaver.from_conn_string(CHECKPOINT_DB) as checkpointer:
+        app = build_graph(skill, skill_dir, checkpointer)
+
+        if resume:
+            # LangGraph resumes from last checkpoint automatically via thread_id
+            print(f"Resuming from last checkpoint in thread: {thread_id}")
+            final_state = app.invoke(None, config=config)
+        else:
+            initial_state: SkillState = {
+                "skill_name":      skill_name,
+                "workflow_id":     thread_id,
+                "inputs":          inputs,
+                "context":         {},
+                "completed_steps": [],
+                "artifact_path":   "",
+                "error":           "",
+                "status":          "running",
+            }
+            final_state = app.invoke(initial_state, config=config)
 
     if final_state["status"] == "failed":
         print(f"\nERROR: Skill failed — {final_state['error']}")
+        print(f"Resume with: --thread-id {thread_id} --resume")
         sys.exit(1)
 
-    # Final output validation
     brief = final_state["context"].get("validated_brief",
             final_state["context"].get("structured_brief", ""))
     val_errors = validate_output(skill, brief)
@@ -292,19 +277,18 @@ def run_skill(skill_name, inputs, workflow_id=None, resume=False):
         sys.exit(1)
 
     print(f"\nSkill complete: {skill['name']}")
-    print(f"Workflow ID: {workflow_id}")
-    if final_state["artifact_path"]:
+    print(f"Thread ID: {thread_id}")
+    if final_state.get("artifact_path"):
         print(f"Output: {final_state['artifact_path']}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NemoClaw Skill Runner v2.0 — LangGraph")
-    parser.add_argument("--skill",       required=True)
-    parser.add_argument("--input",       action="append", nargs=2,
-                        metavar=("KEY", "VALUE"))
-    parser.add_argument("--workflow-id", help="Workflow ID for resume")
-    parser.add_argument("--resume",      action="store_true")
+    parser = argparse.ArgumentParser(description="NemoClaw Skill Runner v3.0 — LangGraph + SqliteSaver")
+    parser.add_argument("--skill",     required=True)
+    parser.add_argument("--input",     action="append", nargs=2, metavar=("KEY", "VALUE"))
+    parser.add_argument("--thread-id", help="Thread ID for resume")
+    parser.add_argument("--resume",    action="store_true")
     args = parser.parse_args()
 
     inputs = {k: v for k, v in (args.input or [])}
-    run_skill(args.skill, inputs, workflow_id=args.workflow_id, resume=args.resume)
+    run_skill(args.skill, inputs, thread_id=args.thread_id, resume=args.resume)

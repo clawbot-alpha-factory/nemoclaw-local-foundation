@@ -214,3 +214,6 @@ checkpoints/*.json
 # Skills outputs
 skills/research-brief/outputs/*
 !skills/research-brief/outputs/.gitkeep
+
+# Python 3.12 virtual environment
+.venv312/
