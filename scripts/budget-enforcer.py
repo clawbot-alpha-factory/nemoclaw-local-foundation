@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-NemoClaw Budget Enforcer v1.1
-Enforces routing rules, budget controls, and provider logging.
+NemoClaw Budget Enforcer v2.0
+Phase 6: Reads routing and budget config from YAML files.
+No hardcoded routing dicts. No OpenShell dependency.
 Doc 15 — Model Routing System Spec v3
-Updated March 23 2026 — corrected cost estimates, added cheaper_claude alias
 """
 
 import json
@@ -12,52 +12,30 @@ import sys
 import argparse
 from datetime import datetime, timezone
 
-BASE_DIR = os.path.expanduser("~/nemoclaw-local-foundation")
-SPEND_FILE = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
-USAGE_LOG  = os.path.expanduser("~/.nemoclaw/logs/provider-usage.jsonl")
-AUDIT_LOG  = os.path.expanduser("~/.nemoclaw/logs/budget-audit.log")
+import yaml
 
-# Cost estimates at 2x real pricing — conservative but realistic
-# Based on ~500 input + 300 output tokens average per call
-# Real pricing: Anthropic $3/$15 Sonnet, $1/$5 Haiku; OpenAI $0.15/$0.60 mini, $2.50/$10 4o
-COST_ESTIMATES = {
-    "cheap_openai":    0.0006,
-    "cheaper_claude":  0.004,
-    "reasoning_claude": 0.012,
-    "vision_openai":   0.008,
-    "fallback_openai": 0.008,
-}
+BASE_DIR       = os.path.expanduser("~/nemoclaw-local-foundation")
+ROUTING_CONFIG = os.path.join(BASE_DIR, "config/routing/routing-config.yaml")
+BUDGET_CONFIG  = os.path.join(BASE_DIR, "config/routing/budget-config.yaml")
+SPEND_FILE     = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
+USAGE_LOG      = os.path.expanduser("~/.nemoclaw/logs/provider-usage.jsonl")
+AUDIT_LOG      = os.path.expanduser("~/.nemoclaw/logs/budget-audit.log")
 
-ROUTING_RULES = {
-    "complex_reasoning": "reasoning_claude",
-    "long_document":     "reasoning_claude",
-    "code":              "reasoning_claude",
-    "agentic":           "reasoning_claude",
-    "moderate":          "cheaper_claude",
-    "vision":            "vision_openai",
-    "structured_short":  "cheap_openai",
-    "general_short":     "cheap_openai",
-}
-DEFAULT_ALIAS = "cheap_openai"
+def load_configs():
+    with open(ROUTING_CONFIG) as f:
+        routing = yaml.safe_load(f)
+    with open(BUDGET_CONFIG) as f:
+        budget = yaml.safe_load(f)
+    return routing, budget
 
-ALIAS_PROVIDER = {
-    "cheap_openai":     "openai",
-    "cheaper_claude":   "anthropic",
-    "reasoning_claude": "anthropic",
-    "vision_openai":    "openai",
-    "fallback_openai":  "openai",
-}
-
-ALIAS_MODEL = {
-    "cheap_openai":     "gpt-4o-mini",
-    "cheaper_claude":   "claude-haiku-4-5-20251001",
-    "reasoning_claude": "claude-sonnet-4-6",
-    "vision_openai":    "gpt-4o",
-    "fallback_openai":  "gpt-4o",
-}
-
-BUDGET_LIMIT    = 10.00
-WARN_THRESHOLD  = 0.90
+def build_maps(routing):
+    providers   = routing.get("providers", {})
+    rules       = routing.get("routing_rules", {})
+    default     = routing.get("defaults", {}).get("default_alias", "cheap_openai")
+    alias_provider = {k: v["provider"] for k, v in providers.items()}
+    alias_model    = {k: v["model"]    for k, v in providers.items()}
+    cost_estimates = {k: v["estimated_cost_per_call"] for k, v in providers.items()}
+    return rules, default, alias_provider, alias_model, cost_estimates
 
 def ensure_log_dir():
     os.makedirs(os.path.expanduser("~/.nemoclaw/logs"), exist_ok=True)
@@ -92,28 +70,32 @@ def write_usage_log(entry):
     with open(USAGE_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
-def check_budget(provider, spend_data):
-    spend = spend_data[provider]["cumulative_spend_usd"]
-    pct = spend / BUDGET_LIMIT
-    if pct >= 1.0:
-        return "exhausted"
-    if pct >= WARN_THRESHOLD:
-        return "warning"
-    return "active"
+def check_budget(provider, spend_data, budget_cfg):
+    spend     = spend_data[provider]["cumulative_spend_usd"]
+    limit     = budget_cfg["budgets"][provider]["total_usd"]
+    warn_pct  = budget_cfg["budgets"][provider]["threshold_warn"]
+    stop_pct  = budget_cfg["budgets"][provider]["threshold_hard_stop"]
+    pct       = spend / limit
+    if pct >= stop_pct:
+        return "exhausted", spend, limit
+    if pct >= warn_pct:
+        return "warning", spend, limit
+    return "active", spend, limit
 
-def select_alias(task_class, spend_data):
-    primary = ROUTING_RULES.get(task_class, DEFAULT_ALIAS)
-    provider = ALIAS_PROVIDER[primary]
-    status = check_budget(provider, spend_data)
+def select_alias(task_class, spend_data, routing_rules, default_alias,
+                 alias_provider, budget_cfg):
+    primary  = routing_rules.get(task_class, default_alias)
+    provider = alias_provider[primary]
+    status, spend, limit = check_budget(provider, spend_data, budget_cfg)
     fallback_used = False
 
     if status == "exhausted":
-        msg = f"PROVIDER BUDGET EXHAUSTED — SWITCHED TO FALLBACK | provider={provider} | task={task_class}"
+        warn_msg = budget_cfg["budgets"][provider]["exhausted_message"]
         print(f"\n{'='*60}")
-        print(f"PROVIDER BUDGET EXHAUSTED — SWITCHED TO FALLBACK")
+        print(warn_msg)
         print(f"Provider: {provider.upper()} | Task: {task_class}")
         print(f"{'='*60}\n")
-        write_audit(msg)
+        write_audit(f"{warn_msg} | provider={provider} | task={task_class}")
         if primary in ("reasoning_claude", "cheaper_claude"):
             primary = "fallback_openai"
         else:
@@ -122,12 +104,12 @@ def select_alias(task_class, spend_data):
         fallback_used = True
 
     elif status == "warning":
-        msg = f"YOU HIT 90% OF YOUR BUDGET | provider={provider} | spend=${spend_data[provider]['cumulative_spend_usd']:.4f}/$10.00 | task={task_class}"
+        warn_msg = budget_cfg["budgets"][provider]["warn_message"]
         print(f"\n{'='*60}")
-        print(f"YOU HIT 90% OF YOUR BUDGET")
-        print(f"Provider: {provider.upper()} | Spent: ${spend_data[provider]['cumulative_spend_usd']:.4f} of $10.00")
+        print(warn_msg)
+        print(f"Provider: {provider.upper()} | Spent: ${spend:.4f} of ${limit:.2f}")
         print(f"{'='*60}\n")
-        write_audit(msg)
+        write_audit(f"{warn_msg} | provider={provider} | spend=${spend:.4f}/${limit:.2f} | task={task_class}")
         if primary in ("reasoning_claude", "cheaper_claude"):
             primary = "fallback_openai"
             fallback_used = True
@@ -135,19 +117,26 @@ def select_alias(task_class, spend_data):
     return primary, fallback_used
 
 def enforce(task_class):
+    routing_cfg, budget_cfg = load_configs()
+    routing_rules, default_alias, alias_provider, alias_model, cost_estimates = build_maps(routing_cfg)
     spend_data = load_spend()
-    alias, fallback_used = select_alias(task_class, spend_data)
-    provider = ALIAS_PROVIDER[alias]
-    model    = ALIAS_MODEL[alias]
-    cost     = COST_ESTIMATES[alias]
+
+    alias, fallback_used = select_alias(
+        task_class, spend_data, routing_rules, default_alias,
+        alias_provider, budget_cfg
+    )
+    provider = alias_provider[alias]
+    model    = alias_model[alias]
+    cost     = cost_estimates[alias]
+    limit    = budget_cfg["budgets"][provider]["total_usd"]
 
     spend_data[provider]["cumulative_spend_usd"] += cost
     spend_data[provider]["last_updated"] = str(datetime.now(timezone.utc).date())
     save_spend(spend_data)
 
     cumulative = spend_data[provider]["cumulative_spend_usd"]
-    remaining  = BUDGET_LIMIT - cumulative
-    pct_used   = cumulative / BUDGET_LIMIT
+    remaining  = limit - cumulative
+    pct_used   = cumulative / limit
 
     entry = {
         "timestamp":                     datetime.now(timezone.utc).isoformat(),
@@ -177,9 +166,10 @@ def enforce(task_class):
     return result
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NemoClaw Budget Enforcer v1.1")
+    parser = argparse.ArgumentParser(description="NemoClaw Budget Enforcer v2.0")
     parser.add_argument("--task-class", required=True,
-        choices=["complex_reasoning","long_document","code","agentic","moderate","vision","structured_short","general_short"],
+        choices=["complex_reasoning","long_document","code","agentic","moderate",
+                 "vision","structured_short","general_short"],
         help="Task class to route")
     args = parser.parse_args()
     enforce(args.task_class)

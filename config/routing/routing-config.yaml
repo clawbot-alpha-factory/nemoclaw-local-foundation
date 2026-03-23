@@ -1,7 +1,7 @@
-# NemoClaw Model Routing Config v1.1 - Updated March 23 2026
-# Cost estimates set at 2x real pricing for conservative but realistic tracking
-# Real pricing source: Anthropic $3/$15 Sonnet, $1/$5 Haiku; OpenAI $0.15/$0.60 mini, $2.50/$10 4o
-# Assumes ~500 input + 300 output tokens average per call
+# NemoClaw Model Routing Config v2.0 - Updated March 23 2026
+# Phase 6: OpenShell bridge removed. Direct API calls via LangGraph.
+# Cost estimates at 2x real pricing for conservative tracking.
+# Real pricing: Anthropic $3/$15 Sonnet, $1/$5 Haiku; OpenAI $0.15/$0.60 mini, $2.50/$10 4o
 
 providers:
   cheap_openai:
@@ -12,20 +12,18 @@ providers:
     notes: Default path. Classification, structured output, short tasks.
 
   cheaper_claude:
-    provider: anthropic_bridge
+    provider: anthropic
     model: claude-haiku-4-5-20251001
     max_tokens: 4096
     estimated_cost_per_call: 0.004
     notes: Moderate complexity tasks. Cheaper than Sonnet, stronger than GPT-4o-mini.
-    bridge_status: TEMPORARY
 
   reasoning_claude:
-    provider: anthropic_bridge
+    provider: anthropic
     model: claude-sonnet-4-6
     max_tokens: 8096
     estimated_cost_per_call: 0.012
     notes: Complex reasoning, long context, code, synthesis.
-    bridge_status: TEMPORARY
 
   vision_openai:
     provider: openai
@@ -41,6 +39,16 @@ providers:
     estimated_cost_per_call: 0.008
     notes: Fallback for Claude failures on complex tasks only.
 
+routing_rules:
+  complex_reasoning: reasoning_claude
+  long_document:     reasoning_claude
+  code:              reasoning_claude
+  agentic:           reasoning_claude
+  moderate:          cheaper_claude
+  vision:            vision_openai
+  structured_short:  cheap_openai
+  general_short:     cheap_openai
+
 defaults:
   default_alias: cheap_openai
-  active_gateway_provider: openai
+  active_provider: openai

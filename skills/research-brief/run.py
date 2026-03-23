@@ -1,13 +1,75 @@
 #!/usr/bin/env python3
 """
 NemoClaw Skill: research-brief
-Step execution logic. Called by skill-runner.py for each step.
+Step execution logic. Phase 6: Direct API calls — no OpenShell dependency.
+Called by skill-runner.py for each step.
 """
 
 import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
+
+
+def load_env():
+    """Load API keys from config/.env."""
+    env_path = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
+    keys = {}
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    keys[k.strip()] = v.strip()
+    return keys
+
+
+def call_openai(messages, model="gpt-4o-mini", max_tokens=1500):
+    """Direct OpenAI API call via langchain-openai."""
+    from langchain_openai import ChatOpenAI
+    env = load_env()
+    api_key = env.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
+    if not api_key:
+        return None, "OPENAI_API_KEY not found in config/.env"
+    llm = ChatOpenAI(model=model, api_key=api_key, max_tokens=max_tokens, temperature=0.3)
+    from langchain_core.messages import HumanMessage, SystemMessage
+    lc_messages = []
+    for m in messages:
+        if m["role"] == "system":
+            lc_messages.append(SystemMessage(content=m["content"]))
+        else:
+            lc_messages.append(HumanMessage(content=m["content"]))
+    response = llm.invoke(lc_messages)
+    return response.content, None
+
+
+def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=1500):
+    """Direct Anthropic API call via langchain-anthropic."""
+    from langchain_anthropic import ChatAnthropic
+    env = load_env()
+    api_key = env.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
+    if not api_key:
+        return None, "ANTHROPIC_API_KEY not found in config/.env"
+    llm = ChatAnthropic(model=model, api_key=api_key, max_tokens=max_tokens, temperature=0.3)
+    from langchain_core.messages import HumanMessage, SystemMessage
+    lc_messages = []
+    system_content = None
+    for m in messages:
+        if m["role"] == "system":
+            system_content = m["content"]
+        else:
+            lc_messages.append(HumanMessage(content=m["content"]))
+    if system_content:
+        llm = ChatAnthropic(
+            model=model, api_key=api_key, max_tokens=max_tokens,
+            temperature=0.3,
+        )
+        from langchain_core.messages import SystemMessage
+        lc_messages.insert(0, SystemMessage(content=system_content))
+    response = llm.invoke(lc_messages)
+    return response.content, None
 
 
 def step_1_validate_and_plan(inputs, context):
@@ -41,57 +103,30 @@ Please conduct thorough research on this topic following the plan above."""
 
 
 def step_2_research_topic(inputs, context):
-    """Deep research using reasoning model via OpenShell inference gateway."""
-    import urllib.request
-    import urllib.error
-
+    """Deep research using reasoning model via direct Anthropic API."""
     plan = context.get("research_plan", "")
     if not plan:
         return None, "No research plan found in context"
 
-    topic_line = [l for l in plan.split(chr(10)) if l.startswith("Research Topic:")]
-    topic = topic_line[0].replace("Research Topic:", "").strip() if topic_line else "the topic"
-
-    prompt = f"""{plan}
+    messages = [
+        {"role": "system", "content": "You are a rigorous research analyst. Produce structured, factual research briefs with clear sections for Background, Key Findings, Open Questions, and Recommendations."},
+        {"role": "user", "content": f"""{plan}
 
 Produce a detailed research response covering all four sections: Background, Key Findings, Open Questions, and Recommendations.
-Be specific and direct. Use concrete facts where possible. Be clear about what is known vs uncertain."""
+Be specific and direct. Use concrete facts where possible. Be clear about what is known vs uncertain.
+Format each section with a clear markdown header."""}
+    ]
 
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are a rigorous research analyst. Produce structured, factual research briefs."},
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 1500,
-        "temperature": 0.3
-    }
+    content, error = call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=6000)
+    if error:
+        # Fallback to OpenAI if Anthropic fails
+        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+    if error:
+        return None, error
 
-    import json as _json
-    data = _json.dumps(payload).encode("utf-8")
+    return {"output": content}, None
 
-    req = urllib.request.Request(
-        "https://inference.local/v1/chat/completions",
-        data=data,
-        headers={"Content-Type": "application/json", "Authorization": "Bearer openshell-managed"},
-        method="POST"
-    )
 
-    import ssl
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
-            result = _json.loads(resp.read().decode("utf-8"))
-            content = result["choices"][0]["message"]["content"]
-            return {"output": content}, None
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8")
-        return None, f"Gateway HTTP error {e.code}: {body}"
-    except Exception as e:
-        return None, f"Gateway connection error: {str(e)}"
 def step_3_structure_findings(inputs, context):
     """Structure raw research into clean brief format."""
     raw = context.get("raw_research", "")
@@ -100,14 +135,14 @@ def step_3_structure_findings(inputs, context):
 
     topic_from_plan = ""
     plan = context.get("research_plan", "")
-    for line in plan.split('\n'):
+    for line in plan.split(chr(10)):
         if line.startswith("Research Topic:"):
             topic_from_plan = line.replace("Research Topic:", "").strip()
             break
 
     brief = f"""# Research Brief: {topic_from_plan}
 
-**Generated:** {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M UTC')}
+**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
 **Depth:** {inputs.get('depth', 'standard')}
 
 ---
@@ -162,9 +197,9 @@ if __name__ == "__main__":
     with open(args.input) as f:
         spec = json.load(f)
 
-    step_id  = spec["step_id"]
-    inputs   = spec["inputs"]
-    context  = spec["context"]
+    step_id = spec["step_id"]
+    inputs  = spec["inputs"]
+    context = spec["context"]
 
     handler = STEP_HANDLERS.get(step_id)
     if not handler:
