@@ -1,141 +1,275 @@
 # Architecture Lock Document
 
-**Version:** 1.0  
-**Date:** 2026-03-23  
-**Status:** LOCKED  
-**Phase:** 8 — Architecture Lock and Documentation Cleanup  
+> **Location:** `docs/architecture/architecture-lock.md`
+> **Version:** 2.0
+> **Date:** 2026-03-24
+> **Status:** LOCKED
+> **Phase:** 12 — Documentation Consolidation
+> **Supersedes:** v1.0 (Phase 8)
 
 ---
 
 ## Purpose
 
-This document formally locks the current architecture path for the NemoClaw-first project.  
-It supersedes all earlier references to NemoClaw/OpenShell as the primary runtime.  
-It defines the single state system, documents the architecture shift, and states what was gained, what was lost, and what replacement controls exist.
+This document formally locks all architectural decisions for the NemoClaw local foundation. It defines what was decided, when, why, and what each decision means for future work.
+
+This is the single authoritative record of locked decisions. If a document elsewhere contradicts this file, this file wins.
 
 ---
 
-## Architecture Path: Custom LangGraph + Direct API
+## Locked Decision 1 — Architecture Path
 
-This project is no longer on the NemoClaw/OpenShell architecture path.
+**Decision:** Custom LangGraph + Direct API on host Mac
 
-The project mandate and early documentation assumed NemoClaw and OpenShell as the runtime foundation.  
-That assumption is no longer accurate. The architecture shifted during Phase 6 for deliberate, documented reasons.  
-This document locks that shift formally.
+**Locked in:** Phase 6
 
-### Why the Shift Happened
+**What this means:**
 
-- NemoClaw is an alpha/early preview project — interfaces unstable, local macOS support gaps active
-- OpenShell sandbox prevented native Mac execution and full internet access
-- inference.local proxy bound inference origination to the sandbox network namespace
-- Extraction cost was low — 4 of 5 governance components were already fully portable
-- LangGraph provides superior graph primitives — conditional branching, parallelism, human-in-the-loop
-- Direct API calls are transparent, credential-controlled, and not dependent on upstream alpha stability
+- Skills execute as LangGraph StateGraphs on the host MacBook
+- Inference calls go directly to provider APIs via langchain (no proxy, no sandbox)
+- The NemoClaw/OpenShell sandbox is retained but not required for any workflow
+- The system does not depend on NemoClaw upstream stability
+
+**Original path:** NemoClaw/OpenShell sandbox with inference.local proxy
+
+**Why it changed:** NemoClaw is alpha with active macOS support gaps. The OpenShell sandbox blocked native Mac execution and full internet access. LangGraph provides superior graph primitives. 4 of 5 governance components were portable without the sandbox.
+
+**What was lost:** OS-level network policy, filesystem sandboxing, Landlock isolation, governed credential injection. Replaced by application-layer controls (budget enforcement, audit logging, approval boundaries).
+
+**Full comparison:** See the Architecture Comparison table below.
 
 ---
 
-## Architecture Comparison
+## Locked Decision 2 — State Persistence
+
+**Decision:** LangGraph SqliteSaver — single checkpoint system
+
+**Locked in:** Phase 7
+
+**Database:** `~/.nemoclaw/checkpoints/langgraph.db`
+
+**What this means:**
+
+- All workflow state flows through SkillState TypedDict in skill-runner.py
+- Checkpoints are saved after every step via SqliteSaver
+- Resume uses `--thread-id THREAD_ID --resume`
+- checkpoint_utils.py is deprecated — moved to `docs/archive/`, must not be called
+
+---
+
+## Locked Decision 3 — Python Runtime
+
+**Decision:** Python 3.12.13 via .venv312
+
+**Locked in:** Phase 7
+
+**Location:** `~/nemoclaw-local-foundation/.venv312/bin/python`
+
+**What this means:**
+
+- All skill execution uses .venv312/bin/python
+- System Python 3.14 must not be used for LangGraph workloads (Pydantic V1 incompatibility)
+- .venv312/ is gitignored — recreated on each new machine
+- Scripts that don't import LangGraph (validate.py, obs.py, budget-enforcer.py, budget-status.py, tools.py) run on system python3
+
+**Setup:**
+
+```bash
+/opt/homebrew/bin/python3.12 -m venv .venv312
+.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+```
+
+---
+
+## Locked Decision 4 — Model Routing
+
+**Decision:** 9-alias routing system with provider-suffixed names, 10 task classes, 3 providers
+
+**Locked in:** Phase 8 (expanded from 5 aliases to 9 in Phase 8)
+
+**Config:** `config/routing/routing-config.yaml` (source of truth)
+
+**What this means:**
+
+- Every inference call routes through a task class → alias → provider + model chain
+- 9 aliases: cheap_openai, reasoning_openai, reasoning_o3, cheap_claude, reasoning_claude, premium_claude, cheap_google, reasoning_google, fallback_openai
+- 10 task classes: general_short, structured_short, moderate, complex_reasoning, code, agentic, long_document, vision, deep_reasoning, premium
+- 3 providers: OpenAI, Anthropic, Google
+- Default alias: cheap_openai
+- Global fallback: fallback_openai (gpt-5.4-mini)
+
+**Full doc:** `docs/architecture/routing-system.md`
+
+---
+
+## Locked Decision 5 — Budget Enforcement
+
+**Decision:** Per-provider cumulative budget with $10 limits, 90% warning, 100% hard stop
+
+**Locked in:** Phase 7 (expanded to 3 providers in Phase 8)
+
+**Config:** `config/routing/budget-config.yaml` (source of truth)
+
+**What this means:**
+
+- Every inference call passes through budget enforcement before execution
+- Spend is tracked cumulatively across sessions in `~/.nemoclaw/logs/provider-spend.json`
+- Cost estimates use 2x real pricing as a conservative buffer
+- At 90%: warning printed and logged
+- At 100%: call blocked, routed to fallback_openai, event logged
+- Manual reset required (no automated monthly cycle)
+
+**Full doc:** `docs/architecture/budget-system.md`
+
+---
+
+## Locked Decision 6 — Skill Execution
+
+**Decision:** Skills defined by skill.yaml, executed by skill-runner.py v3.0 as LangGraph StateGraphs
+
+**Locked in:** Phase 9
+
+**What this means:**
+
+- Each skill is a directory under `skills/` containing a `skill.yaml` and an `outputs/` directory
+- skill-runner.py reads the YAML, builds a StateGraph, executes steps sequentially
+- Each step declares a task_class that routes through the budget enforcer
+- State is checkpointed after every step
+- 5 graph patterns validated: linear chain, conditional branching, early exit, state accumulation, checkpoint resume
+
+**Full doc:** `docs/architecture/skill-system.md`
+
+---
+
+## Locked Decision 7 — External Tools Framework
+
+**Decision:** Standard tool wrapper pattern via scripts/tools.py, credential validation at startup, audit logging for all tool calls
+
+**Locked in:** Phase 10.5
+
+**What this means:**
+
+- All tool API keys stored in config/.env following the same pattern as provider keys
+- tools.py validates credentials and logs all tool calls to `~/.nemoclaw/logs/tools-audit.log`
+- 16 tools registered across 5 tiers
+- Active now: GitHub (no key), Asana (validated)
+- Remaining tools activate in Phase 12+ alongside the skills that need them
+
+**Full doc:** `docs/extensions/external-tools-registry.md`
+
+---
+
+## Locked Decision 8 — Validation System
+
+**Decision:** 31-check validation across 6 categories, run via validate.py
+
+**Locked in:** Phase 10.5 (expanded from 20 checks in Phase 7, to 25 in Phase 8, to 31 in Phase 10.5)
+
+**What this means:**
+
+- validate.py is the authoritative health check for the entire system
+- 6 categories: Environment, NemoClaw Runtime, API Keys, Budget System, Routing System, Skill System
+- Must show 31/31 before pushing code or running skills
+- Results logged to `~/.nemoclaw/logs/validation-runs.jsonl`
+
+**Full doc:** `docs/architecture/validation-system.md`
+
+---
+
+## Locked Decision 9 — Observability
+
+**Decision:** Three observability scripts (obs.py, budget-status.py, validate.py) plus structured log files
+
+**Locked in:** Phase 10
+
+**What this means:**
+
+- obs.py: unified dashboard (health, spend, recent runs, checkpoints, failures, last validation)
+- budget-status.py: provider spend with visual bars
+- validate.py: 31-check pass/fail health
+- Log files under `~/.nemoclaw/logs/`: provider-spend.json, provider-usage.jsonl, budget-audit.log, tools-audit.log, validation-runs.jsonl
+
+**Full doc:** `docs/reference/script-reference.md`
+
+---
+
+## Architecture Comparison — Original vs Current
 
 | Dimension | Original NemoClaw/OpenShell Path | Current LangGraph + Direct API Path |
 |---|---|---|
-| Runtime environment | OpenShell sandbox — Kubernetes pod inside Docker Desktop | Host Mac — Python 3.12 venv, no container required |
-| Inference origination | inference.local inside sandbox — OpenShell proxy intercepts | Direct API — langchain-anthropic, langchain-openai |
-| Agent execution | OpenClaw inside OpenShell governed runtime | LangGraph StateGraph — nodes, edges, shared state |
-| State persistence | checkpoint_utils.py — custom JSON files | LangGraph SqliteSaver — ~/.nemoclaw/checkpoints/langgraph.db |
-| Network governance | OpenShell network policy — allowlists per binary | None — full Mac internet access |
-| Filesystem governance | OpenShell Landlock + seccomp sandbox | None — full Mac filesystem access |
-| Credential handling | openshell-managed token — gateway injects credentials | Direct from config/.env — project-managed |
-| Policy enforcement | OpenShell policy YAML — runtime enforced | Budget enforcer only — application-layer |
-| Python version | System Python 3.14 — Pydantic V1 compatibility risk | Python 3.12.13 via .venv312 — isolated, stable |
-| Upgrade surface | NemoClaw upstream alpha — fast-moving, unstable | LangGraph + langchain — stable, versioned, documented |
-
----
-
-## What Was Gained
-
-- Full Mac and internet freedom — no sandbox constraint on agent access
-- Direct, transparent API calls — credentials visible and controlled by the project
-- LangGraph graph primitives — conditional branching, parallelism, human-in-the-loop available
-- Stable, documented upstream — LangGraph has active maintenance and real community
-- Python 3.12 — stable, fully supported, no Pydantic compatibility risk
-- Single checkpoint system — no dual-state ambiguity
-- No dependency on NemoClaw alpha stability or upstream API changes
-
----
-
-## What Was Lost
-
-- OpenShell network policy — agents can now call any endpoint without OS-level enforcement
-- OpenShell filesystem sandbox — agents have full host filesystem access
-- Landlock + seccomp execution isolation — no kernel-level constraint on agent behavior
-- Governed credential injection — credentials are now application-managed, not runtime-managed
+| Runtime environment | OpenShell sandbox — K8s pod inside Docker | Host Mac — Python 3.12 venv |
+| Inference origination | inference.local inside sandbox | Direct API via langchain |
+| Agent execution | OpenClaw inside OpenShell | LangGraph StateGraph |
+| State persistence | checkpoint_utils.py — custom JSON | LangGraph SqliteSaver — SQLite DB |
+| Network governance | OpenShell network policy — allowlists | None — full internet access |
+| Filesystem governance | OpenShell Landlock + seccomp | None — full filesystem access |
+| Credential handling | OpenShell-managed token injection | Direct from config/.env |
+| Policy enforcement | OpenShell policy YAML — runtime enforced | Budget enforcer — application-layer |
+| Model routing | Not applicable (single model) | 9 aliases, 10 task classes, 3 providers |
+| Budget control | Not applicable | $10/provider, 90% warn, 100% hard stop |
+| Skill system | Not applicable | skill.yaml + skill-runner.py + LangGraph |
+| External tools | Not applicable | 16-tool registry, tools.py framework |
+| Validation | Not applicable | 31 checks across 6 categories |
+| Observability | Not applicable | obs.py, budget-status.py, 5 log files |
 
 ---
 
 ## Replacement Safety Controls
 
-The losses above are real. These are the controls that replace them at the application layer.
-
-| Lost Control | Replacement Control | Strength |
+| Lost Control | Replacement | Strength |
 |---|---|---|
-| Network policy | Budget enforcer — controls which providers can be called | Application-layer only |
-| Credential isolation | config/.env gitignored — never committed | Developer-discipline dependent |
+| Network policy | Budget enforcer controls which providers are called | Application-layer only |
+| Credential isolation | config/.env gitignored, never committed | Developer-discipline dependent |
 | Execution boundaries | requires_human_approval per skill step | Application-layer only |
-| Audit trail | provider-usage.jsonl + budget-audit.log — every call logged | Strong — append-only logs |
-| Spend control | Hard stop at $10/provider — no unbounded API calls | Strong — enforced before every call |
+| Audit trail | provider-usage.jsonl + budget-audit.log + tools-audit.log | Strong — append-only logs |
+| Spend control | Hard stop at $10/provider | Strong — enforced before every call |
 
-These replacement controls are weaker than OS-level enforcement.  
-A bug or malicious skill could bypass them.  
-This is an accepted tradeoff given the sandboxed execution decision made in Phase 6.
-
----
-
-## LangGraph State — Single Source of Truth
-
-**Decision locked:** LangGraph SqliteSaver is the single checkpoint and state persistence system.
-
-- checkpoint_utils.py is deprecated — moved to docs/archive/
-- checkpoint_utils.py must not be called by any new code
-- All workflow state flows through SkillState TypedDict in skill-runner.py
-- Checkpoint database: ~/.nemoclaw/checkpoints/langgraph.db
-- Resume pattern: --thread-id THREAD_ID --resume passed to skill-runner.py
-
----
-
-## Python 3.12 — Locked Runtime
-
-**Decision locked:** Python 3.12.13 via .venv312 is the required runtime for all skill execution.
-
-- Location: ~/nemoclaw-local-foundation/.venv312/bin/python
-- All skill runner invocations must use this interpreter
-- System Python 3.14 must not be used for LangGraph workloads
-- .venv312/ is gitignored — each developer must recreate it
-
-Setup command for new environment:
-
-    /opt/homebrew/bin/python3.12 -m venv ~/nemoclaw-local-foundation/.venv312
-    ~/nemoclaw-local-foundation/.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+These controls are weaker than OS-level enforcement. This is an accepted tradeoff.
 
 ---
 
 ## What This Document Does Not Lock
 
-- Multi-agent architecture — not yet collaboratively defined
-- Future Skill selection — not yet collaboratively chosen
-- Observability design — Phase 10
-- Non-linear graph patterns — Phase 9
+| Topic | Status | When It Will Be Locked |
+|---|---|---|
+| Multi-agent architecture | Not yet designed | When a skill requires inter-agent coordination |
+| Per-alias fallback chains | Planned, not implemented | When provider outages become operationally frequent |
+| Complexity pre-classifier | Planned, not implemented | When multiple skills run diverse inputs |
+| Token-proportional cost tracking | Planned, not implemented | When monthly spend exceeds $50 |
+| Automated budget reset | Planned, not implemented | When monthly cycles become operationally important |
+| Second skill | Not yet built | Next skill-building phase |
 
 ---
 
 ## Locked Decisions Summary
 
-| Decision | Value | Locked In |
-|---|---|---|
-| Architecture path | Custom LangGraph + Direct API | Phase 6 |
-| State persistence | LangGraph SqliteSaver — single system | Phase 7 |
-| checkpoint_utils.py | Deprecated — do not use | Phase 7 |
-| Python runtime | 3.12.13 via .venv312 | Phase 7 |
-| Inference origination | Direct langchain-anthropic / langchain-openai | Phase 6 |
-| Budget enforcement | budget-enforcer.py reading from YAML configs | Phase 7 |
-| Routing config | routing-config.yaml is single source of truth | Phase 7 |
-| OpenShell dependency | Removed — not required for any workflow | Phase 6 |
+| # | Decision | Value | Locked In |
+|---|---|---|---|
+| 1 | Architecture path | LangGraph + Direct API | Phase 6 |
+| 2 | State persistence | LangGraph SqliteSaver | Phase 7 |
+| 3 | Python runtime | 3.12.13 via .venv312 | Phase 7 |
+| 4 | Model routing | 9 aliases, 10 task classes, 3 providers | Phase 8 |
+| 5 | Budget enforcement | $10/provider, 90% warn, 100% stop | Phase 7 |
+| 6 | Skill execution | skill.yaml + skill-runner.py v3.0 | Phase 9 |
+| 7 | External tools framework | tools.py + 16-tool registry | Phase 10.5 |
+| 8 | Validation system | 31 checks, 6 categories | Phase 10.5 |
+| 9 | Observability | 3 scripts + 5 log files | Phase 10 |
+
+---
+
+## Document Cross-References
+
+| Topic | Document |
+|---|---|
+| Full system map | `docs/architecture/system-overview.md` |
+| Routing details | `docs/architecture/routing-system.md` |
+| Budget details | `docs/architecture/budget-system.md` |
+| Skill details | `docs/architecture/skill-system.md` |
+| Validation details | `docs/architecture/validation-system.md` |
+| Script usage | `docs/reference/script-reference.md` |
+| Config files | `docs/reference/config-reference.md` |
+| Planning vs reality | `docs/reference/design-decisions-log.md` |
+| Cold start / recovery | `docs/setup/restart-recovery-runbook.md` |
+| Environment setup | `docs/setup/local-environment-setup.md` |
+| External tools | `docs/extensions/external-tools-registry.md` |
+| Troubleshooting | `docs/troubleshooting/startup-and-failure-point-map.md` |
