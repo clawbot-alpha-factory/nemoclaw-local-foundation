@@ -109,9 +109,10 @@ When a provider is unavailable or the provider's budget is exhausted, the budget
 
 1. Resolve task class → alias → provider
 2. Check provider budget: spend < hard stop?
-3. If budget exhausted → route to `fallback_openai`, log the downgrade
-4. If API call fails → error reported, no automatic retry in current implementation
-
+3. If budget exhausted (100%) → route to `fallback_openai`, log the downgrade
+4. If budget at warning (90%) AND alias is non-OpenAI → route to `fallback_openai`, log warning
+5. If budget at warning (90%) AND alias is OpenAI → proceed with warning only, no fallback
+6. If API call fails → error reported, no automatic retry in current implementation
 **What is not yet implemented:**
 
 - Per-alias fallback chains (e.g., Opus → Sonnet → GPT-5.4)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NemoClaw Local Validation Script v1.0.0
-Runs all 24 checks across 6 categories and reports pass/fail.
+Runs all 31 checks across 6 categories and reports pass/fail.
 Doc 16 — Local Validation Checklist
 """
 

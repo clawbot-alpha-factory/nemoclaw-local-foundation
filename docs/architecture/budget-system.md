@@ -23,7 +23,7 @@ The budget enforcer runs before every inference call. The sequence is:
 3. It reads cumulative spend from `provider-spend.json`
 4. It checks: is the provider's spend below the hard stop threshold?
 5. If yes → call proceeds, cost is logged, spend is updated
-6. If at warning threshold (90%) → call proceeds but warning is printed and logged
+6. If at warning threshold (90%) → warning printed and logged. Non-OpenAI aliases fall back to fallback_openai. OpenAI aliases proceed with warning only.
 7. If at hard stop (100%) → call is blocked, routed to fallback, event is logged
 
 ```
