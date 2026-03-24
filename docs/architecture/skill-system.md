@@ -401,7 +401,7 @@ Phase 9 validated 5 LangGraph graph patterns that skill-runner.py supports:
 
 | Pattern | Description | Status |
 |---|---|---|
-| Error branches | Error routes to handler node, state preserved | Validated |
+| Conditional branching | Step routes to different next steps based on output | Validated |
 | Error branches | Error routes to handler node, state preserved | Validated |
 | Retry paths | Failed node retries configured times before succeeding or escalating | Validated |
 | Fallback paths | Primary path fails completely, fallback produces valid output | Validated |

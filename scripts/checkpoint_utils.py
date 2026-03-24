@@ -3,10 +3,9 @@
 # Replaced by LangGraph SqliteSaver in skill-runner.py v3.0.
 # See docs/architecture/architecture-lock.md for details.
 # Do NOT import or call this module from any new code.
-# Archived copy: docs/archive/checkpoint_utils_deprecated.py
-# This file will be deleted in a future cleanup commit.
+
 raise ImportError(
-    "checkpoint_utils.py is deprecated. "
+    "checkpoint_utils is DEPRECATED since Phase 7. "
     "Use LangGraph SqliteSaver via skill-runner.py instead. "
     "See docs/architecture/architecture-lock.md"
 )
