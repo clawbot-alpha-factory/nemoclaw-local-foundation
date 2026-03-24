@@ -281,6 +281,25 @@ def c5_complex_reasoning_routing():
         return FAIL, "Could not parse enforcer output"
 
 # ── Category 6 — Skill System ─────────────────────────────────────────────────
+def c6_graph_validation():
+    import json as _json
+    path = os.path.expanduser(
+        "~/nemoclaw-local-foundation/docs/architecture/langgraph-graph-validation-results.json"
+    )
+    if not os.path.exists(path):
+        return FAIL, "graph validation results not found — run skills/graph-validation/validate_graph.py"
+    with open(path) as f:
+        data = _json.load(f)
+    if not data.get("graph_ready", False):
+        passed = data.get("total_passed", 0)
+        total  = data.get("total_tests", 5)
+        return FAIL, f"graph not ready — {passed}/{total} patterns passed"
+    passed = data.get("total_passed", 0)
+    total  = data.get("total_tests", 5)
+    ts     = data.get("timestamp", "unknown")[:10]
+    return PASS, f"{passed}/{total} patterns confirmed — {ts}"
+
+
 def c6_skill_runner_exists():
     path = os.path.join(REPO, "skills/skill-runner.py")
     if not os.path.exists(path):
@@ -360,10 +379,11 @@ def main():
     check("Routing", 23, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
 
     print("\nCategory 6 — Skill System")
-    check("Skills", 24, "skill-runner.py exists",           c6_skill_runner_exists)
-    check("Skills", 25, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
-    check("Skills", 26, "research-brief/outputs/ writable", c6_outputs_dir)
-    check("Skills", 27, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
+    check("Skills", 24, "LangGraph graph patterns validated",  c6_graph_validation)
+    check("Skills", 25, "skill-runner.py exists",           c6_skill_runner_exists)
+    check("Skills", 26, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
+    check("Skills", 27, "research-brief/outputs/ writable", c6_outputs_dir)
+    check("Skills", 28, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")
