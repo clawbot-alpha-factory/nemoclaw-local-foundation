@@ -162,7 +162,6 @@ Full details: `docs/reference/script-reference.md`
 | [Skill System](docs/architecture/skill-system.md) | Skill creation, execution, resume, skill.yaml spec |
 | [Validation System](docs/architecture/validation-system.md) | All 31 checks documented |
 | [Graph Validation Report](docs/architecture/graph-validation-report.md) | Phase 9 LangGraph pattern test results |
-| [Sandbox Policy Design](docs/architecture/sandbox-policy-design.md) | OpenShell policy explanation (reference) |
 
 ### Reference
 

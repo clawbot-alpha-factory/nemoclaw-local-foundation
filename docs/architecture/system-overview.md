@@ -313,7 +313,6 @@ nemoclaw-local-foundation/
 │   │   ├── skill-system.md           # Skill system doc
 │   │   ├── validation-system.md      # Validation system doc
 │   │   ├── graph-validation-report.md
-│   │   ├── sandbox-policy-design.md
 │   │   ├── sandbox-policy.yaml       # OpenShell policy (reference)
 │   │   └── langgraph-graph-validation-results.json
 │   ├── reference/
@@ -379,7 +378,6 @@ bash scripts/fix-sandbox-permissions.sh
 | Skill creation, execution, resume | `docs/architecture/skill-system.md` |
 | 31-check validation breakdown | `docs/architecture/validation-system.md` |
 | Graph validation results | `docs/architecture/graph-validation-report.md` |
-| Sandbox policy explanation | `docs/architecture/sandbox-policy-design.md` |
 | Script usage reference | `docs/reference/script-reference.md` |
 | Config file reference | `docs/reference/config-reference.md` |
 | Planning vs reality drift | `docs/reference/design-decisions-log.md` |

@@ -401,11 +401,11 @@ Phase 9 validated 5 LangGraph graph patterns that skill-runner.py supports:
 
 | Pattern | Description | Status |
 |---|---|---|
-| Linear chain | Steps execute in sequence (step_1 → step_2 → ... → step_n) | Validated |
-| Conditional branching | Step routes to different next steps based on output | Validated |
-| Early exit | Skill terminates before the final step if a condition is met | Validated |
-| State accumulation | Each step adds to shared state without overwriting prior steps | Validated |
-| Checkpoint resume | Interrupted skill resumes from last checkpointed step | Validated |
+| Error branches | Error routes to handler node, state preserved | Validated |
+| Error branches | Error routes to handler node, state preserved | Validated |
+| Retry paths | Failed node retries configured times before succeeding or escalating | Validated |
+| Fallback paths | Primary path fails completely, fallback produces valid output | Validated |
+| Parallel nodes | Two independent nodes execute and merge outputs correctly | Validated |
 
 Test harness: `skills/graph-validation/validate_graph.py`
 Results: `docs/architecture/langgraph-graph-validation-results.json`
