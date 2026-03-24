@@ -74,14 +74,22 @@ def c1_docker_version():
     return PASS, ver
 
 def c1_python_version():
+    # Check .venv312 Python 3.12 exists — required for LangGraph workloads
+    venv_python = os.path.expanduser("~/nemoclaw-local-foundation/.venv312/bin/python")
+    if os.path.exists(venv_python):
+        out, _, rc = run(f"{venv_python} --version")
+        if rc == 0:
+            ver = out.replace("Python ", "")
+            parts = ver.split(".")
+            if int(parts[0]) == 3 and int(parts[1]) == 12:
+                return PASS, f".venv312 Python {ver} — LangGraph runtime ready"
+            return WARN, f".venv312 exists but Python {ver} — expected 3.12.x"
+    # Fallback: check system python3
     out, _, rc = run("python3 --version")
     if rc != 0:
-        return FAIL, "python3 not found"
+        return FAIL, "python3 not found and .venv312 missing — run setup"
     ver = out.replace("Python ", "")
-    parts = ver.split(".")
-    if int(parts[0]) < 3 or (int(parts[0]) == 3 and int(parts[1]) < 11):
-        return FAIL, f"Python {ver} — requires >= 3.11"
-    return PASS, ver
+    return WARN, f"System Python {ver} — .venv312 not found, LangGraph requires .venv312"
 
 def c1_openshell_path():
     out, _, rc = run("which openshell")
