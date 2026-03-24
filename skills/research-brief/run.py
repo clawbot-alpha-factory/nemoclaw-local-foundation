@@ -72,6 +72,25 @@ def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=1500):
     return response.content, None
 
 
+def call_google(messages, model="gemini-2.5-flash", max_tokens=1500):
+    """Direct Google API call via langchain-google-genai."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    env = load_env()
+    api_key = env.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY", ""))
+    if not api_key:
+        return None, "GOOGLE_API_KEY not found in config/.env"
+    llm = ChatGoogleGenerativeAI(model=model, google_api_key=api_key, max_tokens=max_tokens)
+    from langchain_core.messages import HumanMessage, SystemMessage
+    lc_messages = []
+    for m in messages:
+        if m["role"] == "system":
+            lc_messages.append(SystemMessage(content=m["content"]))
+        else:
+            lc_messages.append(HumanMessage(content=m["content"]))
+    response = llm.invoke(lc_messages)
+    return response.content, None
+
+
 def step_1_validate_and_plan(inputs, context):
     """Validate topic and create research plan."""
     topic = inputs.get("topic", "").strip()

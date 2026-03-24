@@ -177,6 +177,9 @@ def c3_openai_key():
 def c3_nvidia_key():
     return check_env_key("NVIDIA_INFERENCE_API_KEY")
 
+def c3_google_key():
+    return check_env_key("GOOGLE_API_KEY")
+
 # ── Category 4 — Budget System ────────────────────────────────────────────────
 def c4_spend_file_exists():
     path = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
@@ -210,6 +213,20 @@ def c4_openai_budget():
         return FAIL, f"OpenAI budget EXHAUSTED — ${spend:.3f} / $10.00"
     if pct >= 90:
         return WARN, f"OpenAI budget at {pct:.1f}% — ${spend:.3f} / $10.00"
+    return PASS, f"${spend:.3f} / $10.00 ({pct:.1f}%)"
+
+def c4_google_budget():
+    path = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
+    if not os.path.exists(path):
+        return FAIL, "provider-spend.json not found"
+    with open(path) as f:
+        data = json.load(f)
+    spend = data.get("google", {}).get("cumulative_spend_usd", 0)
+    pct = spend / 10.00 * 100
+    if pct >= 100:
+        return FAIL, f"Google budget EXHAUSTED — ${spend:.3f} / $10.00"
+    if pct >= 90:
+        return WARN, f"Google budget at {pct:.1f}% — ${spend:.3f} / $10.00"
     return PASS, f"${spend:.3f} / $10.00 ({pct:.1f}%)"
 
 def c4_usage_log():
@@ -328,23 +345,25 @@ def main():
     check("API Keys", 12, "ANTHROPIC_API_KEY present",      c3_anthropic_key)
     check("API Keys", 13, "OPENAI_API_KEY present",         c3_openai_key)
     check("API Keys", 14, "NVIDIA_INFERENCE_API_KEY present", c3_nvidia_key)
+    check("API Keys", 15, "GOOGLE_API_KEY present",           c3_google_key)
 
     print("\nCategory 4 — Budget System")
-    check("Budget", 15, "provider-spend.json exists",       c4_spend_file_exists)
-    check("Budget", 16, "Anthropic budget < 100%",          c4_anthropic_budget)
-    check("Budget", 17, "OpenAI budget < 100%",             c4_openai_budget)
-    check("Budget", 18, "provider-usage.jsonl writable",    c4_usage_log)
+    check("Budget", 16, "provider-spend.json exists",       c4_spend_file_exists)
+    check("Budget", 17, "Anthropic budget < 100%",          c4_anthropic_budget)
+    check("Budget", 18, "OpenAI budget < 100%",             c4_openai_budget)
+    check("Budget", 19, "Google budget < 100%",             c4_google_budget)
+    check("Budget", 20, "provider-usage.jsonl writable",    c4_usage_log)
 
     print("\nCategory 5 — Routing System")
-    check("Routing", 19, "budget-enforcer.py runs",         c5_enforcer_runs)
-    check("Routing", 20, "general_short → cheap_openai",    c5_general_short_routing)
-    check("Routing", 21, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
+    check("Routing", 21, "budget-enforcer.py runs",         c5_enforcer_runs)
+    check("Routing", 22, "general_short → cheap_openai",    c5_general_short_routing)
+    check("Routing", 23, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
 
     print("\nCategory 6 — Skill System")
-    check("Skills", 22, "skill-runner.py exists",           c6_skill_runner_exists)
-    check("Skills", 23, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
-    check("Skills", 24, "research-brief/outputs/ writable", c6_outputs_dir)
-    check("Skills", 25, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
+    check("Skills", 24, "skill-runner.py exists",           c6_skill_runner_exists)
+    check("Skills", 25, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
+    check("Skills", 26, "research-brief/outputs/ writable", c6_outputs_dir)
+    check("Skills", 27, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")

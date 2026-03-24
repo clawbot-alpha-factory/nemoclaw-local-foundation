@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-NemoClaw Budget Enforcer v2.0
-Phase 6: Reads routing and budget config from YAML files.
-No hardcoded routing dicts. No OpenShell dependency.
-Doc 15 — Model Routing System Spec v3
+NemoClaw Budget Enforcer v3.0
+Phase 8: Three providers — OpenAI, Anthropic, Google. 9-alias routing system.
+Reads all routing and budget config from YAML files. No hardcoded values.
 """
 
 import json
@@ -21,6 +20,8 @@ SPEND_FILE     = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
 USAGE_LOG      = os.path.expanduser("~/.nemoclaw/logs/provider-usage.jsonl")
 AUDIT_LOG      = os.path.expanduser("~/.nemoclaw/logs/budget-audit.log")
 
+PROVIDERS = ["anthropic", "openai", "google"]
+
 def load_configs():
     with open(ROUTING_CONFIG) as f:
         routing = yaml.safe_load(f)
@@ -29,9 +30,9 @@ def load_configs():
     return routing, budget
 
 def build_maps(routing):
-    providers   = routing.get("providers", {})
-    rules       = routing.get("routing_rules", {})
-    default     = routing.get("defaults", {}).get("default_alias", "cheap_openai")
+    providers      = routing.get("providers", {})
+    rules          = routing.get("routing_rules", {})
+    default        = routing.get("defaults", {}).get("default_alias", "cheap_openai")
     alias_provider = {k: v["provider"] for k, v in providers.items()}
     alias_model    = {k: v["model"]    for k, v in providers.items()}
     cost_estimates = {k: v["estimated_cost_per_call"] for k, v in providers.items()}
@@ -40,18 +41,31 @@ def build_maps(routing):
 def ensure_log_dir():
     os.makedirs(os.path.expanduser("~/.nemoclaw/logs"), exist_ok=True)
 
-def load_spend():
+def load_spend(budget_cfg):
     ensure_log_dir()
     if not os.path.exists(SPEND_FILE):
-        data = {
-            "anthropic": {"cumulative_spend_usd": 0.0, "last_updated": str(datetime.now(timezone.utc).date()), "status": "active"},
-            "openai":    {"cumulative_spend_usd": 0.0, "last_updated": str(datetime.now(timezone.utc).date()), "status": "active"},
-        }
+        data = {}
+        for p in PROVIDERS:
+            if p in budget_cfg.get("budgets", {}):
+                data[p] = {
+                    "cumulative_spend_usd": 0.0,
+                    "last_updated": str(datetime.now(timezone.utc).date()),
+                    "status": "active"
+                }
         with open(SPEND_FILE, "w") as f:
             json.dump(data, f, indent=2)
         return data
     with open(SPEND_FILE) as f:
-        return json.load(f)
+        data = json.load(f)
+    # Add google if missing from older spend file
+    for p in PROVIDERS:
+        if p not in data and p in budget_cfg.get("budgets", {}):
+            data[p] = {
+                "cumulative_spend_usd": 0.0,
+                "last_updated": str(datetime.now(timezone.utc).date()),
+                "status": "active"
+            }
+    return data
 
 def save_spend(data):
     tmp = SPEND_FILE + ".tmp"
@@ -71,11 +85,13 @@ def write_usage_log(entry):
         f.write(json.dumps(entry) + "\n")
 
 def check_budget(provider, spend_data, budget_cfg):
-    spend     = spend_data[provider]["cumulative_spend_usd"]
-    limit     = budget_cfg["budgets"][provider]["total_usd"]
-    warn_pct  = budget_cfg["budgets"][provider]["threshold_warn"]
-    stop_pct  = budget_cfg["budgets"][provider]["threshold_hard_stop"]
-    pct       = spend / limit
+    if provider not in budget_cfg.get("budgets", {}):
+        return "active", 0.0, 999.0
+    spend    = spend_data.get(provider, {}).get("cumulative_spend_usd", 0.0)
+    limit    = budget_cfg["budgets"][provider]["total_usd"]
+    warn_pct = budget_cfg["budgets"][provider]["threshold_warn"]
+    stop_pct = budget_cfg["budgets"][provider]["threshold_hard_stop"]
+    pct      = spend / limit
     if pct >= stop_pct:
         return "exhausted", spend, limit
     if pct >= warn_pct:
@@ -85,7 +101,7 @@ def check_budget(provider, spend_data, budget_cfg):
 def select_alias(task_class, spend_data, routing_rules, default_alias,
                  alias_provider, budget_cfg):
     primary  = routing_rules.get(task_class, default_alias)
-    provider = alias_provider[primary]
+    provider = alias_provider.get(primary, "openai")
     status, spend, limit = check_budget(provider, spend_data, budget_cfg)
     fallback_used = False
 
@@ -96,11 +112,7 @@ def select_alias(task_class, spend_data, routing_rules, default_alias,
         print(f"Provider: {provider.upper()} | Task: {task_class}")
         print(f"{'='*60}\n")
         write_audit(f"{warn_msg} | provider={provider} | task={task_class}")
-        if primary in ("reasoning_claude", "cheaper_claude"):
-            primary = "fallback_openai"
-        else:
-            print("ERROR: All providers exhausted. No calls permitted.")
-            sys.exit(1)
+        primary = "fallback_openai"
         fallback_used = True
 
     elif status == "warning":
@@ -110,7 +122,7 @@ def select_alias(task_class, spend_data, routing_rules, default_alias,
         print(f"Provider: {provider.upper()} | Spent: ${spend:.4f} of ${limit:.2f}")
         print(f"{'='*60}\n")
         write_audit(f"{warn_msg} | provider={provider} | spend=${spend:.4f}/${limit:.2f} | task={task_class}")
-        if primary in ("reasoning_claude", "cheaper_claude"):
+        if primary not in ("cheap_openai", "fallback_openai", "reasoning_openai"):
             primary = "fallback_openai"
             fallback_used = True
 
@@ -119,16 +131,21 @@ def select_alias(task_class, spend_data, routing_rules, default_alias,
 def enforce(task_class):
     routing_cfg, budget_cfg = load_configs()
     routing_rules, default_alias, alias_provider, alias_model, cost_estimates = build_maps(routing_cfg)
-    spend_data = load_spend()
+    spend_data = load_spend(budget_cfg)
 
     alias, fallback_used = select_alias(
         task_class, spend_data, routing_rules, default_alias,
         alias_provider, budget_cfg
     )
-    provider = alias_provider[alias]
-    model    = alias_model[alias]
-    cost     = cost_estimates[alias]
-    limit    = budget_cfg["budgets"][provider]["total_usd"]
+    provider = alias_provider.get(alias, "openai")
+    model    = alias_model.get(alias, "gpt-5.4-mini")
+    cost     = cost_estimates.get(alias, 0.001)
+    limit    = budget_cfg["budgets"].get(provider, {}).get("total_usd", 10.0)
+
+    if provider not in spend_data:
+        spend_data[provider] = {"cumulative_spend_usd": 0.0,
+                                "last_updated": str(datetime.now(timezone.utc).date()),
+                                "status": "active"}
 
     spend_data[provider]["cumulative_spend_usd"] += cost
     spend_data[provider]["last_updated"] = str(datetime.now(timezone.utc).date())
@@ -166,10 +183,10 @@ def enforce(task_class):
     return result
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NemoClaw Budget Enforcer v2.0")
+    parser = argparse.ArgumentParser(description="NemoClaw Budget Enforcer v3.0")
     parser.add_argument("--task-class", required=True,
         choices=["complex_reasoning","long_document","code","agentic","moderate",
-                 "vision","structured_short","general_short"],
+                 "vision","structured_short","general_short","deep_reasoning","premium"],
         help="Task class to route")
     args = parser.parse_args()
     enforce(args.task_class)

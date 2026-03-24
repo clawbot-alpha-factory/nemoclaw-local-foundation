@@ -1,22 +1,38 @@
-# NemoClaw Model Routing Config v2.0 - Updated March 23 2026
-# Phase 6: OpenShell bridge removed. Direct API calls via LangGraph.
-# Cost estimates at 2x real pricing for conservative tracking.
-# Real pricing: Anthropic $3/$15 Sonnet, $1/$5 Haiku; OpenAI $0.15/$0.60 mini, $2.50/$10 4o
+# NemoClaw Model Routing Config v3.0 - Updated 2026-03-24
+# Phase 8: Full 9-alias routing system across OpenAI, Anthropic, Google
+# Cost estimates at 2x real pricing for conservative tracking
+# OpenAI pricing: gpt-5.4 $1.75/$14, gpt-5.4-mini $0.15/$0.60, o3 $10/$40
+# Anthropic pricing: Sonnet $3/$15, Haiku $1/$5, Opus $5/$25
+# Google pricing: Gemini 2.5 Pro $1.25/$10, Gemini 2.5 Flash $0.15/$0.60
 
 providers:
   cheap_openai:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-5.4-mini
     max_tokens: 4096
-    estimated_cost_per_call: 0.0006
+    estimated_cost_per_call: 0.0004
     notes: Default path. Classification, structured output, short tasks.
 
-  cheaper_claude:
+  reasoning_openai:
+    provider: openai
+    model: gpt-5.4
+    max_tokens: 8096
+    estimated_cost_per_call: 0.010
+    notes: Heavy reasoning, coding, agentic tasks via OpenAI.
+
+  reasoning_o3:
+    provider: openai
+    model: o3
+    max_tokens: 8096
+    estimated_cost_per_call: 0.060
+    notes: Deep STEM reasoning, math, multi-step logic. Use sparingly — expensive.
+
+  cheap_claude:
     provider: anthropic
     model: claude-haiku-4-5-20251001
     max_tokens: 4096
     estimated_cost_per_call: 0.004
-    notes: Moderate complexity tasks. Cheaper than Sonnet, stronger than GPT-4o-mini.
+    notes: Moderate complexity tasks. Fast, cheap Claude.
 
   reasoning_claude:
     provider: anthropic
@@ -25,29 +41,45 @@ providers:
     estimated_cost_per_call: 0.012
     notes: Complex reasoning, long context, code, synthesis.
 
-  vision_openai:
-    provider: openai
-    model: gpt-4o
+  premium_claude:
+    provider: anthropic
+    model: claude-opus-4-6
+    max_tokens: 8096
+    estimated_cost_per_call: 0.030
+    notes: Highest quality Claude tasks. Use for critical outputs only.
+
+  cheap_google:
+    provider: google
+    model: gemini-2.5-flash
     max_tokens: 4096
+    estimated_cost_per_call: 0.0004
+    notes: Fast, cheap Google tasks. Strong multimodal and long context.
+
+  reasoning_google:
+    provider: google
+    model: gemini-2.5-pro-preview-03-25
+    max_tokens: 8096
     estimated_cost_per_call: 0.008
-    notes: Vision and image tasks only.
+    notes: Google flagship. Long context, complex reasoning, multimodal.
 
   fallback_openai:
     provider: openai
-    model: gpt-4o
+    model: gpt-5.4-mini
     max_tokens: 8096
-    estimated_cost_per_call: 0.008
-    notes: Fallback for Claude failures on complex tasks only.
+    estimated_cost_per_call: 0.0004
+    notes: Fallback for any provider failure. Always available.
 
 routing_rules:
-  complex_reasoning: reasoning_claude
-  long_document:     reasoning_claude
-  code:              reasoning_claude
-  agentic:           reasoning_claude
-  moderate:          cheaper_claude
-  vision:            vision_openai
-  structured_short:  cheap_openai
-  general_short:     cheap_openai
+  complex_reasoning:  reasoning_claude
+  long_document:      reasoning_google
+  code:               reasoning_openai
+  agentic:            reasoning_claude
+  moderate:           cheap_claude
+  vision:             cheap_google
+  structured_short:   cheap_openai
+  general_short:      cheap_openai
+  deep_reasoning:     reasoning_o3
+  premium:            premium_claude
 
 defaults:
   default_alias: cheap_openai
