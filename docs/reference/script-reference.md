@@ -216,7 +216,7 @@ bash scripts/fix-sandbox-permissions.sh
 
 ## skills/graph-validation/validate_graph.py
 
-**Purpose:** Phase 9 test harness that validates 5 LangGraph graph patterns: linear chain, conditional branching, early exit, state accumulation, and checkpoint resume.
+**Purpose:** Phase 9 test harness that validates 5 LangGraph graph patterns: conditional branching, error branches, retry paths, fallback paths, and parallel nodes.
 
 **Runtime:** `.venv312/bin/python` (requires LangGraph)
 
