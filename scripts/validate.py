@@ -281,6 +281,23 @@ def c5_complex_reasoning_routing():
         return FAIL, "Could not parse enforcer output"
 
 # ── Category 6 — Skill System ─────────────────────────────────────────────────
+def c3_asana_key():
+    return check_env_key("ASANA_ACCESS_TOKEN")
+
+def c3_asana_connection():
+    import sys
+    sys.path.insert(0, REPO + "/scripts")
+    try:
+        from tools import AsanaTool
+        asana = AsanaTool()
+        ok, detail = asana.validate_connection()
+        if ok:
+            return PASS, f"connected: {detail}"
+        return FAIL, f"connection failed: {detail}"
+    except Exception as e:
+        return FAIL, str(e)[:80]
+
+
 def c6_obs_script():
     path = os.path.join(REPO, "scripts/obs.py")
     if not os.path.exists(path):
@@ -376,26 +393,28 @@ def main():
     check("API Keys", 13, "OPENAI_API_KEY present",         c3_openai_key)
     check("API Keys", 14, "NVIDIA_INFERENCE_API_KEY present", c3_nvidia_key)
     check("API Keys", 15, "GOOGLE_API_KEY present",           c3_google_key)
+    check("API Keys", 16, "ASANA_ACCESS_TOKEN present",       c3_asana_key)
+    check("API Keys", 17, "Asana connection valid",           c3_asana_connection)
 
     print("\nCategory 4 — Budget System")
-    check("Budget", 16, "provider-spend.json exists",       c4_spend_file_exists)
-    check("Budget", 17, "Anthropic budget < 100%",          c4_anthropic_budget)
-    check("Budget", 18, "OpenAI budget < 100%",             c4_openai_budget)
-    check("Budget", 19, "Google budget < 100%",             c4_google_budget)
-    check("Budget", 20, "provider-usage.jsonl writable",    c4_usage_log)
+    check("Budget", 18, "provider-spend.json exists",       c4_spend_file_exists)
+    check("Budget", 19, "Anthropic budget < 100%",          c4_anthropic_budget)
+    check("Budget", 20, "OpenAI budget < 100%",             c4_openai_budget)
+    check("Budget", 21, "Google budget < 100%",             c4_google_budget)
+    check("Budget", 22, "provider-usage.jsonl writable",    c4_usage_log)
 
     print("\nCategory 5 — Routing System")
-    check("Routing", 21, "budget-enforcer.py runs",         c5_enforcer_runs)
-    check("Routing", 22, "general_short → cheap_openai",    c5_general_short_routing)
-    check("Routing", 23, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
+    check("Routing", 23, "budget-enforcer.py runs",         c5_enforcer_runs)
+    check("Routing", 24, "general_short → cheap_openai",    c5_general_short_routing)
+    check("Routing", 25, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
 
     print("\nCategory 6 — Skill System")
-    check("Skills", 24, "obs.py executes cleanly",              c6_obs_script)
-    check("Skills", 25, "LangGraph graph patterns validated",  c6_graph_validation)
-    check("Skills", 26, "skill-runner.py exists",           c6_skill_runner_exists)
-    check("Skills", 27, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
-    check("Skills", 28, "research-brief/outputs/ writable", c6_outputs_dir)
-    check("Skills", 29, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
+    check("Skills", 26, "obs.py executes cleanly",              c6_obs_script)
+    check("Skills", 27, "LangGraph graph patterns validated",  c6_graph_validation)
+    check("Skills", 28, "skill-runner.py exists",           c6_skill_runner_exists)
+    check("Skills", 29, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
+    check("Skills", 30, "research-brief/outputs/ writable", c6_outputs_dir)
+    check("Skills", 31, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")
