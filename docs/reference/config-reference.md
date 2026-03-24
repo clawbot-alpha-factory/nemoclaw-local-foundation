@@ -215,7 +215,7 @@ Three entries (one per provider), each with identical structure:
 
 **Committed:** Yes (reference only — not consumed by any script)
 
-**Full doc:** `docs/architecture/sandbox-policy-design.md`
+Note: sandbox-policy.yaml is a reference artifact from Phases 1-5. The sandbox is not part of the active architecture.
 
 **Note:** This policy is enforced by the OpenShell sandbox, which is retained but not required for skill execution. The direct API architecture bypasses the sandbox entirely. This file is kept as a reference for the governance model that was in place during Phases 1–5.
 
