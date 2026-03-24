@@ -1,193 +1,389 @@
-# Doc 14 — Startup and Failure Point Map
+# Startup and Failure Point Map
 
-**Version:** v2 — Updated March 22 2026
-**Phase:** Phase 2 Complete
-**Target:** MacBook, Apple Silicon, Docker Desktop
-
----
-
-## Startup Sequence
-
-A healthy NemoClaw startup follows this exact order.
-
-| Step | Requirement | Check Command |
-|---|---|---|
-| 1 | Docker Desktop running | docker info --format ServerVersion |
-| 2 | openshell in PATH | which openshell |
-| 3 | NemoClaw gateway healthy | nemoclaw nemoclaw-assistant status |
-| 4 | Sandbox ready | openshell sandbox list |
-| 5 | Inference provider active | openshell inference get |
-| 6 | Routing confirmed | nemoclaw nemoclaw-assistant logs --follow |
+> **Location:** `docs/troubleshooting/startup-and-failure-point-map.md`
+> **Version:** 3.0
+> **Date:** 2026-03-24
+> **Phase:** 12 — Documentation Consolidation
+> **Supersedes:** v2 (Phase 2 — NemoClaw/OpenShell-only failure points)
 
 ---
 
-## Quick Diagnostic Runbook
+## Purpose
+
+This document maps every known failure point in the NemoClaw local foundation, organized by the system layer where the failure occurs. It covers the current LangGraph + Direct API architecture and retains sandbox-specific failures as a reference section.
+
+For cold-start recovery procedures, see `docs/setup/restart-recovery-runbook.md`.
+
+---
+
+## Quick Diagnostic
 
 Run this first when something breaks:
 
-    docker info --format ServerVersion && which openshell && nemoclaw nemoclaw-assistant status && openshell inference get
+```bash
+python3 scripts/validate.py
+```
 
-| If you see | Go to |
-|---|---|
-| docker socket error | Failure Point 1 |
-| openshell not found | Failure Point 2 |
-| gateway not reachable | Failure Point 3 |
-| sandbox stopped | Failure Point 4 |
-| Python 3.9.6 | Failure Point 5 |
-| 403 inference error | Failure Point 6 |
-| 400 protocol mismatch | Failure Point 7 |
-| Wrong model in TUI | Failure Point 8 |
-| stale routes warning | Failure Point 9 |
-| nvcr.io auth error | Failure Point 10 |
-| model display wrong after restart | Maintenance Step 1 |
+If 31/31 passes, the system is healthy. If any check fails, find the failed check number below.
+
+For a broader status view:
+
+```bash
+python3 scripts/obs.py
+```
 
 ---
 
-## Failure Point 1 — Docker Desktop Not Running
+## Layer 1 — Environment Failures
 
-**Symptom:** failed to connect to the docker API at unix:///Users/core88/.docker/run/docker.sock
+### F1 — Docker Desktop Not Running
 
-**Cause:** Docker Desktop not running. Does not auto-start at login.
+**Symptom:** validate.py check [01] fails. `docker info` returns socket error.
 
-**Fix:** open -a Docker — wait 60 seconds then retry.
+**Cause:** Docker Desktop does not auto-start at login.
 
----
+**Fix:**
+```bash
+open -a Docker
+# Wait 60 seconds
+docker info --format "{{.ServerVersion}}"
+```
 
-## Failure Point 2 — openshell Not Found
+### F2 — Python Version Wrong
 
-**Symptom:** bash: openshell: command not found
+**Symptom:** validate.py check [03] fails. `python3 --version` shows unexpected version.
 
-**Cause:** New terminal session opened without sourcing ~/.zshrc.
+**Cause:** New terminal session without sourcing zshrc, or Homebrew updated system Python.
 
-**Fix:** source ~/.zshrc
+**Fix:**
+```bash
+source ~/.zshrc
+python3 --version
+# If still wrong, check: /opt/homebrew/bin/python3.12 --version
+```
 
----
+### F3 — .venv312 Missing or Corrupt
 
-## Failure Point 3 — NemoClaw Gateway Not Reachable
+**Symptom:** `.venv312/bin/python --version` fails or shows wrong version. Skill runs fail with import errors.
 
-**Symptom:** gateway not reachable / connection refused at https://127.0.0.1:8080
+**Cause:** Venv deleted, corrupted by OS update, or created with wrong Python.
 
-**Cause:** OpenShell gateway container not running.
+**Fix:**
+```bash
+rm -rf .venv312
+/opt/homebrew/bin/python3.12 -m venv .venv312
+.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+```
 
-**Fix:** nemoclaw start — wait 30 seconds then check: nemoclaw nemoclaw-assistant status
+### F4 — Node.js Missing
 
----
+**Symptom:** validate.py check [05] fails.
 
-## Failure Point 4 — Sandbox Not Running
-
-**Symptom:** sandbox nemoclaw-assistant not found / sandbox stopped
-
-**Fix:** openshell sandbox list — then: nemoclaw nemoclaw-assistant connect
-If missing entirely: nemoclaw onboard
-
----
-
-## Failure Point 5 — Python Reverts to 3.9.6
-
-**Symptom:** python3 --version shows Python 3.9.6
-
-**Cause:** New terminal without sourcing ~/.zshrc.
-
-**Fix:** source ~/.zshrc && python3 --version — expected: Python 3.14.3
-
----
-
-## Failure Point 6 — Inference 403 Error
-
-**Symptom:** run error: 403 status code (no body)
-
-**Cause:** OpenShell network policy blocking inference request.
-
-**Fix:** openshell inference get — confirm provider is openai.
-If not: openshell inference set --provider openai --model gpt-4o-mini
+**Fix:** `brew install node`
 
 ---
 
-## Failure Point 7 — Inference 400 Protocol Mismatch
+## Layer 2 — API Key Failures
 
-**Symptom:** run error: 400 "no compatible route for source protocol openai_chat_completions"
+### F5 — Environment Variables Not Loaded
 
-**Cause:** Known alpha limitation. OpenShell 0.0.13 has no openai to anthropic protocol translation.
+**Symptom:** validate.py checks [11]–[16] fail. Scripts report missing keys.
 
-**Status:** Documented. Phase 4 migration path defined. Use OpenAI path as default.
+**Cause:** `config/.env` not sourced in current terminal session.
+
+**Fix:**
+```bash
+set -a && source config/.env && set +a
+```
+
+**Prevention:** Add this to your cold-start routine. See restart-recovery-runbook.md Section 1.4.
+
+### F6 — API Key Invalid or Expired
+
+**Symptom:** validate.py key presence checks pass but skill runs fail with 401/403 errors. Asana check [17] may fail specifically.
+
+**Cause:** Key was revoked, expired, or copied incorrectly.
+
+**Fix:** Regenerate the key from the provider's dashboard and update `config/.env`. See `docs/reference/config-reference.md` for the source URL of each key.
+
+### F7 — .env File Missing
+
+**Symptom:** All key checks fail. `cat config/.env` shows file not found.
+
+**Cause:** File deleted, or repo cloned without running setup.
+
+**Fix:**
+```bash
+cp config/.env.example config/.env
+# Edit and add all 6 keys
+```
 
 ---
 
-## Failure Point 8 — Agent Shows Wrong Model Identity
+## Layer 3 — Routing Failures
 
-**Symptom:** TUI shows inference/nvidia/nemotron-3-super-120b-a12b despite model switch.
+### F8 — Routing Config Syntax Error
 
-**Cause:** openclaw.json owned by root inside sandbox. Resets on pod recreation.
+**Symptom:** validate.py check [23] fails. budget-enforcer.py crashes with YAML parse error.
 
-**Status:** Cosmetic only. Routing confirmed correct via logs. See Maintenance Step 1 below.
+**Cause:** Invalid YAML in `config/routing/routing-config.yaml`.
+
+**Fix:** Check YAML syntax. Common issues: wrong indentation, missing colon, tab characters.
+```bash
+python3 -c "import yaml; yaml.safe_load(open('config/routing/routing-config.yaml')); print('OK')"
+```
+
+### F9 — Task Class Not Found in Routing Rules
+
+**Symptom:** Skill step fails with "unknown task class" error.
+
+**Cause:** skill.yaml references a task_class that doesn't exist in routing_rules.
+
+**Fix:** Add the missing task class to `routing_rules:` in `config/routing/routing-config.yaml`, or correct the task_class in the skill.yaml step.
+
+### F10 — Wrong Model Routed
+
+**Symptom:** Skill runs but uses unexpected model. Budget logs show wrong alias.
+
+**Cause:** routing_rules maps the task class to a different alias than intended.
+
+**Fix:** Check `config/routing/routing-config.yaml` routing_rules section. Verify the task class → alias → model chain.
 
 ---
 
-## Failure Point 9 — Sandbox Inference Cache Stale
+## Layer 4 — Budget Failures
 
-**Symptom:** Failed to refresh inference route cache — configured provider not found
+### F11 — Provider Budget Exhausted
 
-**Cause:** Sandbox holds stale reference to a deleted provider. Cache refreshes every 5 seconds.
+**Symptom:** validate.py checks [19]–[21] fail. Skill steps route to fallback_openai unexpectedly. budget-audit.log shows EXHAUSTED event.
 
-**Fix:** openshell inference get — confirm correct provider. Cache clears within 30 seconds.
+**Cause:** Cumulative spend reached $10 for that provider.
+
+**Fix:** Reset the provider's spend:
+```bash
+# View current spend
+python3 scripts/budget-status.py
+
+# Reset all providers
+echo '{"anthropic": 0, "openai": 0, "google": 0}' > ~/.nemoclaw/logs/provider-spend.json
+```
+
+### F12 — provider-spend.json Missing or Corrupt
+
+**Symptom:** validate.py check [18] fails. Budget enforcer creates a fresh file on next run.
+
+**Cause:** File deleted, or hard shutdown during write corrupted it.
+
+**Fix:** Delete the corrupt file. Budget enforcer recreates it. Previous spend data is lost but can be reconstructed from `provider-usage.jsonl`:
+```bash
+rm ~/.nemoclaw/logs/provider-spend.json
+python3 scripts/budget-enforcer.py --task-class general_short
+# Fresh spend file created
+```
+
+### F13 — Usage Log Not Writable
+
+**Symptom:** validate.py check [22] fails.
+
+**Cause:** Directory permissions or disk full.
+
+**Fix:**
+```bash
+mkdir -p ~/.nemoclaw/logs
+touch ~/.nemoclaw/logs/provider-usage.jsonl
+```
 
 ---
 
-## Failure Point 10 — NGC Authentication Failed
+## Layer 5 — Skill Execution Failures
 
-**Symptom:** unauthorized: authentication required / error pulling image from nvcr.io
+### F14 — skill.yaml Parse Error
 
-**Fix:** grep NGC_API_KEY ~/nemoclaw-local-foundation/config/.env | cut -d= -f2 | docker login nvcr.io --username $oauthtoken --password-stdin
+**Symptom:** validate.py check [29] fails. skill-runner.py crashes on startup.
+
+**Cause:** Invalid YAML syntax in the skill definition.
+
+**Fix:**
+```bash
+python3 -c "import yaml; yaml.safe_load(open('skills/research-brief/skill.yaml')); print('OK')"
+```
+
+### F15 — Skill Output Directory Not Writable
+
+**Symptom:** validate.py check [30] fails. Skill completes steps 1–4 but fails on step 5 (artifact write).
+
+**Fix:**
+```bash
+mkdir -p skills/research-brief/outputs
+```
+
+### F16 — Checkpoint Database Missing
+
+**Symptom:** validate.py check [31] fails. Resume (`--resume`) fails.
+
+**Cause:** Database file deleted or never created.
+
+**Fix:** Run any skill once to create it:
+```bash
+.venv312/bin/python skills/skill-runner.py \
+  --skill research-brief \
+  --input topic "checkpoint test" \
+  --input depth brief
+```
+
+Or create the directory:
+```bash
+mkdir -p ~/.nemoclaw/checkpoints
+```
+
+### F17 — Skill Hangs During API Call
+
+**Symptom:** Skill progress stops at a step. No output for 60+ seconds.
+
+**Cause:** API timeout, network issue, or provider outage.
+
+**Fix:** Ctrl+C to interrupt. Check network connectivity. Check provider status pages. Retry the skill. If the step was checkpointed before the hang, use `--resume`.
+
+### F18 — LangGraph Import Error
+
+**Symptom:** skill-runner.py crashes with `ModuleNotFoundError: No module named 'langgraph'`.
+
+**Cause:** Running with system python3 instead of .venv312, or venv packages not installed.
+
+**Fix:** Use the correct Python:
+```bash
+~/nemoclaw-local-foundation/.venv312/bin/python skills/skill-runner.py --skill ...
+```
+
+If packages are missing, reinstall:
+```bash
+.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+```
 
 ---
 
-## Known Maintenance Step 1 — openclaw.json Ownership Reset
+## Layer 6 — Observability Failures
 
-### Issue
+### F19 — obs.py Fails
 
-After every sandbox restart or pod recreation, OpenShell resets /sandbox/.openclaw/openclaw.json to root ownership with read-only permissions. This prevents OpenClaw from writing model defaults, causing the agent to display the wrong model identity in the TUI.
+**Symptom:** validate.py check [26] fails. obs.py crashes with an error.
 
-### Why It Happens
+**Cause:** Missing log files, corrupt spend JSON, or script syntax error after modification.
 
-OpenShell manages the sandbox as a Kubernetes pod inside the Docker Desktop cluster. When the pod is recreated, the file is restored from the container image with root ownership. The sandbox user cannot write to root-owned files.
+**Fix:** Check each data source obs.py reads:
+```bash
+# Spend file
+python3 -c "import json; json.load(open('$HOME/.nemoclaw/logs/provider-spend.json')); print('OK')"
 
-### When This Must Be Reapplied
+# Usage log
+test -f ~/.nemoclaw/logs/provider-usage.jsonl && echo "OK" || echo "MISSING"
 
-Reapply this fix after:
-- Any sandbox restart
-- Any Mac restart that causes the sandbox pod to recreate
-- Any nemoclaw onboard run that recreates the sandbox
-- Any OpenShell or NemoClaw upgrade
+# Validation history
+test -f ~/.nemoclaw/logs/validation-runs.jsonl && echo "OK" || echo "MISSING"
+```
 
-### Exact Fix
+### F20 — Graph Validation Fails
 
-Step 1 — Get the cluster container ID:
+**Symptom:** validate.py check [27] fails.
 
-    docker ps --format "table {{.Names}}\t{{.ID}}" | grep openshell-cluster
+**Cause:** LangGraph upgrade broke a graph pattern, or validate_graph.py was modified incorrectly.
 
-Note the container ID.
+**Fix:**
+```bash
+~/nemoclaw-local-foundation/.venv312/bin/python \
+  ~/nemoclaw-local-foundation/skills/graph-validation/validate_graph.py
+```
 
-Step 2 — Fix ownership via kubectl as root (replace CONTAINER_ID):
+Check which pattern failed. If LangGraph was upgraded, check release notes for breaking changes.
 
-    docker exec -it CONTAINER_ID kubectl exec -n openshell nemoclaw-assistant -- chmod 644 /sandbox/.openclaw/openclaw.json
-    docker exec -it CONTAINER_ID kubectl exec -n openshell nemoclaw-assistant -- chown sandbox:sandbox /sandbox/.openclaw/openclaw.json
+---
 
-Step 3 — Verify:
+## Layer 7 — Sandbox Failures (Reference Only)
 
-    docker exec -it CONTAINER_ID kubectl exec -n openshell nemoclaw-assistant -- ls -la /sandbox/.openclaw/openclaw.json
+These failures apply only when the NemoClaw/OpenShell sandbox is running. The sandbox is not required for skill execution.
 
-Expected: -rw-r--r-- 1 sandbox sandbox
+### F21 — Gateway Not Reachable
 
-Step 4 — Set default model inside sandbox:
+**Symptom:** validate.py check [06] fails. Connection refused at https://127.0.0.1:8080.
 
-    nemoclaw nemoclaw-assistant connect
-    openclaw models set inference/openai/gpt-4o-mini
-    exit
+**Fix:**
+```bash
+nemoclaw start
+# Wait 30 seconds
+nemoclaw nemoclaw-assistant status
+```
 
-### Convenience Script
+### F22 — Sandbox Not Running
 
-Run scripts/fix-sandbox-permissions.sh — located in the repo scripts directory.
+**Symptom:** validate.py check [07] fails.
 
-### Status
+**Fix:**
+```bash
+nemoclaw nemoclaw-assistant connect
+# If missing entirely:
+nemoclaw onboard
+```
 
-Known limitation of OpenShell 0.0.13. Should be fixed upstream when OpenShell supports persistent sandbox user file ownership.
+### F23 — openclaw.json Permission Reset
+
+**Symptom:** validate.py check [10] fails. Agent shows wrong model in TUI.
+
+**Cause:** After sandbox restart, OpenShell resets file to root ownership.
+
+**Fix:**
+```bash
+bash scripts/fix-sandbox-permissions.sh
+```
+
+This must be reapplied after every sandbox restart, Mac restart, or `nemoclaw onboard`.
+
+### F24 — openshell Not in PATH
+
+**Symptom:** validate.py check [04] fails. `which openshell` returns nothing.
+
+**Fix:** `source ~/.zshrc`
+
+### F25 — NGC Authentication Failed
+
+**Symptom:** Docker pull from nvcr.io fails with authentication error.
+
+**Fix:**
+```bash
+grep NGC_API_KEY ~/nemoclaw-local-foundation/config/.env | cut -d= -f2 | docker login nvcr.io --username \$oauthtoken --password-stdin
+```
+
+---
+
+## Failure Quick Reference
+
+| # | Failure | Layer | Severity | Fix Summary |
+|---|---|---|---|---|
+| F1 | Docker not running | Environment | Blocking | `open -a Docker` |
+| F2 | Python version wrong | Environment | Blocking | `source ~/.zshrc` |
+| F3 | .venv312 missing | Environment | Blocking | Recreate venv |
+| F4 | Node.js missing | Environment | Warning | `brew install node` |
+| F5 | Env vars not loaded | API Keys | Blocking | Source config/.env |
+| F6 | API key invalid | API Keys | Blocking | Regenerate from provider |
+| F7 | .env file missing | API Keys | Blocking | Copy from .env.example |
+| F8 | Routing config syntax | Routing | Blocking | Fix YAML |
+| F9 | Unknown task class | Routing | Blocking | Add to routing_rules |
+| F10 | Wrong model routed | Routing | Degraded | Check routing_rules |
+| F11 | Budget exhausted | Budget | Degraded | Reset spend file |
+| F12 | Spend file corrupt | Budget | Warning | Delete, let recreate |
+| F13 | Usage log not writable | Budget | Warning | Fix permissions |
+| F14 | skill.yaml parse error | Skills | Blocking | Fix YAML |
+| F15 | Output dir not writable | Skills | Blocking | mkdir outputs |
+| F16 | Checkpoint DB missing | Skills | Warning | Run any skill once |
+| F17 | Skill hangs on API | Skills | Recoverable | Ctrl+C, retry |
+| F18 | LangGraph import error | Skills | Blocking | Use .venv312 python |
+| F19 | obs.py fails | Observability | Warning | Check data sources |
+| F20 | Graph validation fails | Observability | Warning | Check LangGraph version |
+| F21–F25 | Sandbox failures | Sandbox (ref) | Non-blocking | See sandbox section |
+
+**Severity levels:**
+
+- **Blocking:** Must fix before running skills
+- **Degraded:** System works but at reduced quality (e.g., fallback model)
+- **Warning:** Non-critical — system functions but with a gap
+- **Recoverable:** Fix mid-session without restart
+- **Non-blocking:** Sandbox-only, does not affect skill execution
