@@ -283,7 +283,7 @@ Skill complete — thread ID printed for resume reference
 ```
 nemoclaw-local-foundation/
 ├── README.md
-├── openclaw.json
+├── openclaw.json/              # Directory containing openclaw.json and .bak
 ├── config/
 │   ├── .env                          # API keys (gitignored)
 │   ├── .env.example                  # Placeholder template
