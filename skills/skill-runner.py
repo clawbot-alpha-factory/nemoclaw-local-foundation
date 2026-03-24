@@ -155,10 +155,12 @@ def make_node(skill, skill_dir, step):
                 }
 
         # Budget enforcement
-        if step_id != "step_5":
+        if step.get("makes_llm_call", False):
             try:
                 budget = call_budget_enforcer(task_class)
                 context["last_budget"] = budget
+                context["resolved_model"] = budget.get("model", "")
+                context["resolved_provider"] = budget.get("provider", "")
             except RuntimeError as e:
                 return {"status": "failed", "error": str(e), "completed_steps": []}
 

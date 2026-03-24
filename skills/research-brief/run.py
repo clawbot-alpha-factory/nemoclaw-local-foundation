@@ -26,7 +26,7 @@ def load_env():
     return keys
 
 
-def call_openai(messages, model="gpt-4o-mini", max_tokens=1500):
+def call_openai(messages, model="gpt-5.4-mini", max_tokens=1500):
     """Direct OpenAI API call via langchain-openai."""
     from langchain_openai import ChatOpenAI
     env = load_env()
@@ -136,10 +136,20 @@ Be specific and direct. Use concrete facts where possible. Be clear about what i
 Format each section with a clear markdown header."""}
     ]
 
-    content, error = call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=6000)
+    # Use model resolved by routing system — respect budget enforcer decisions including fallbacks
+    resolved_model = context.get("resolved_model", "")
+    resolved_provider = context.get("resolved_provider", "anthropic")
+
+    if resolved_provider == "google":
+        content, error = call_google(messages, model=resolved_model or "gemini-2.5-flash", max_tokens=6000)
+    elif resolved_provider == "openai" or resolved_provider not in ("anthropic", "google"):
+        content, error = call_openai(messages, model=resolved_model or "gpt-5.4-mini", max_tokens=6000)
+    else:
+        content, error = call_anthropic(messages, model=resolved_model or "claude-sonnet-4-6", max_tokens=6000)
+
     if error:
-        # Fallback to OpenAI if Anthropic fails
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+        # Fallback to OpenAI if primary provider fails
+        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=6000)
     if error:
         return None, error
 

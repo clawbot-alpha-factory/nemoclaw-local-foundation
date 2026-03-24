@@ -53,6 +53,7 @@ steps:
   - id: step_1
     name: Validate input and plan research
     task_class: general_short
+    makes_llm_call: false
     description: Validate topic input and create a research plan with subtopics
     input_source: inputs.topic
     output_key: research_plan
@@ -68,6 +69,7 @@ steps:
   - id: step_2
     name: Research topic
     task_class: complex_reasoning
+    makes_llm_call: true
     description: Deep research on the topic using reasoning model
     input_source: step_1.output.research_plan
     output_key: raw_research
@@ -83,6 +85,7 @@ steps:
   - id: step_3
     name: Structure findings into brief
     task_class: moderate
+    makes_llm_call: false
     description: Structure raw research into Background, Key Findings, Open Questions, Recommendations
     input_source: step_2.output.raw_research
     output_key: structured_brief
@@ -98,6 +101,7 @@ steps:
   - id: step_4
     name: Validate output
     task_class: general_short
+    makes_llm_call: false
     description: Confirm brief meets minimum quality and length requirements
     input_source: step_3.output.structured_brief
     output_key: validated_brief
@@ -113,6 +117,7 @@ steps:
   - id: step_5
     name: Write artifact to output
     task_class: general_short
+    makes_llm_call: false
     description: Write validated brief to markdown file in outputs directory
     input_source: step_4.output.validated_brief
     output_key: brief_file
