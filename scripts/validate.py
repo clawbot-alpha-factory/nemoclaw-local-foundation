@@ -281,6 +281,17 @@ def c5_complex_reasoning_routing():
         return FAIL, "Could not parse enforcer output"
 
 # ── Category 6 — Skill System ─────────────────────────────────────────────────
+def c6_obs_script():
+    path = os.path.join(REPO, "scripts/obs.py")
+    if not os.path.exists(path):
+        return FAIL, "obs.py not found"
+    import subprocess
+    r = subprocess.run(["python3", path], capture_output=True, text=True, timeout=10)
+    if r.returncode != 0:
+        return FAIL, f"obs.py failed: {r.stderr[:80]}"
+    return PASS, "obs.py executes cleanly"
+
+
 def c6_graph_validation():
     import json as _json
     path = os.path.expanduser(
@@ -379,11 +390,12 @@ def main():
     check("Routing", 23, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
 
     print("\nCategory 6 — Skill System")
-    check("Skills", 24, "LangGraph graph patterns validated",  c6_graph_validation)
-    check("Skills", 25, "skill-runner.py exists",           c6_skill_runner_exists)
-    check("Skills", 26, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
-    check("Skills", 27, "research-brief/outputs/ writable", c6_outputs_dir)
-    check("Skills", 28, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
+    check("Skills", 24, "obs.py executes cleanly",              c6_obs_script)
+    check("Skills", 25, "LangGraph graph patterns validated",  c6_graph_validation)
+    check("Skills", 26, "skill-runner.py exists",           c6_skill_runner_exists)
+    check("Skills", 27, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
+    check("Skills", 28, "research-brief/outputs/ writable", c6_outputs_dir)
+    check("Skills", 29, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")
