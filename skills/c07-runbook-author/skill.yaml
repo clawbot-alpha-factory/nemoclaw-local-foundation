@@ -1,0 +1,320 @@
+name: c07-runbook-author
+version: 1.0.0
+display_name: "Runbook Author"
+description: >
+  Takes a system description, operational procedures to cover, and failure
+  scenarios, produces a structured operational runbook with numbered procedures,
+  decision trees for recovery/incident procedures, verification checkpoints
+  per procedure, rollback instructions for recovery/modification procedures,
+  and a quick reference card with time estimates. Works only from provided
+  input — no external knowledge.
+author: Core88
+created: 2026-03-26
+
+family: F07
+domain: C
+tag: dual-use
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a senior operations engineer who writes precise, testable operational
+  runbooks. Every procedure you write includes actionable steps with verification
+  checkpoints. Recovery and incident procedures always include decision trees with
+  real branching logic (multiple distinct paths). Modification and recovery procedures
+  always include rollback instructions. You never leave operational ambiguity —
+  every "check logs" specifies which logs, every "investigate" specifies what to
+  look for. You adapt structure and detail to the target audience.
+
+inputs:
+  - name: system_description
+    type: string
+    required: true
+    description: "What system the runbook covers, its components and operational context"
+    validation:
+      min_length: 30
+      max_length: 20000
+
+  - name: procedures
+    type: string
+    required: true
+    description: "Comma-separated list of procedures to document (e.g., cold start, health check, budget reset, incident response)"
+    validation:
+      min_length: 5
+      max_length: 5000
+
+  - name: failure_scenarios
+    type: string
+    required: false
+    default: ""
+    description: "Known failure modes the runbook should address"
+    validation:
+      max_length: 10000
+
+  - name: audience
+    type: string
+    required: false
+    default: operator
+    description: "Who uses this runbook. operator: step-by-step, heavy verification. developer: concise, assumes stack familiarity. on-call: triage-first, decision trees prioritized, escalation paths required."
+    validation:
+      allowed_values: [operator, developer, on-call]
+
+outputs:
+  - name: result
+    type: string
+    description: "The complete operational runbook in markdown"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/c07-runbook-author/outputs/
+  filename_pattern: "c07-runbook-author_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "c07-runbook-author_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse system context and classify procedures"
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate inputs, parse comma-separated procedure list, classify each
+      procedure as startup, verification, recovery, maintenance, or incident.
+      Recovery and incident procedures are flagged as requiring decision trees
+      and rollback. Build structured generation plan.
+    input_source: inputs.system_description
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input parsing failed — system_description too short or procedures list invalid"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Generate operational runbook with decision trees and checkpoints"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Core generation: produce full markdown runbook. Every procedure gets a
+      section with actionable steps and verification checkpoints. Recovery and
+      incident procedures get decision trees with real branching. Recovery and
+      modification procedures get rollback instructions. Quick reference card
+      with time estimates per procedure. On-call audience gets escalation paths.
+    input_source: step_1.output
+    output_key: generated_runbook
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_runbook"
+          op: "not_empty"
+          right: true
+        - left: "generated_runbook.length"
+          op: ">="
+          right: 500
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Runbook generation failed after 2 retries"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Evaluate runbook completeness and decision tree quality"
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two layers. Deterministic: every input procedure has section with
+      actionable steps and verification checkpoint, recovery/incident
+      procedures have real decision trees (branching detection), recovery/
+      modification procedures have rollback or explicit no-rollback, quick
+      reference card exists, troubleshooting 3+ scenarios, banned phrases,
+      on-call escalation if applicable. LLM: decision tree logic, procedure
+      ordering, audience fit.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output.quality_score"
+          op: "not_empty"
+          right: true
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Critic failed — skipping improvement, using current output"
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 8
+          go_to: step_5
+          reason: "Score meets acceptance threshold"
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Max improvement attempts reached"
+
+  - id: step_4
+    name: "Strengthen runbook based on critic feedback"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Fix missing procedures, add decision trees with real branching to
+      recovery/incident procedures, add rollback instructions, strengthen
+      verification checkpoints. Loops back to step_3.
+    input_source: step_3.output
+    output_key: improved_runbook
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_runbook"
+          op: "not_empty"
+          right: true
+        - left: "improved_runbook.length"
+          op: ">="
+          right: 500
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Improvement failed — using previous best output"
+    transition:
+      default: step_3
+
+  - id: step_5
+    name: "Validate final runbook and write artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Full deterministic gate: procedure coverage with actionable steps,
+      verification checkpoints per procedure, decision trees for recovery/
+      incident, rollback for recovery/modification, quick reference card,
+      troubleshooting count, banned phrases. Hard-fail on critical violations.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Final runbook validation or artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: generated_runbook
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_runbook
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_runbook
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 8
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1500
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.15
+
+  declarative_guarantees:
+    - "Every input procedure has a dedicated section with actionable steps"
+    - "Every procedure section has at least one verification checkpoint"
+    - "Recovery and incident procedures include decision trees with real branching (multiple paths)"
+    - "Recovery and modification procedures include rollback instructions or explicit no-rollback statement"
+    - "Quick reference card summarizes all procedures with estimated completion time"
+    - "On-call audience gets escalation paths with who/when to escalate"
+    - "No fabricated commands or paths not derivable from the input"
+    - "No vague operational language (check logs without specifying which, investigate further without specifying what)"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    All steps are safe — no external writes beyond local artifacts.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: "operational_runbook"
+  can_feed_into:
+    - "a01-arch-spec-writer"
+  accepts_input_from:
+    - "c07-setup-guide-writer"
