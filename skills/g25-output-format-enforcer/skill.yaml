@@ -1,0 +1,265 @@
+name: g25-output-format-enforcer
+version: 1.0.0
+display_name: "Output Format Enforcer"
+description: >
+  Takes LLM output with format violations (fences, preamble, postamble, wrong
+  structure) and transforms it into the exact target format. Deterministic fixes
+  applied first; LLM reformat only when structural change is needed. Reusable
+  post-processor for any skill.
+author: Core88
+created: 2026-03-26
+
+family: F25
+domain: G
+tag: internal
+skill_type: transformer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a precise output format enforcer. Your only job is to restructure
+  text into the exact target format while preserving all factual tokens and
+  semantic content. You never add commentary, explanation, or new content.
+
+inputs:
+  - name: input_text
+    type: string
+    required: true
+    description: "The raw LLM output to be format-enforced"
+    validation:
+      min_length: 1
+      max_length: 100000
+
+  - name: target_format
+    type: string
+    required: true
+    description: "Expected output format"
+    validation:
+      allowed_values: [json, yaml, markdown, prose, csv]
+
+  - name: format_spec
+    type: string
+    required: false
+    default: ""
+    description: >
+      JSON object defining specific format requirements. Schema:
+      {"required_keys": [...], "required_sections": [...], "max_length": N,
+       "min_length": N, "column_headers": [...]}
+    validation:
+      max_length: 5000
+
+  - name: strip_preamble
+    type: boolean
+    required: false
+    default: true
+    description: "Remove preamble like 'Here is...' or 'Sure, here is...'"
+
+  - name: strip_postamble
+    type: boolean
+    required: false
+    default: true
+    description: "Remove trailing explanations after the main content"
+
+  - name: strip_fences
+    type: boolean
+    required: false
+    default: true
+    description: "Remove markdown code fences wrapping the content"
+
+  - name: preserve_content
+    type: boolean
+    required: false
+    default: true
+    description: >
+      Preserve all factual tokens (numbers, identifiers, URLs, emails)
+      and all semantic content. Deterministically enforced in step_3.
+
+outputs:
+  - name: result
+    type: string
+    description: "The format-enforced text"
+  - name: result_file
+    type: file_path
+    description: "Path to the artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/g25-output-format-enforcer/outputs/
+  filename_pattern: "g25-output-format-enforcer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "g25-output-format-enforcer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Detect format violations and classify repair needs"
+    step_type: local
+    task_class: general_short
+    description: >
+      Parse input and format_spec. Detect violations: fences, preamble,
+      postamble, format mismatch, double formatting. Parse and validate
+      format_spec JSON schema. Classify: deterministic fix vs LLM reformat.
+    input_source: inputs.input_text
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input analysis or format_spec validation failed"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Apply deterministic fixes and LLM reformat if needed"
+    step_type: local
+    task_class: general_short
+    description: >
+      Apply deterministic fixes (strip fences, preamble, postamble) locally.
+      If structural reformat is needed, call LLM internally. If only
+      deterministic fixes needed, no LLM call is made.
+    input_source: step_1.output
+    output_key: enforced_text
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "enforced_text"
+          op: "not_empty"
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: "Format enforcement failed"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Validate output format and content preservation"
+    step_type: local
+    task_class: general_short
+    description: >
+      Deterministic validation: format compliance (JSON parse, YAML parse,
+      section headers, CSV rows), format_spec requirements, and content
+      preservation check (factual tokens present in output).
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Format or content preservation validation failed"
+    transition:
+      default: step_4
+
+  - id: step_4
+    name: "Write validated output artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Write format-enforced output as artifact. Hard-fail if step_3
+      found validation issues.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: enforced_text
+      from_step: step_2
+      score_from: step_3_output.format_valid
+  fallback: enforced_text
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1
+      max_length: 100000
+      min_quality_score: 0
+    sla:
+      max_execution_seconds: 30
+      max_cost_usd: 0.03
+
+  declarative_guarantees:
+    - "Output matches the target_format exactly"
+    - "All factual tokens (numbers, URLs, emails, identifiers) preserved if preserve_content is true"
+    - "No preamble, postamble, or fences remain if strip options are true"
+    - "JSON output is valid parseable JSON"
+    - "YAML output is valid parseable YAML"
+    - "format_spec requirements are met if provided"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    All steps are safe — no external writes beyond local artifacts.
+    Step 2 may call LLM internally for structural reformat but is
+    declared as local because it conditionally decides whether to call.
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "format_enforced_text"
+  can_feed_into: []
+  accepts_input_from: []

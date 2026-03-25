@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "skill_id": "g25-output-format-enforcer",
+  "skill_version": "1.0.0",
+  "skill_type": "transformer",
+  "thread_id": "skill-g25-output-format-enforcer-20260325-220103-127b5c03",
+  "timestamp": "2026-03-25T22:01:03.643801+00:00",
+  "status": "complete",
+  "error": null,
+  "inputs": {
+    "input_text": "Here is the JSON you requested:\n```json\n{\"name\": \"Acme Corp\", \"revenue\": \"$4.2M\", \"growth\": \"23.4%\", \"contact\": \"sales@acme.com\"}\n```\nHope this helps! Let me know if you need anything else.",
+    "target_format": "json",
+    "format_spec": "{\"required_keys\": [\"name\", \"revenue\"]}",
+    "preserve_content": "true",
+    "strip_preamble": true,
+    "strip_postamble": true,
+    "strip_fences": true
+  },
+  "outputs": {
+    "primary": "{\"name\": \"Acme Corp\", \"revenue\": \"$4.2M\", \"growth\": \"23.4%\", \"contact\": \"sales@acme.com\"}",
+    "sections": {},
+    "artifact_path": "/Users/core88/nemoclaw-local-foundation/skills/g25-output-format-enforcer/outputs/g25-output-format-enforcer_skill-g25-output-format-enforcer-20260325-220103-127b5c03_20260325_220103.md"
+  },
+  "metrics": {
+    "run_id": "skill-g25-output-format-enforcer-20260325-220103-127b5c03",
+    "parent_workflow_id": null,
+    "total_cost_usd": 0,
+    "total_latency_ms": 153,
+    "total_steps": 4,
+    "llm_steps": 0,
+    "critic_loops": 0,
+    "final_quality_score": null,
+    "provider_breakdown": {}
+  },
+  "contracts": {
+    "machine_validated": {
+      "output_format_met": true,
+      "min_length_met": true,
+      "min_quality_met": true,
+      "sla_time_met": true,
+      "sla_cost_met": true
+    },
+    "declarative_guarantees": [
+      "Output matches the target_format exactly",
+      "All factual tokens (numbers, URLs, emails, identifiers) preserved if preserve_content is true",
+      "No preamble, postamble, or fences remain if strip options are true",
+      "JSON output is valid parseable JSON",
+      "YAML output is valid parseable YAML",
+      "format_spec requirements are met if provided"
+    ]
+  },
+  "composable": {
+    "output_type": "format_enforced_text",
+    "can_feed_into": [],
+    "accepts_input_from": []
+  }
+}
