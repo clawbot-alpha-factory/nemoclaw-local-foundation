@@ -561,8 +561,9 @@ def make_node(skill, skill_dir, step):
             if idm.get("cached", False):
                 print(f"  [cached] {step_id}")
                 return {"completed_steps": [], "step_history": []}
-            print(f"  [skip] {step_id} — already done")
-            return {"completed_steps": [], "step_history": []}
+            if not idm.get("rerunnable", True):
+                print(f"  [skip] {step_id} — not rerunnable")
+                return {"completed_steps": [], "step_history": []}
 
         print(f"\n  [node] {step_id}: {step['name']}")
         t0 = time.time()
