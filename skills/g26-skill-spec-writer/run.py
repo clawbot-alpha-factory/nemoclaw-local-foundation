@@ -538,6 +538,20 @@ COMPOSABLE:
 - String-format conditions in success_conditions or transitions
 - Any field not listed above — do NOT invent new fields
 - Renaming any required field (e.g., "execution_context" instead of "execution_role")
+
+=== COMMON MISTAKES TO AVOID ===
+- fallback_step MUST reference an actual step_id defined in steps[], or be null
+- transition conditions MUST only reference fields the step actually produces in output_key
+- success_conditions MUST only check fields that exist — do NOT invent fields like "entity_count"
+  unless the step handler explicitly produces them. Prefer simple not_empty checks.
+- The runner handles envelope writing automatically — do NOT create a step for envelope generation
+- The runner handles artifact file writing — the final step returns {"output": "artifact_written"}
+- loop_counters are tracked by the runner via critic_loop.counter_name — do NOT reference
+  loop_count in transition conditions. Use "loop_counters.{counter_name}" instead.
+- Every input with allowed_values MUST have a validation block with allowed_values listed
+- All step_ids referenced in critic_loop, final_output, transitions, and fallback_step
+  MUST exist as actual steps in the steps[] array
+- The final local step (artifact write) MUST have input_source: __final_output__
 """
 
 
@@ -710,7 +724,7 @@ Respond with JSON ONLY — no markdown, no backticks, no explanation:
 {"naming_score": N, "completeness_score": N, "consistency_score": N, "llm_feedback": "Specific actionable notes"}"""
 
     user = f"""GENERATED SKILL.YAML:
-{cleaned[:4000]}
+{cleaned}
 
 SKILL CONCEPT: {parsed_input.get('concept', 'Unknown')}
 
