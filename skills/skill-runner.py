@@ -105,7 +105,11 @@ def adapt_v1_skill(skill):
 
 # ── Condition Evaluator ───────────────────────────────────────────────────────
 def resolve_path(obj, path):
-    """Resolve a dotted path in a dict. Returns (value, found)."""
+    """Resolve a dotted path. Check flat key first, then nested."""
+    # Flat key check first (e.g., "rewritten_text.length" as literal key)
+    if isinstance(obj, dict) and path in obj:
+        return obj[path], True
+    # Then try nested resolution
     parts = str(path).split(".")
     cur = obj
     for p in parts:
@@ -540,6 +544,10 @@ def make_node(skill, skill_dir, step):
         # ── Fix 7: Global loop guard ─────────────────────────────────────
         max_total = skill.get("max_loop_iterations", 3) * len(skill["steps"])
         total_executed = len(state.get("completed_steps", []))
+
+        # Bail out if skill already failed from a previous step
+        if state.get("status") == "failed":
+            return {"completed_steps": [], "step_history": []}
         if total_executed > max_total:
             return {"status": "failed",
                     "error": f"Loop guard: {total_executed} steps exceeded max {max_total}",
