@@ -1,0 +1,324 @@
+name: c07-setup-guide-writer
+version: 1.0.0
+display_name: "Setup Guide Writer"
+description: >
+  Takes a system description, target environment, and prerequisite context,
+  produces a complete step-by-step setup guide with prerequisites table,
+  numbered installation steps with verification commands or UI action
+  instructions, environment notes, troubleshooting section, and post-setup
+  checklist. Works only from provided input — no external knowledge.
+author: Core88
+created: 2026-03-26
+
+family: F07
+domain: C
+tag: dual-use
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a senior technical documentation engineer who writes precise,
+  testable setup guides. Every step you write includes either a CLI command
+  with expected output or a clearly marked UI action with a verification
+  instruction. You never assume the reader has prior context beyond what is
+  provided in the input. You never reference external documentation without
+  specifying what it contains. You adapt vocabulary complexity and explanation
+  depth to the target audience level.
+
+inputs:
+  - name: system_description
+    type: string
+    required: true
+    description: "What system is being set up, its components, and purpose"
+    validation:
+      min_length: 30
+      max_length: 20000
+
+  - name: target_environment
+    type: string
+    required: true
+    description: "OS, hardware, runtime requirements (e.g., MacBook Apple Silicon, macOS 15+, Docker Desktop 29+)"
+    validation:
+      min_length: 10
+      max_length: 5000
+
+  - name: prerequisites
+    type: string
+    required: false
+    default: ""
+    description: "Known prerequisites, dependencies, API keys needed"
+    validation:
+      max_length: 10000
+
+  - name: setup_steps_hint
+    type: string
+    required: false
+    default: ""
+    description: "Optional ordered list of high-level steps to cover"
+    validation:
+      max_length: 5000
+
+  - name: audience
+    type: string
+    required: false
+    default: developer
+    description: "Who reads this guide. Controls vocabulary complexity, command explanation depth, and whether GUI alternatives are mentioned for CLI steps."
+    validation:
+      allowed_values: [developer, devops, non-technical]
+
+outputs:
+  - name: result
+    type: string
+    description: "The complete setup guide in markdown"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/c07-setup-guide-writer/outputs/
+  filename_pattern: "c07-setup-guide-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "c07-setup-guide-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse system context and plan guide structure"
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate inputs, extract component list from system_description,
+      detect prerequisite gaps, classify audience complexity level,
+      build structured generation plan with section outline.
+    input_source: inputs.system_description
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input parsing failed — system_description too short or invalid"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Generate complete setup guide with verification commands"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Core generation: produce full markdown guide with prerequisites table,
+      numbered steps each containing either a CLI code block or a clearly
+      marked UI action instruction, verification per step, environment notes,
+      troubleshooting (minimum 3 scenarios), and post-setup checklist.
+      Audience level controls vocabulary and explanation depth.
+    input_source: step_1.output
+    output_key: generated_guide
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_guide"
+          op: "not_empty"
+          right: true
+        - left: "generated_guide.length"
+          op: ">="
+          right: 500
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Guide generation failed after 2 retries"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Evaluate guide completeness and verification coverage"
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two layers. Deterministic: required sections present, per-step
+      verification mapping (each numbered step mapped to its verification
+      block — flag any step missing one), prerequisites table with 2+ rows,
+      troubleshooting with 3+ failure scenarios counted by bullets/numbers,
+      banned fluff check. LLM: command plausibility, logical ordering,
+      audience appropriateness, self-containment.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output.quality_score"
+          op: "not_empty"
+          right: true
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Critic failed — skipping improvement, using current output"
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 8
+          go_to: step_5
+          reason: "Score meets acceptance threshold"
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Max improvement attempts reached"
+
+  - id: step_4
+    name: "Strengthen guide based on critic feedback"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Fix missing sections, add verification commands or UI action
+      instructions to steps that lack them, strengthen troubleshooting,
+      address audience level feedback. Loops back to step_3.
+    input_source: step_3.output
+    output_key: improved_guide
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_guide"
+          op: "not_empty"
+          right: true
+        - left: "improved_guide.length"
+          op: ">="
+          right: 500
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Improvement failed — using previous best output"
+    transition:
+      default: step_3
+
+  - id: step_5
+    name: "Validate final guide and write artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Full deterministic gate: required sections, per-step verification
+      mapping, prerequisites table row count, troubleshooting scenario
+      count (3+ enforced), banned fluff. Hard-fail on violations.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Final guide validation or artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: generated_guide
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_guide
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_guide
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 8
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1000
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.15
+
+  declarative_guarantees:
+    - "Every numbered setup step has either a CLI code block or a clearly marked UI action instruction"
+    - "Every numbered setup step has a verification instruction (Expected:, Verify:, Confirm:, or equivalent)"
+    - "Prerequisites table lists all required tools with version and install source"
+    - "Troubleshooting section contains at least 3 distinct failure scenarios"
+    - "Guide is self-contained — no 'see external docs' without specifying what those docs contain"
+    - "No fabricated commands or paths not derivable from the input"
+    - "Audience level is respected: vocabulary, explanation depth, GUI alternatives where appropriate"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    All steps are safe — no external writes beyond local artifacts.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: "setup_guide"
+  can_feed_into:
+    - "c07-runbook-author"
+    - "a01-arch-spec-writer"
+  accepts_input_from:
+    - "g26-skill-spec-writer"
