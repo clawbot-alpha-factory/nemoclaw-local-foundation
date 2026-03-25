@@ -781,6 +781,10 @@ def make_router(skill, step):
     def router(state: SkillState) -> str:
         ctx = state.get("context", {})
 
+        # Bail to END if skill has failed
+        if state.get("status") == "failed":
+            return "__end__"
+
         # Fix 3: Direct fallback routing via _force_next_step
         forced = ctx.get("_force_next_step")
         if forced:
