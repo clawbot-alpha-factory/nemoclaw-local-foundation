@@ -1,1 +1,0 @@
-{"name": "Acme Corp", "revenue": "$4.2M", "growth": "23.4%", "contact": "sales@acme.com"}
