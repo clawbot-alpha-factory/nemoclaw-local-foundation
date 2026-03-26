@@ -1,0 +1,335 @@
+name: e12-tech-trend-scanner
+version: 1.0.0
+display_name: "Technology Trend Scanner"
+description: >
+  Takes a technology domain, industry context, time horizon, known technologies,
+  and specific focus areas. Produces a structured technology trend intelligence
+  report with maturity-classified trends, adoption timelines, disruption vectors,
+  convergence analysis, strategic implications, and actionable recommendations.
+  Works only from provided input — does not fabricate adoption statistics, market
+  sizes, or research citations. States analysis limitations explicitly.
+author: Core88
+created: 2026-03-26
+
+family: F12
+domain: E
+tag: dual-use
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a senior technology analyst who produces precise, grounded technology
+  trend reports. Every trend has a maturity classification, time horizon, and
+  confidence level. Disruption analysis names what specifically gets disrupted —
+  processes, roles, business models, cost structures — not generic platitudes.
+  Convergence analysis identifies compound impact from interacting trends. When
+  data is insufficient, you state limitations explicitly. You never fabricate
+  adoption statistics, market sizes, or research citations. Recommendations
+  contain action verbs, reference specific trends, and include time horizons.
+
+inputs:
+  - name: technology_domain
+    type: string
+    required: true
+    description: "The technology area to scan: AI in healthcare, edge computing for manufacturing, etc."
+    validation:
+      min_length: 20
+      max_length: 20000
+
+  - name: industry_context
+    type: string
+    required: true
+    description: "Industry background: size, players, current tech stack, pain points, regulatory, geography"
+    validation:
+      min_length: 20
+      max_length: 20000
+
+  - name: time_horizon
+    type: string
+    required: false
+    default: comprehensive
+    description: "near_term (0-1yr), mid_term (1-3yr), long_term (3-5yr+), comprehensive (all)"
+    validation:
+      allowed_values: [near_term, mid_term, long_term, comprehensive]
+
+  - name: known_technologies
+    type: string
+    required: false
+    default: ""
+    description: "Technologies the user already tracks — scan should surface trends beyond these"
+    validation:
+      max_length: 20000
+
+  - name: specific_focus
+    type: string
+    required: false
+    default: ""
+    description: "Angles to prioritize: cost reduction, security, competitive differentiation, etc."
+    validation:
+      max_length: 10000
+
+  - name: scan_depth
+    type: string
+    required: false
+    default: overview
+    description: "overview (broad, 5+), detailed (deep, 8+), strategic (fewer, deeper implications)"
+    validation:
+      allowed_values: [overview, detailed, strategic]
+
+outputs:
+  - name: result
+    type: string
+    description: "The complete technology trend scan report in markdown"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/e12-tech-trend-scanner/outputs/
+  filename_pattern: "e12-tech-trend-scanner_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "e12-tech-trend-scanner_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse technology context and build scan plan"
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate inputs. Extract technology domain signals, industry classification,
+      time horizon rules, known technology inventory, focus area keywords,
+      depth-specific rules, numeric tokens for grounding validation.
+    input_source: inputs.technology_domain
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input parsing failed"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Generate complete technology trend scan report"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Core generation. Produce full markdown report with all required sections.
+      Apply depth-driven rules. Classify every trend by maturity stage, time
+      horizon, and confidence level. Name disruption vectors specifically.
+      Identify convergence points. Ground recommendations in specific trends.
+    input_source: step_1.output
+    output_key: generated_scan
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_scan"
+          op: "not_empty"
+          right: true
+        - left: "generated_scan.length"
+          op: ">="
+          right: 700
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Trend scan generation failed after 2 retries"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Evaluate trend scan quality and analytical rigor"
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two layers. Deterministic: required sections, trend count (depth-scaled),
+      maturity classification coverage, maturity-timeline coherence,
+      confidence classification, disruption specificity, convergence presence,
+      known-tech differentiation, actionable recommendations, recommendation-trend
+      linkage, industry relevance grounding, anti-hallucination, anti-buzzword.
+      LLM: analytical depth, strategic utility.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output.quality_score"
+          op: "not_empty"
+          right: true
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Critic failed — using current output"
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: "Score meets acceptance threshold"
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Max improvement attempts reached"
+
+  - id: step_4
+    name: "Strengthen scan based on critic feedback"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Fix missing maturity classifications, maturity-timeline incoherences,
+      add disruption specificity, convergence points, trend-linked
+      recommendations, remove fabricated statistics, replace buzzword-only
+      trends with substantive analysis.
+    input_source: step_3.output
+    output_key: improved_scan
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_scan"
+          op: "not_empty"
+          right: true
+        - left: "improved_scan.length"
+          op: ">="
+          right: 700
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Improvement failed — using previous best output"
+    transition:
+      default: step_3
+
+  - id: step_5
+    name: "Validate final trend scan and write artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Full deterministic gate. Hard-fail on critical violations.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Final trend scan validation or artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: generated_scan
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_scan
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_scan
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 2000
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 300
+      max_cost_usd: 0.25
+
+  declarative_guarantees:
+    - "Every trend has a maturity stage classification (experimental/emerging/growing/established/mature/declining)"
+    - "Maturity stages are coherent with stated adoption timelines"
+    - "Disruption analysis names specific processes, roles, or business models being disrupted"
+    - "Technology convergence identifies compound impact or explicitly states no significant convergence"
+    - "Recommendations contain action verbs, reference specific trends, and include time horizons"
+    - "Strategic implications are grounded in the stated industry context"
+    - "When known technologies provided, scan surfaces trends beyond what was already known"
+    - "No fabricated adoption statistics, market sizes, or research citations"
+    - "Assumptions section acknowledges analysis limitations"
+    - "Trend confidence levels explicitly classified (high/medium/speculative)"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: "technology_trend_scan"
+  can_feed_into:
+    - "e12-market-research-analyst"
+    - "f09-product-req-writer"
+    - "f09-pricing-strategist"
+    - "a01-arch-spec-writer"
+  accepts_input_from:
+    - "e08-comp-intel-synth"
