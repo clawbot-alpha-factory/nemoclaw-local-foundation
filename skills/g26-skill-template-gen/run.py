@@ -35,7 +35,7 @@ def load_env():
     return k
 
 
-def call_openai(messages, model="gpt-5.4-mini", max_tokens=8000):
+def call_openai(messages, model="gpt-5.4-mini", max_tokens=20000):
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -46,7 +46,7 @@ def call_openai(messages, model="gpt-5.4-mini", max_tokens=8000):
     return llm.invoke(lc).content, None
 
 
-def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=8000):
+def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=20000):
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -57,7 +57,7 @@ def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=8000):
     return llm.invoke(lc).content, None
 
 
-def call_google(messages, model="gemini-2.5-flash", max_tokens=8000):
+def call_google(messages, model="gemini-2.5-flash", max_tokens=20000):
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -68,7 +68,7 @@ def call_google(messages, model="gemini-2.5-flash", max_tokens=8000):
     return llm.invoke(lc).content, None
 
 
-def call_resolved(messages, context, max_tokens=8000):
+def call_resolved(messages, context, max_tokens=20000):
     m = context.get("resolved_model", "")
     p = context.get("resolved_provider", "anthropic")
     if p == "google": return call_google(messages, model=m or "gemini-2.5-flash", max_tokens=max_tokens)
@@ -411,6 +411,74 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
            sys.exit(1)
        print(json.dumps(result))
 
+
+
+=== ESTABLISHED CODE CONVENTIONS (from 17 production skills) ===
+
+EXTRACT_SECTION FUNCTION (for skills that parse markdown output):
+  def extract_section(text, heading_keywords):
+      for kw in heading_keywords:
+          pattern = re.compile(
+              rf'(?:^|\n)##\s[^\n]*{re.escape(kw)}[^\n]*\n(.*?)(?=\n##\s[^#]|\Z)',
+              re.IGNORECASE | re.DOTALL)
+          m = pattern.search(text)
+          if m: return m.group(1).strip()
+      return ""
+  Uses ##\s (H2 only). NEVER ##? (matches H1). Preserves H3 subsections inside.
+
+TOKEN BUDGET PATTERN (for skills with depth/length parameter):
+  TOKEN_BUDGET = {"short": 4000, "standard": 8000, "long": 12000}
+  Use the parameter value to select max_tokens for call_resolved().
+
+SCORING PATTERN (critic steps):
+  quality_score = min(structural_score, llm_dim1, llm_dim2)
+  NEVER use weighted average. min() ensures no dimension masks another.
+
+STEP 5 RETURN:
+  return {"output": "artifact_written"}, None
+  The runner handles file writing. Step 5 only validates and signals.
+
+CONTEXT ACCESS:
+  Step 1 output: context.get("step_1_output", {})
+  Previous step by output_key: context.get("generated_copy", "")
+  For improved versions: context.get("improved_copy", context.get("generated_copy", ""))
+
+=== CRITICAL: CODE COMPLETENESS RULES ===
+
+Your code MUST always end with these two blocks — they are NOT optional:
+
+1. STEP_HANDLERS dict mapping every step_id to its handler function
+2. __main__ block with argparse, JSON load, handler dispatch, and sys.exit
+
+If your code does not end with these, the skill WILL fail validation.
+Write the handler implementations first, then ALWAYS finish with:
+
+STEP_HANDLERS = {
+    "step_1": step_1_local,
+    "step_2": step_2_llm,
+    ...map every step...
+}
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--step", required=True)
+    parser.add_argument("--input", required=True)
+    a = parser.parse_args()
+    with open(a.input) as f:
+        spec = json.load(f)
+    h = STEP_HANDLERS.get(spec["step_id"])
+    if not h:
+        print(json.dumps({"error": f"Unknown step: {spec['step_id']}"}))
+        sys.exit(1)
+    result, error = h(spec["inputs"], spec["context"])
+    if error:
+        print(json.dumps({"error": error}))
+        sys.exit(1)
+    print(json.dumps(result))
+
+Budget your code to leave room for these blocks. If you are running long,
+SHORTEN the handler implementations rather than omitting STEP_HANDLERS or __main__.
+
 === ABSOLUTELY FORBIDDEN ===
 - Inventing helper functions not in the reference architecture
 - Creating new context keys beyond what skill.yaml declares
@@ -532,9 +600,9 @@ Output ONLY the raw Python code starting with #!/usr/bin/env python3"""
         {"role": "user", "content": user_msg},
     ]
 
-    content, error = call_resolved(messages, context, max_tokens=8000)
+    content, error = call_resolved(messages, context, max_tokens=20000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=20000)
     if error:
         return None, error
 
@@ -697,9 +765,9 @@ Fix all issues and output ONLY the corrected raw Python starting with #!/usr/bin
         {"role": "user", "content": user},
     ]
 
-    content, error = call_resolved(messages, context, max_tokens=8000)
+    content, error = call_resolved(messages, context, max_tokens=20000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=20000)
     if error:
         return None, error
 
