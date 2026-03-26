@@ -368,16 +368,23 @@ def step_1_local(inputs, context):
     if not has_critic and concept:
         concept_lower = concept.lower()
         # Strong signals that critic loop is needed
-        critic_signals = [
+        # Strong signals: any one of these means critic loop is needed
+        strong_signals = [
             "validation", "validate", "quality", "evaluate", "score",
-            "critic", "feedback", "improve", "preservation", "verify",
-            "check", "enforce", "deterministic", "integrity",
+            "critic", "feedback", "preservation", "verify",
+            "deterministic", "integrity", "enforce",
+        ]
+        # Weak signals: need 2+ of these to trigger critic loop
+        weak_signals = [
             "rewrite", "generate", "produce", "create", "write",
             "analyze", "synthesize", "transform", "calibrate",
+            "scan", "report", "intelligence", "research",
+            "structured", "comprehensive", "document",
         ]
-        signal_count = sum(1 for s in critic_signals if s in concept_lower)
-        # If 2+ signals found, auto-enable critic loop
-        if signal_count >= 2:
+        strong_count = sum(1 for s in strong_signals if s in concept_lower)
+        weak_count = sum(1 for s in weak_signals if s in concept_lower)
+        # Any strong signal OR 2+ weak signals = critic loop
+        if strong_count >= 1 or weak_count >= 2:
             has_critic = True
             # Log the inference for traceability
 
@@ -612,6 +619,27 @@ CRITIC LOOP CONVENTION:
   The step_3 transition MUST have:
     - left: "step_3_output.quality_score", op: ">=", right: 7, go_to: step_5
     - left: "loop_counters.critic_loop", op: ">=", right: 2, go_to: step_5
+
+CRITIC STEP CONVENTION:
+  step_3 is ALWAYS step_type: critic — even when the skill has heavy deterministic validation.
+  A critic step runs BOTH deterministic checks AND LLM evaluation in the same handler.
+  The pattern is: deterministic validation first (structural checks, regex, counts),
+  then LLM scoring (quality dimensions), then combine with min().
+  Do NOT make step_3 a local step just because deterministic checks are prominent.
+  Do NOT split validation into a separate local step before a critic step.
+  step_3 task_class: ALWAYS moderate (critic uses a cheaper model for evaluation).
+
+STEP OUTPUT_KEY CONVENTION:
+  step_1 output_key: step_1_output           # ALWAYS this name
+  step_2 output_key: generated_{noun}        # e.g., generated_copy, generated_prd
+  step_3 output_key: step_3_output           # ALWAYS this name  
+  step_4 output_key: improved_{noun}         # e.g., improved_copy, improved_prd
+  step_5 output_key: artifact_path           # ALWAYS this name
+  The {noun} should match the skill's primary output concept.
+
+FINAL_OUTPUT CONVENTION:
+  final_output.candidates[].score_from MUST use full dotted path:
+    score_from: step_3_output.quality_score   # ALWAYS include .quality_score
 
 COMPOSABLE CONVENTION:
   output_type: descriptive string (e.g., "tone_calibrated_text", "marketing_copy")

@@ -356,6 +356,29 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
    Each uses langchain imports INSIDE the function (lazy import pattern).
    call_resolved dispatches based on context["resolved_provider"].
 
+   CRITICAL RETURN FORMAT — ALL call_* functions return a TUPLE: (content, error)
+     Success: return llm.invoke(lc).content, None
+     Failure: return None, "error message"
+
+   Callers MUST unpack the tuple:
+     content, error = call_resolved(messages, context, max_tokens=6000)
+     if error:
+         return None, error
+
+   NEVER write: result = call_resolved(...)  # WRONG — misses error handling
+
+   CRITICAL MESSAGE FORMAT — Messages MUST be list of dicts, NOT tuples:
+     messages = [
+         {"role": "system", "content": system_prompt},
+         {"role": "user", "content": user_prompt},
+     ]
+   NEVER use: [("system", "..."), ("human", "...")]  # WRONG format
+
+   LangChain conversion inside each call_* function:
+     from langchain_core.messages import HumanMessage, SystemMessage
+     lc = [SystemMessage(content=m["content"]) if m["role"] == "system"
+           else HumanMessage(content=m["content"]) for m in messages]
+
 5. DETERMINISTIC CHECK FUNCTIONS (if applicable) — domain-specific:
    - numeric: extract_numeric_tokens(), check_numeric_preservation()
    - structural: check paragraph/heading/list preservation
@@ -373,8 +396,15 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
    - Take (inputs, context) as arguments — ALWAYS
    - Return (result_dict, None) on success — result_dict MUST have "output" key
    - Return (None, error_string) on failure
-   - LLM steps: build messages list, call call_resolved(messages, context)
+   - LLM steps: build messages as LIST OF DICTS, then:
+       content, error = call_resolved(messages, context, max_tokens=N)
+       if error:
+           content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=N)
+       if error:
+           return None, error
+     The fallback to call_openai is the standard resilience pattern.
    - Critic steps: return {{"output": {{"quality_score": N, ...}}}}
+     Scoring: quality_score = min(structural_score, llm_dim1, llm_dim2) — NEVER weighted avg
    - Local steps: NEVER call call_resolved or any LLM function
    - Final step: return {{"output": "artifact_written"}} — runner handles file writing
 
@@ -434,6 +464,26 @@ SCORING PATTERN (critic steps):
   quality_score = min(structural_score, llm_dim1, llm_dim2)
   NEVER use weighted average. min() ensures no dimension masks another.
 
+LLM CALL PATTERN (every LLM/critic step):
+  messages = [
+      {"role": "system", "content": system_prompt},
+      {"role": "user", "content": user_prompt},
+  ]
+  content, error = call_resolved(messages, context, max_tokens=6000)
+  if error:
+      content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=6000)
+  if error:
+      return None, error
+  ALWAYS use dict messages. ALWAYS unpack tuple. ALWAYS fallback to openai.
+
+CRITIC JSON PARSING PATTERN:
+  Strip markdown fences before parsing LLM JSON response:
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+    scores = json.loads(cleaned)
+
 STEP 5 RETURN:
   return {"output": "artifact_written"}, None
   The runner handles file writing. Step 5 only validates and signals.
@@ -488,6 +538,10 @@ SHORTEN the handler implementations rather than omitting STEP_HANDLERS or __main
 - Abstract base classes or inheritance hierarchies
 - Decorator patterns on step handlers
 - Global mutable state beyond constants
+- Using result = call_resolved(...) — MUST use content, error = call_resolved(...)
+- Using tuple messages like ("system", "prompt") — MUST use {"role": "system", "content": "prompt"}
+- Using weighted average for quality_score — MUST use min()
+- Omitting fallback call_openai after call_resolved failure
 """
 
 
