@@ -1,0 +1,324 @@
+name: e12-market-research-analyst
+version: 1.0.0
+display_name: "Market Research Analyst"
+description: >
+  Takes a research topic, industry context, specific questions, and known data,
+  produces a structured market research report with market overview, segmentation,
+  trends, competitive landscape, opportunities, risk factors, and actionable
+  recommendations. Works only from provided input — does not fabricate statistics,
+  market sizes, or research citations. States data gaps explicitly.
+author: Core88
+created: 2026-03-26
+
+family: F12
+domain: E
+tag: dual-use
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a senior market research analyst who produces precise, grounded research
+  reports. Every claim is tied to provided input data or clearly labeled as an
+  assumption. You never fabricate statistics, market sizes, research citations, or
+  survey data. When data is insufficient, you state what data would be needed rather
+  than inventing figures. Segments have meaningful names, not generic labels.
+  Opportunities and recommendations reference specific trends or competitive insights.
+  Risks are tied to market forces, not generic platitudes.
+
+inputs:
+  - name: research_topic
+    type: string
+    required: true
+    description: "What to research: market, industry, technology, trend, or competitive question"
+    validation:
+      min_length: 20
+      max_length: 20000
+
+  - name: industry_context
+    type: string
+    required: true
+    description: "Industry/market background: known players, size signals, trends, regulations, geography"
+    validation:
+      min_length: 20
+      max_length: 20000
+
+  - name: specific_questions
+    type: string
+    required: false
+    default: ""
+    description: "Specific questions the research should answer — drives focus"
+    validation:
+      max_length: 10000
+
+  - name: known_data
+    type: string
+    required: false
+    default: ""
+    description: "Any data the user already has: statistics, reports, findings, competitor info"
+    validation:
+      max_length: 20000
+
+  - name: research_depth
+    type: string
+    required: false
+    default: overview
+    description: "overview (high-level), detailed (deep with sub-segments), competitive_focus (competitor-centric)"
+    validation:
+      allowed_values: [overview, detailed, competitive_focus]
+
+outputs:
+  - name: result
+    type: string
+    description: "The complete market research report in markdown"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/e12-market-research-analyst/outputs/
+  filename_pattern: "e12-market-research-analyst_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "e12-market-research-analyst_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse research context and identify analysis dimensions"
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate inputs. Extract industry signals, detect data presence,
+      classify depth, identify sub-topics from specific_questions,
+      extract numeric tokens from known_data for grounding validation,
+      build generation plan.
+    input_source: inputs.research_topic
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input parsing failed"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Generate complete market research report"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Core generation. Produce full markdown report with all required sections.
+      Apply depth-driven rules. Ground analysis in provided data. State
+      data gaps explicitly. Name segments meaningfully. Link opportunities
+      and recommendations to trends/competitive insights.
+    input_source: step_1.output
+    output_key: generated_research
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_research"
+          op: "not_empty"
+          right: true
+        - left: "generated_research.length"
+          op: ">="
+          right: 500
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Research report generation failed after 2 retries"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Evaluate research completeness and analytical rigor"
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two layers. Deterministic: required sections, market sizing, question
+      coverage, data grounding, competitive entity detection (section-scoped),
+      trend count (depth-scaled), actionable recommendations, anti-hallucination,
+      segment naming, insight linkage, risk grounding, fabrication flagging.
+      LLM: analytical coherence, insight depth, practical value.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output.quality_score"
+          op: "not_empty"
+          right: true
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Critic failed — using current output"
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 8
+          go_to: step_5
+          reason: "Score meets acceptance threshold"
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Max improvement attempts reached"
+
+  - id: step_4
+    name: "Strengthen research based on critic feedback"
+    step_type: llm
+    task_class: complex_reasoning
+    description: >
+      Fix missing sections, strengthen data grounding, deepen analysis,
+      add missing question coverage, improve segment naming, link
+      opportunities to trends, ground risks in market forces.
+    input_source: step_3.output
+    output_key: improved_research
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_research"
+          op: "not_empty"
+          right: true
+        - left: "improved_research.length"
+          op: ">="
+          right: 500
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Improvement failed — using previous best output"
+    transition:
+      default: step_3
+
+  - id: step_5
+    name: "Validate final research report and write artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Full deterministic gate. Hard-fail on critical violations.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Final research report validation or artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: generated_research
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_research
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_research
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 8
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1500
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.15
+
+  declarative_guarantees:
+    - "Market overview includes sizing context, qualitative scoping, or explicit data gap acknowledgment"
+    - "Segmentation identifies distinct segments with meaningful names (not Segment A/B)"
+    - "Trends are specific, not generic — count scales with depth (3 overview, 5 detailed)"
+    - "Competitive landscape names entities from input or provides archetypes when no data given"
+    - "Opportunities reference specific trends, segments, or competitive insights"
+    - "Risks are tied to market forces, competition, or constraints — not generic"
+    - "Recommendations contain actionable verbs and reference analysis sections"
+    - "No fabricated research citations or statistics — assumptions labeled explicitly"
+    - "Specific questions addressed when provided (60% minimum coverage)"
+    - "Known data integrated into analysis context, not just repeated"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: "market_research"
+  can_feed_into:
+    - "f09-product-req-writer"
+    - "f09-pricing-strategist"
+    - "d11-copywriting-specialist"
+  accepts_input_from:
+    - "e12-tech-trend-scanner"
+    - "e08-comp-intel-synth"
