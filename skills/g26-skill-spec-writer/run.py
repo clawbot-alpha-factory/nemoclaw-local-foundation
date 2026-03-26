@@ -362,6 +362,25 @@ def step_1_local(inputs, context):
     if isinstance(has_critic, str):
         has_critic = has_critic.lower() in ("true", "1", "yes")
 
+    # ── FIX 2: Auto-detect critic loop need from concept text ─────────
+    # Most skills with LLM generation benefit from a critic loop.
+    # Only skip if concept is trivially simple (pure local transform).
+    if not has_critic and concept:
+        concept_lower = concept.lower()
+        # Strong signals that critic loop is needed
+        critic_signals = [
+            "validation", "validate", "quality", "evaluate", "score",
+            "critic", "feedback", "improve", "preservation", "verify",
+            "check", "enforce", "deterministic", "integrity",
+            "rewrite", "generate", "produce", "create", "write",
+            "analyze", "synthesize", "transform", "calibrate",
+        ]
+        signal_count = sum(1 for s in critic_signals if s in concept_lower)
+        # If 2+ signals found, auto-enable critic loop
+        if signal_count >= 2:
+            has_critic = True
+            # Log the inference for traceability
+
     errors = []
 
     if not concept or len(concept) < 20:
@@ -380,6 +399,35 @@ def step_1_local(inputs, context):
         errors.append(f"domain '{domain}' must be A-L")
     if tag not in VALID_TAGS:
         errors.append(f"tag '{tag}' must be: internal, customer-facing, or dual-use")
+    # ── FIX 3: Infer skill_type from concept when default executor ──
+    if skill_type == "executor" and concept:
+        concept_lower = concept.lower()
+        transformer_signals = ["calibrat", "transform", "convert", "translat",
+                               "rewrite", "adapt", "reformulat", "rephrase",
+                               "tone", "style", "format"]
+        planner_signals = ["plan", "decompos", "sequenc", "orchestrat",
+                           "coordinat", "schedul", "prioritiz"]
+        evaluator_signals = ["evaluat", "review", "assess", "audit",
+                             "benchmark", "compar", "grade", "rate"]
+        router_signals = ["route", "classif", "dispatch", "triage",
+                          "detect intent", "categoriz"]
+
+        t_count = sum(1 for s in transformer_signals if s in concept_lower)
+        p_count = sum(1 for s in planner_signals if s in concept_lower)
+        e_count = sum(1 for s in evaluator_signals if s in concept_lower)
+        r_count = sum(1 for s in router_signals if s in concept_lower)
+
+        max_count = max(t_count, p_count, e_count, r_count)
+        if max_count >= 2:
+            if t_count == max_count:
+                skill_type = "transformer"
+            elif p_count == max_count:
+                skill_type = "planner"
+            elif e_count == max_count:
+                skill_type = "evaluator"
+            elif r_count == max_count:
+                skill_type = "router"
+
     if skill_type not in VALID_SKILL_TYPES:
         errors.append(f"skill_type '{skill_type}' must be: executor, planner, evaluator, transformer, router")
 
@@ -504,7 +552,7 @@ CRITIC_LOOP (when enabled):
     Example: "step_3_output.quality_score" or "critic_evaluation.quality_score"
     NEVER just "quality_score" — it must reference the critic step's output_key
   - counter_name MUST be a simple name like "critic_loop" — NOT a dotted path
-  - acceptance_score: default 8
+  - acceptance_score: 7 (ALWAYS use 7 — must match min_quality_score in contracts)
   - max_improvements: default 2
 
 OBSERVABILITY (optional but if present, use ONLY these fields):
@@ -530,6 +578,55 @@ ROUTING:
 COMPOSABLE:
   output_type, can_feed_into (list), accepts_input_from (list)
 
+
+=== ESTABLISHED CONVENTIONS (from 17 production skills) ===
+
+ARTIFACTS CONVENTION:
+  storage_location: skills/{skill_id}/outputs/     # ALWAYS this path — never ~/.nemoclaw/artifacts/
+  filename_pattern: "{skill_id}_{workflow_id}_{timestamp}.md"  # ALWAYS skill_id prefix with underscores
+  envelope_pattern: "{skill_id}_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+METRICS CONVENTION:
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"  # ALWAYS shared file — never per-skill metrics files
+
+CONTRACTS CONVENTION:
+  required_fields: [result]     # ALWAYS just [result] — the runner writes this field
+  min_quality_score: 7          # ALWAYS 7 — must match acceptance_score
+
+STANDARD 5-STEP EXECUTOR ARCHITECTURE (with critic loop):
+  step_1: local — Parse inputs, validate, build generation plan. output_key: step_1_output
+  step_2: llm — Core generation (premium/complex_reasoning). output_key: generated_{noun} or {descriptive_key}
+  step_3: critic — Two-layer validation: deterministic then LLM. output_key: step_3_output
+  step_4: llm — Improve based on critic feedback. output_key: improved_{noun}
+  step_5: local — Final deterministic gate, return {"output": "artifact_written"}. input_source: __final_output__
+  Do NOT add extra steps unless the skill genuinely needs them. 5 steps is the standard.
+  Do NOT invent branching steps like step_5a. Use the critic loop for quality iteration.
+
+CRITIC LOOP CONVENTION:
+  acceptance_score: 7            # ALWAYS 7
+  max_improvements: 2            # ALWAYS 2
+  counter_name: critic_loop      # ALWAYS critic_loop
+  The step_3 transition MUST have:
+    - left: "step_3_output.quality_score", op: ">=", right: 7, go_to: step_5
+    - left: "loop_counters.critic_loop", op: ">=", right: 2, go_to: step_5
+
+COMPOSABLE CONVENTION:
+  output_type: descriptive string (e.g., "tone_calibrated_text", "marketing_copy")
+  can_feed_into: list of REAL skill IDs from the catalog (e.g., "d11-copywriting-specialist")
+    If you don't know valid downstream skills, use an empty list []
+  accepts_input_from: list of REAL skill IDs (e.g., "e12-market-research-analyst")
+    If you don't know valid upstream skills, use an empty list []
+  Do NOT invent generic names like "content-publisher" or "document-formatter"
+
+ROUTING CONVENTION:
+  allow_override: false          # ALWAYS false unless explicitly requested
+
+OBSERVABILITY CONVENTION:
+  log_level: detailed            # ALWAYS detailed for production skills
+
 === ABSOLUTELY FORBIDDEN ===
 - makes_llm_call field (step_type determines this)
 - decision step type
@@ -552,6 +649,15 @@ COMPOSABLE:
 - All step_ids referenced in critic_loop, final_output, transitions, and fallback_step
   MUST exist as actual steps in the steps[] array
 - The final local step (artifact write) MUST have input_source: __final_output__
+- Do NOT use more than 5 steps unless the skill genuinely needs them
+- Do NOT invent branching steps (step_5a, step_3b, etc.) — use the critic loop
+- artifacts.storage_location MUST be skills/{skill_id}/outputs/ — not ~/.nemoclaw/artifacts/
+- metrics_file MUST be the shared path ~/.nemoclaw/logs/skill-metrics.jsonl
+- contracts.required_fields MUST be [result] — not invented field names
+- composable.can_feed_into and accepts_input_from MUST use real skill IDs or empty lists
+- If the concept describes transformation, calibration, rewriting → skill_type is transformer
+- If the concept describes evaluation, scoring, review → skill_type is evaluator
+- Most skills with LLM generation SHOULD have a critic loop unless trivially simple
 """
 
 
