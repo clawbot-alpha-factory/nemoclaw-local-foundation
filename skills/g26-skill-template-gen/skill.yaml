@@ -244,7 +244,7 @@ critic_loop:
   critic_step: step_3
   improve_step: step_4
   score_field: step_3_output.quality_score
-  acceptance_score: 8
+  acceptance_score: 7
   max_improvements: 2
   counter_name: critic_loop
   fallback_final_step: step_5

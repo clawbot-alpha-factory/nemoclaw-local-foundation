@@ -171,7 +171,7 @@ def count_troubleshooting_scenarios(guide):
     Counts bullet points, numbered items, or table rows."""
     # Find the troubleshooting section
     ts_match = re.search(
-        r'(?:##?\s*Troubleshoot\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\sTroubleshoot\w*)(.*?)(?=\n##?\s[^#]|\Z)',
         guide, re.IGNORECASE | re.DOTALL
     )
     if not ts_match:
@@ -197,7 +197,7 @@ def count_prerequisite_rows(guide):
     """Count rows in the prerequisites/requirements table."""
     # Find prerequisites section
     prereq_match = re.search(
-        r'(?:##?\s*(?:Prerequisit|Requirement)\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\s(?:Prerequisit|Requirement)\w*)(.*?)(?=\n##?\s[^#]|\Z)',
         guide, re.IGNORECASE | re.DOTALL
     )
     if not prereq_match:

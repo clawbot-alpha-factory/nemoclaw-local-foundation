@@ -188,7 +188,7 @@ def gen_yaml(args, names, llm, critic):
               f"  generator_step: step_{gs}", f"  critic_step: step_{cs}",
               f"  improve_step: step_{imp}",
               f"  score_field: step_{cs}_output.quality_score",
-              "  acceptance_score: 8", "  max_improvements: 2",
+              "  acceptance_score: 7", "  max_improvements: 2",
               "  counter_name: critic_loop",
               f"  fallback_final_step: step_{n}", ""]
     else:
