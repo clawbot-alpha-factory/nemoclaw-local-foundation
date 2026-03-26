@@ -1,0 +1,322 @@
+name: d11-copywriting-specialist
+version: 1.0.0
+display_name: "Copywriting Specialist"
+description: >
+  Takes a copy brief, target audience, format, brand voice, and reference material.
+  Produces polished, conversion-oriented marketing copy with single CTA enforcement,
+  persuasion mechanics, format-specific structure, and anti-hallucination controls.
+  Supports landing pages, emails, ads, product descriptions, sales pages, and general copy.
+author: Core88
+created: 2026-03-26
+
+family: F11
+domain: D
+tag: customer-facing
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a senior conversion copywriter who produces polished, audience-targeted
+  marketing copy. Every piece has exactly one primary CTA. Headlines contain benefits
+  or hooks, not labels. Copy uses identifiable persuasion techniques. Benefits are
+  framed as outcomes, not feature lists. You never fabricate testimonials, statistics,
+  or customer quotes. When social proof data is missing, you use placeholder markers.
+  Tone is consistent throughout and aligned with brand voice guidelines.
+
+inputs:
+  - name: copy_brief
+    type: string
+    required: true
+    description: "What to write: product/service, key message, goal, context"
+    validation:
+      min_length: 30
+      max_length: 20000
+
+  - name: target_audience
+    type: string
+    required: true
+    description: "Who reads this: role, pain points, decision stage, objections"
+    validation:
+      min_length: 15
+      max_length: 10000
+
+  - name: copy_format
+    type: string
+    required: true
+    description: "landing_page, email, ad_copy, product_description, sales_page, general"
+    validation:
+      allowed_values: [landing_page, email, ad_copy, product_description, sales_page, general]
+
+  - name: brand_voice
+    type: string
+    required: false
+    default: ""
+    description: "Tone, style, vocabulary constraints, personality"
+    validation:
+      max_length: 10000
+
+  - name: reference_material
+    type: string
+    required: false
+    default: ""
+    description: "Existing copy, product specs, testimonials, data points to incorporate"
+    validation:
+      max_length: 20000
+
+  - name: copy_length
+    type: string
+    required: false
+    default: standard
+    description: "short (under 300 words), standard (300-800), long (800+)"
+    validation:
+      allowed_values: [short, standard, long]
+
+outputs:
+  - name: result
+    type: string
+    description: "The polished marketing copy in markdown"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope"
+
+artifacts:
+  storage_location: skills/d11-copywriting-specialist/outputs/
+  filename_pattern: "d11-copywriting-specialist_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "d11-copywriting-specialist_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse copy brief and build generation plan"
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate inputs. Extract format rules, audience signals, brand voice
+      keywords, reference material inventory, length rules, CTA candidates.
+    input_source: inputs.copy_brief
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Input parsing failed"
+    transition:
+      default: step_2
+
+  - id: step_2
+    name: "Generate polished marketing copy"
+    step_type: llm
+    task_class: premium
+    description: >
+      Core generation. Produce format-specific marketing copy with single CTA,
+      persuasion mechanics, benefit-driven headlines, audience-aligned tone.
+    input_source: step_1.output
+    output_key: generated_copy
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_copy"
+          op: "not_empty"
+          right: true
+        - left: "generated_copy.length"
+          op: ">="
+          right: 100
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Copy generation failed after 2 retries"
+    transition:
+      default: step_3
+
+  - id: step_3
+    name: "Evaluate copy quality and conversion readiness"
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two layers. Deterministic: format sections, CTA count, headline quality,
+      persuasion techniques, feature-benefit separation, banned filler,
+      fabrication flagging, tone consistency. LLM: persuasion quality, voice alignment.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output.quality_score"
+          op: "not_empty"
+          right: true
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Critic failed — using current output"
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: "Score meets acceptance threshold"
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Max improvement attempts reached"
+
+  - id: step_4
+    name: "Strengthen copy based on critic feedback"
+    step_type: llm
+    task_class: premium
+    description: >
+      Fix structural issues, strengthen headlines, consolidate CTAs,
+      add persuasion techniques, remove filler, ground claims in input.
+    input_source: step_3.output
+    output_key: improved_copy
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_copy"
+          op: "not_empty"
+          right: true
+        - left: "improved_copy.length"
+          op: ">="
+          right: 100
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: "Improvement failed — using previous best output"
+    transition:
+      default: step_3
+
+  - id: step_5
+    name: "Validate final copy and write artifact"
+    step_type: local
+    task_class: general_short
+    description: >
+      Full deterministic gate. Hard-fail on critical violations.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: "not_empty"
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: "Final copy validation or artifact write failed"
+    transition:
+      default: __end__
+
+final_output:
+  select: latest
+  candidates:
+    - key: generated_copy
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_copy
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_copy
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 200
+      max_length: 50000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 300
+      max_cost_usd: 0.20
+
+  declarative_guarantees:
+    - "Single primary CTA per piece — no competing asks"
+    - "Headlines contain a benefit, hook, or curiosity element — not labels"
+    - "At least 2 persuasion techniques identifiable in standard/long copy"
+    - "Benefits framed as outcomes, not just features listed"
+    - "No fabricated testimonials, customer quotes, or statistics"
+    - "Tone consistent with brand voice throughout"
+    - "Format-specific structure followed"
+    - "All claims traceable to input brief or reference material"
+    - "Placeholder markers used where social proof data is missing"
+    - "Banned filler phrases avoided"
+
+approval_boundaries:
+  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+
+routing:
+  default_alias: premium
+  allow_override: false
+
+composable:
+  output_type: "marketing_copy"
+  can_feed_into:
+    - "i35-tone-calibrator"
+    - "d11-video-script-writer"
+  accepts_input_from:
+    - "f09-product-req-writer"
+    - "e12-market-research-analyst"
+    - "f09-pricing-strategist"
