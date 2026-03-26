@@ -363,7 +363,7 @@ def extract_procedure_sections(runbook, procedure_names):
 # ── Troubleshooting Count (reused from c07-setup-guide-writer) ────────────────
 def count_troubleshooting_scenarios(runbook):
     ts_match = re.search(
-        r'(?:##\s(?:Troubleshoot|Failure|Known Issues)\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\s(?:Troubleshoot|Failure|Known Issues)\w*)(.*?)(?=\n##\s[^#]|\Z)',
         runbook, re.IGNORECASE | re.DOTALL
     )
     if not ts_match:

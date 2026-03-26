@@ -90,7 +90,7 @@ def extract_section(text, heading_keywords):
     """Extract content under a heading matching any of the keywords."""
     for kw in heading_keywords:
         pattern = re.compile(
-            rf'(?:^|\n)##\s[^\n]*{re.escape(kw)}[^\n]*\n(.*?)(?=\n##?\s[^#]|\Z)',
+            rf'(?:^|\n)##\s[^\n]*{re.escape(kw)}[^\n]*\n(.*?)(?=\n##\s[^#]|\Z)',
             re.IGNORECASE | re.DOTALL
         )
         m = pattern.search(text)

@@ -155,7 +155,7 @@ def extract_component_sections(spec):
 
     # Find the components section
     comp_match = re.search(
-        r'(?:##\sComponent\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\sComponent\w*)(.*?)(?=\n##\s[^#]|\Z)',
         spec, re.IGNORECASE | re.DOTALL
     )
     if not comp_match:
@@ -214,13 +214,13 @@ def validate_data_flow(spec):
 
     # Find the flow section
     flow_match = re.search(
-        r'(?:##\s(?:Data|Control)\s*(?:/\s*(?:Data|Control))?\s*Flow\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\s(?:Data|Control)\s*(?:/\s*(?:Data|Control))?\s*Flow\w*)(.*?)(?=\n##\s[^#]|\Z)',
         spec, re.IGNORECASE | re.DOTALL
     )
     if not flow_match:
         # Try broader match
         flow_match = re.search(
-            r'(?:##\s(?:Flow|Sequence|Pipeline)\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+            r'(?:##\s(?:Flow|Sequence|Pipeline)\w*)(.*?)(?=\n##\s[^#]|\Z)',
             spec, re.IGNORECASE | re.DOTALL
         )
     if not flow_match:
@@ -282,7 +282,7 @@ def validate_dependencies(spec):
     issues = []
 
     dep_match = re.search(
-        r'(?:##\sDependenc\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\sDependenc\w*)(.*?)(?=\n##\s[^#]|\Z)',
         spec, re.IGNORECASE | re.DOTALL
     )
     if not dep_match:
@@ -312,7 +312,7 @@ def validate_dependencies(spec):
 def count_risks(spec):
     """Count distinct risks in the Risk section."""
     risk_match = re.search(
-        r'(?:##\sRisk\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+        r'(?:##\sRisk\w*)(.*?)(?=\n##\s[^#]|\Z)',
         spec, re.IGNORECASE | re.DOTALL
     )
     if not risk_match:
@@ -344,7 +344,7 @@ def validate_spec_structure(spec, constraint_keywords=None):
     if layers < 2:
         # Fallback: count distinct heading-level items in architecture section
         arch_match = re.search(
-            r'(?:##\s(?:Architecture|Layer|Stack|Tier)\w*)(.*?)(?=\n##?\s[^#]|\Z)',
+            r'(?:##\s(?:Architecture|Layer|Stack|Tier)\w*)(.*?)(?=\n##\s[^#]|\Z)',
             spec, re.IGNORECASE | re.DOTALL
         )
         if arch_match:

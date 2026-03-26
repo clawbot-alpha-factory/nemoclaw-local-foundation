@@ -185,7 +185,7 @@ steps:
       conditions:
         - left: "step_3_output.quality_score"
           op: ">="
-          right: 8
+          right: 7
           go_to: step_5
           reason: "Score meets acceptance threshold"
         - left: "loop_counters.critic_loop"

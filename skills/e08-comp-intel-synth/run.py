@@ -167,7 +167,7 @@ def validate_report_structure(report, competitor_names, factual_tokens_orig,
 
     # ── SWOT structure: must be lists, non-empty (Fix 3) ─────────────────
     swot_section = ""
-    swot_match = re.search(r'(?:##\sSWOT.*?)(?=\n##?\s[^#]|\Z)', report,
+    swot_match = re.search(r'(?:##\sSWOT.*?)(?=\n##\s[^#]|\Z)', report,
                            re.IGNORECASE | re.DOTALL)
     if swot_match:
         swot_section = swot_match.group()
@@ -179,7 +179,7 @@ def validate_report_structure(report, competitor_names, factual_tokens_orig,
         else:
             # Check that subsection has list items (bullet points)
             sub_pattern = re.compile(
-                rf'(?:##?#?\s*{sub}\w*)(.*?)(?=\n##|\Z)',
+                rf'(?:###?\s*{sub}\w*)(.*?)(?=\n##|\Z)',
                 re.IGNORECASE | re.DOTALL)
             sub_match = sub_pattern.search(report)
             if sub_match:
