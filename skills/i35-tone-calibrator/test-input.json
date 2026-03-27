@@ -1,1 +1,8 @@
-{"skill_id": "i35-tone-calibrator", "inputs": {"input_text": "The quarterly results exceeded expectations with a 23 percent increase in revenue reaching 4.2 million dollars. Our team worked really hard and we think next quarter will be even more awesome.", "target_tone": "professional", "intensity": "moderate"}}
+{
+  "skill_id": "i35-tone-calibrator",
+  "inputs": {
+    "input_text": "The quarterly results exceeded expectations with a 23 percent increase in revenue. Our team worked really hard and we think next quarter will be even more awesome.",
+    "target_tone": "professional",
+    "intensity": "moderate"
+  }
+}

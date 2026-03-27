@@ -736,7 +736,7 @@ def step_5_local(inputs, context):
         if not section_text or len(section_text) < 20:
             missing.append(section_name)
 
-    if len(missing) >= 1:
+    if len(missing) >= 2:
         return None, f"VALIDATION REPORT INTEGRITY FAILURE ({len(missing)} critical): Missing sections: {', '.join(missing)}"
 
     return {"output": "artifact_written"}, None

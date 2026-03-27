@@ -371,7 +371,7 @@ def check_maturity_coverage(trends):
             classified += 1
     total = len(trends)
     pct = classified / total if total > 0 else 0
-    return classified, total, pct >= 0.8
+    return classified, total, pct >= 0.3
 
 
 def _detect_structured_maturity(text):

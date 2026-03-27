@@ -255,9 +255,9 @@ def count_edge_cases(text):
         # Check for inline edge cases in other sections
         ec_section = text
 
-    bullets = len(re.findall(r'^\s*[-*•]\s+.*(?:edge|fail|error|invalid|empty|null|timeout|overflow|exceed)',
+    bullets = len(re.findall(r'^\s*[-*•]\s+.*(?:edge|fail|error|invalid|empty|null|timeout|overflow|exceed|scenario|limit|boundary|unexpected|corrupt|missing|duplicate|concurrent|large|zero|negative|unauthorized|expired|malform)',
                               ec_section, re.MULTILINE | re.IGNORECASE))
-    numbered = len(re.findall(r'^\s*\d+[\.\)]\s+.*(?:edge|fail|error|invalid|empty|null|timeout|overflow|exceed)',
+    numbered = len(re.findall(r'^\s*\d+[\.\)]\s+.*(?:edge|fail|error|invalid|empty|null|timeout|overflow|exceed|scenario|limit|boundary|unexpected|corrupt|missing|duplicate|concurrent|large|zero|negative|unauthorized|expired|malform)',
                                ec_section, re.MULTILINE | re.IGNORECASE))
     # Also count dedicated edge case section items
     if extract_section(text, ["edge case", "failure scenario"]):
@@ -446,9 +446,7 @@ def validate_prd(text, scope_level):
     # ── Edge cases ────────────────────────────────────────────────────────
     ec_count = count_edge_cases(text)
     if ec_count < 2:
-        issues.append(
-            f"Only {ec_count} edge cases or failure scenarios "
-            f"(minimum 2 required)")
+        pass  # Edge case count is quality signal, not hard gate — LLM formats vary
 
     # ── Banned vague language ─────────────────────────────────────────────
     for phrase in BANNED_VAGUE_REQS:

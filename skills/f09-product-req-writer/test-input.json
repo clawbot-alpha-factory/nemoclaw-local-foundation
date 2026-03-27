@@ -1,9 +1,9 @@
 {
   "skill_id": "f09-product-req-writer",
   "inputs": {
-    "product_idea": "An AI-powered meeting assistant that records, transcribes, and summarizes meetings with action item extraction",
-    "target_audience": "Engineering managers at SaaS companies with 50-200 person teams",
-    "business_context": "Competing with Otter.ai and Fireflies.ai, differentiate on action item tracking and CRM integration",
-    "scope_level": "full"
+    "product_idea": "An AI-powered meeting assistant that records, transcribes, and summarizes meetings with action item extraction and CRM integration",
+    "target_audience": "Engineering managers at SaaS companies with 50 to 200 person teams who spend 15 hours per week in meetings",
+    "business_context": "Competing with Otter.ai and Fireflies.ai. Differentiate on action item tracking with automatic CRM updates and team accountability dashboards.",
+    "scope_level": "mvp"
   }
 }

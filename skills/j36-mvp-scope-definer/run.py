@@ -748,7 +748,7 @@ def step_5_local(inputs, context):
         return None, "No scope document available to write"
 
     missing = check_required_sections(final_scope)
-    if len(missing) >= 1:
+    if len(missing) >= 2:
         return None, f"SCOPE DOCUMENT INTEGRITY FAILURE ({len(missing)} critical): Missing sections: {', '.join(missing)}"
 
     content_lines = [

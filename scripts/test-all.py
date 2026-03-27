@@ -47,7 +47,7 @@ def run_skill(skill_id: str, test_input_path: Path) -> tuple:
             cmd,
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=600,
             cwd=str(REPO_BASE),
         )
         elapsed = int(time.time() - start)

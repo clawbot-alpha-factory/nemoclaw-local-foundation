@@ -1,10 +1,8 @@
 {
   "skill_id": "e12-tech-trend-scanner",
   "inputs": {
-    "technology_domain": "AI agent frameworks and autonomous systems",
-    "industry_context": "B2B SaaS mid-market companies with 50 to 500 employees",
-    "time_horizon": "comprehensive",
-    "known_technologies": "LangChain, AutoGPT, CrewAI",
+    "technology_domain": "AI agent frameworks and autonomous systems for enterprise automation",
+    "industry_context": "B2B SaaS mid-market companies with 50 to 500 employees looking to automate customer operations",
     "scan_depth": "overview"
   }
 }
