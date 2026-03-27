@@ -31,22 +31,22 @@ providers:
     provider: anthropic
     model: claude-haiku-4-5-20251001
     max_tokens: 4096
-    estimated_cost_per_call: 0.004
-    notes: Moderate complexity tasks. Fast, cheap Claude.
+    estimated_cost_per_call: 0.008
+    notes: Moderate complexity tasks. Fast, cheap Claude. ~$0.005-0.01/call typical.
 
   reasoning_claude:
     provider: anthropic
     model: claude-sonnet-4-6
     max_tokens: 8096
-    estimated_cost_per_call: 0.012
-    notes: Complex reasoning, long context, code, synthesis.
+    estimated_cost_per_call: 0.060
+    notes: Complex reasoning, long context, code, synthesis. ~$0.03-0.08/call typical.
 
   premium_claude:
     provider: anthropic
     model: claude-opus-4-6
     max_tokens: 8096
-    estimated_cost_per_call: 0.030
-    notes: Highest quality Claude tasks. Use for critical outputs only.
+    estimated_cost_per_call: 0.200
+    notes: Highest quality Claude. EXPENSIVE — ~$0.15-0.35/call. Reserved for final production review only.
 
   cheap_google:
     provider: google
@@ -79,7 +79,7 @@ routing_rules:
   structured_short:   cheap_openai
   general_short:      cheap_openai
   deep_reasoning:     reasoning_o3
-  premium:            premium_claude
+  premium:            reasoning_claude
 
 defaults:
   default_alias: cheap_openai
