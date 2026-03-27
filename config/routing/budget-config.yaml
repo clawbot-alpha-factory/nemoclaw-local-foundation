@@ -1,8 +1,8 @@
-# NemoClaw Budget Config v2.0 - Updated 2026-03-24
+# NemoClaw Budget Config v3.0 - Updated 2026-03-27
 # Phase 8: Three providers — OpenAI, Anthropic, Google
 budgets:
   anthropic:
-    total_usd: 10.00
+    total_usd: 30.00
     tracking: cumulative_across_sessions
     threshold_warn: 0.90
     threshold_hard_stop: 1.00
@@ -11,7 +11,7 @@ budgets:
     log_to_file: true
     log_to_terminal: true
   openai:
-    total_usd: 10.00
+    total_usd: 30.00
     tracking: cumulative_across_sessions
     threshold_warn: 0.90
     threshold_hard_stop: 1.00
@@ -20,7 +20,7 @@ budgets:
     log_to_file: true
     log_to_terminal: true
   google:
-    total_usd: 10.00
+    total_usd: 30.00
     tracking: cumulative_across_sessions
     threshold_warn: 0.90
     threshold_hard_stop: 1.00

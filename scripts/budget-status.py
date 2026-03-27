@@ -22,7 +22,7 @@ def load_limit(provider):
             cfg = yaml.safe_load(f)
         return cfg["budgets"][provider]["total_usd"]
     except Exception:
-        return 10.00
+        return 30.00
 
 def bar(pct, width=20):
     filled = int(pct * width)
