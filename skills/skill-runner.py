@@ -909,6 +909,10 @@ def run_skill(skill_name, inputs, thread_id=None, resume=False, input_from=None)
 
     config = {"configurable": {"thread_id": thread_id}}
 
+    # Phase 6.1: Backup checkpoint DB before every run
+    if os.path.exists(CHECKPOINT_DB):
+        shutil.copy2(CHECKPOINT_DB, CHECKPOINT_DB + ".bak")
+
     with SqliteSaver.from_conn_string(CHECKPOINT_DB) as checkpointer:
         app = build_graph(skill, skill_dir, checkpointer)
 
