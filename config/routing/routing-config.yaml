@@ -70,16 +70,16 @@ providers:
     notes: Fallback for any provider failure. Always available.
 
 routing_rules:
-  complex_reasoning:  reasoning_openai
+  complex_reasoning:  reasoning_claude
   long_document:      reasoning_google
   code:               reasoning_openai
-  agentic:            reasoning_openai
-  moderate:           cheap_openai
+  agentic:            reasoning_claude
+  moderate:           cheap_claude
   vision:             cheap_google
   structured_short:   cheap_openai
   general_short:      cheap_openai
   deep_reasoning:     reasoning_o3
-  premium:            reasoning_openai
+  premium:            reasoning_claude
 
 defaults:
   default_alias: cheap_openai
