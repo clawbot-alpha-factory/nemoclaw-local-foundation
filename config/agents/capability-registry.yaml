@@ -1,0 +1,259 @@
+# NemoClaw Capability Registry v1.0
+# MA-1: Explicit skill-to-agent mapping with fallbacks and contracts
+
+schema_version: 1
+created: 2026-03-28
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CAPABILITY DEFINITIONS
+# Each capability maps to: owning agent, backing skill, fallback, I/O contract
+# ═══════════════════════════════════════════════════════════════════════════════
+
+capabilities:
+
+  # ── Strategy Lead ─────────────────────────────────────────────────────────
+  market_research:
+    owned_by: strategy_lead
+    skill: e12-market-research-analyst
+    fallback_agent: null  # no fallback — only strategy researches
+    requires_inputs: [research_topic, industry_context]
+    produces_outputs: [market_overview, segmentation, trends, recommendations]
+    memory_keys_written: [market_overview, market_segments, market_trends]
+
+  tech_trend_scan:
+    owned_by: strategy_lead
+    skill: e12-tech-trend-scanner
+    fallback_agent: null
+    requires_inputs: [technology_domain, industry_context]
+    produces_outputs: [trend_report, maturity_classifications, disruption_vectors]
+    memory_keys_written: [tech_trends, disruption_vectors, maturity_map]
+
+  competitive_intelligence:
+    owned_by: strategy_lead
+    skill: e08-comp-intel-synth
+    fallback_agent: null
+    requires_inputs: [competitor_data, focus_company, industry_context]
+    produces_outputs: [competitive_analysis, positioning_map, strategic_recommendations]
+    memory_keys_written: [competitive_landscape, positioning_gaps]
+
+  business_validation:
+    owned_by: strategy_lead
+    skill: j36-biz-idea-validator
+    fallback_agent: null
+    requires_inputs: [business_idea, target_market, competitive_landscape]
+    produces_outputs: [validation_report, go_no_go_recommendation]
+    memory_keys_written: [validation_result, go_no_go_decision]
+
+  mvp_scoping:
+    owned_by: strategy_lead
+    skill: j36-mvp-scope-definer
+    fallback_agent: product_architect  # product can also scope
+    requires_inputs: [product_idea, target_audience, resource_constraints, timeline]
+    produces_outputs: [mvp_scope, feature_priorities, launch_criteria]
+    memory_keys_written: [mvp_scope, feature_list, launch_criteria]
+
+  # ── Product Architect ─────────────────────────────────────────────────────
+  product_requirements:
+    owned_by: product_architect
+    skill: f09-product-req-writer
+    fallback_agent: null
+    requires_inputs: [product_idea, target_audience, business_context, scope_level]
+    produces_outputs: [prd, user_stories, acceptance_criteria, nfrs]
+    memory_keys_written: [requirements, user_stories, scope_boundaries]
+
+  architecture_spec:
+    owned_by: product_architect
+    skill: a01-arch-spec-writer
+    fallback_agent: engineering_lead  # eng can also architect
+    requires_inputs: [subsystem_name, subsystem_concept]
+    produces_outputs: [architecture_doc, component_breakdown, integration_points]
+    memory_keys_written: [architecture, components, integrations]
+
+  system_context_map:
+    owned_by: product_architect
+    skill: a01-sys-context-mapper
+    fallback_agent: null
+    requires_inputs: [system_name, system_description]
+    produces_outputs: [context_map, external_actors, data_flows]
+    memory_keys_written: [system_context, actors, data_flows]
+
+  api_design:
+    owned_by: product_architect
+    skill: a01-api-surface-designer
+    fallback_agent: engineering_lead
+    requires_inputs: [service_description, target_consumers]
+    produces_outputs: [api_spec, endpoint_inventory, auth_model]
+    memory_keys_written: [api_spec, endpoints]
+
+  decision_record:
+    owned_by: product_architect
+    skill: c07-decision-record-writer
+    fallback_agent: operations_lead
+    requires_inputs: [decision_title, decision_context, options_considered, chosen_option]
+    produces_outputs: [adr_document, consequences, review_date]
+    memory_keys_written: [decision_record]
+
+  # ── Growth & Revenue Lead ──────────────────────────────────────────────────
+  pricing_strategy:
+    owned_by: growth_revenue_lead
+    skill: f09-pricing-strategist
+    fallback_agent: null
+    requires_inputs: [product_description, target_market, competitive_pricing, cost_structure]
+    produces_outputs: [pricing_model, revenue_projections, pricing_tiers]
+    memory_keys_written: [pricing_model, revenue_projections, pricing_tiers]
+
+  # ── Narrative & Content Lead ───────────────────────────────────────────────
+  copywriting:
+    owned_by: narrative_content_lead
+    skill: d11-copywriting-specialist
+    fallback_agent: null
+    requires_inputs: [copy_brief, target_audience, copy_format, brand_voice]
+    produces_outputs: [copy_content, cta, headline]
+    memory_keys_written: [copy_content, brand_messaging]
+
+  video_scripting:
+    owned_by: narrative_content_lead
+    skill: d11-video-script-writer
+    fallback_agent: null
+    requires_inputs: [script_brief, target_audience, video_format]
+    produces_outputs: [video_script, scene_breakdown, cta]
+    memory_keys_written: [video_script]
+
+  api_documentation:
+    owned_by: narrative_content_lead
+    skill: c07-api-doc-gen
+    fallback_agent: engineering_lead
+    requires_inputs: [api_specification, target_audience, api_name]
+    produces_outputs: [api_docs, quick_start, error_reference]
+    memory_keys_written: [api_documentation]
+
+  kb_article:
+    owned_by: narrative_content_lead
+    skill: e08-kb-article-writer
+    fallback_agent: null
+    requires_inputs: [topic, article_type, target_audience, source_material]
+    produces_outputs: [kb_article, troubleshooting_tips, metadata_tags]
+    memory_keys_written: [kb_article]
+
+  meeting_summary:
+    owned_by: narrative_content_lead
+    skill: e08-meeting-summary-gen
+    fallback_agent: operations_lead
+    requires_inputs: [transcript, attendees, meeting_type]
+    produces_outputs: [summary, action_items, decisions, open_questions]
+    memory_keys_written: [meeting_decisions, action_items]
+
+  tone_calibration:
+    owned_by: narrative_content_lead
+    skill: i35-tone-calibrator
+    fallback_agent: null
+    requires_inputs: [input_text, target_tone, intensity]
+    produces_outputs: [calibrated_text, tone_analysis]
+    memory_keys_written: []  # utility — no memory footprint
+
+  # ── Engineering Lead ───────────────────────────────────────────────────────
+  feature_implementation:
+    owned_by: engineering_lead
+    skill: b05-feature-impl-writer
+    fallback_agent: null
+    requires_inputs: [feature_spec, language]
+    produces_outputs: [implementation_plan, code_structure, test_recommendations]
+    memory_keys_written: [implementation_plan]
+
+  scaffold_generation:
+    owned_by: engineering_lead
+    skill: b05-scaffold-gen
+    fallback_agent: null
+    requires_inputs: [project_type, language, feature_requirements, project_name]
+    produces_outputs: [project_scaffold, directory_structure, config_files]
+    memory_keys_written: [project_structure]
+
+  bug_fix:
+    owned_by: engineering_lead
+    skill: b05-bug-fix-impl
+    fallback_agent: null
+    requires_inputs: [bug_description, affected_code_snippet, expected_behavior, actual_behavior]
+    produces_outputs: [root_cause, fix_diff, test_cases]
+    memory_keys_written: [bug_fixes]
+
+  cicd_design:
+    owned_by: engineering_lead
+    skill: b06-cicd-designer
+    fallback_agent: null
+    requires_inputs: [project_description, deployment_targets, quality_gates, pipeline_format]
+    produces_outputs: [pipeline_spec, stages, trigger_conditions]
+    memory_keys_written: [cicd_pipeline]
+
+  release_notes:
+    owned_by: engineering_lead
+    skill: b06-release-notes-gen
+    fallback_agent: narrative_content_lead  # content can also write notes
+    requires_inputs: [commit_history, version_number, audience_type]
+    produces_outputs: [release_notes, changelog]
+    memory_keys_written: [release_notes]
+
+  setup_guide:
+    owned_by: engineering_lead
+    skill: c07-setup-guide-writer
+    fallback_agent: null
+    requires_inputs: [system_description, target_environment]
+    produces_outputs: [setup_guide, prerequisites, verification_steps]
+    memory_keys_written: [setup_documentation]
+
+  runbook:
+    owned_by: engineering_lead
+    skill: c07-runbook-author
+    fallback_agent: null
+    requires_inputs: [system_description, procedures]
+    produces_outputs: [runbook, decision_trees, verification_checkpoints]
+    memory_keys_written: [operational_runbook]
+
+  # ── Operations Lead ────────────────────────────────────────────────────────
+  output_formatting:
+    owned_by: operations_lead
+    skill: g25-output-format-enforcer
+    fallback_agent: null
+    requires_inputs: [input_text, target_format]
+    produces_outputs: [formatted_output]
+    memory_keys_written: []  # utility
+
+  prompt_design:
+    owned_by: operations_lead
+    skill: g25-sys-prompt-designer
+    fallback_agent: null
+    requires_inputs: [skill_purpose, skill_id, tag]
+    produces_outputs: [system_prompt, guardrails]
+    memory_keys_written: [prompt_designs]
+
+  skill_spec_generation:
+    owned_by: operations_lead
+    skill: g26-skill-spec-writer
+    fallback_agent: null
+    requires_inputs: [skill_concept, skill_name, skill_id, family, domain, tag]
+    produces_outputs: [skill_yaml]
+    memory_keys_written: [generated_specs]
+
+  skill_code_generation:
+    owned_by: operations_lead
+    skill: g26-skill-template-gen
+    fallback_agent: null
+    requires_inputs: [skill_yaml]
+    produces_outputs: [skill_run_py]
+    memory_keys_written: [generated_code]
+
+  research_brief:
+    owned_by: operations_lead
+    skill: research-brief
+    fallback_agent: strategy_lead
+    requires_inputs: [topic]
+    produces_outputs: [research_brief]
+    memory_keys_written: [research_brief]
+
+  # ── Executive Operator ─────────────────────────────────────────────────────
+  workflow_orchestration:
+    owned_by: executive_operator
+    skill: orchestrator  # scripts/orchestrator.py
+    fallback_agent: operations_lead
+    requires_inputs: [workflow_definition]
+    produces_outputs: [pipeline_results, artifacts, memory_state]
+    memory_keys_written: ["*"]  # full access
