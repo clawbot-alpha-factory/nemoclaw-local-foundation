@@ -288,6 +288,7 @@ def step_1_local(inputs, context):
             "step_description": sdesc,
             "handler_type": handler_type,
             "output_format": output_format,
+            "output_key": step.get("output_key", sid + "_output"),
             "needs_deterministic_check": needs_det,
             "is_final_step": is_final,
             "calls_llm": calls_llm,
@@ -488,10 +489,25 @@ STEP 5 RETURN:
   return {"output": "artifact_written"}, None
   The runner handles file writing. Step 5 only validates and signals.
 
-CONTEXT ACCESS:
+CONTEXT ACCESS — CRITICAL RULES:
   Step 1 output: context.get("step_1_output", {})
-  Previous step by output_key: context.get("generated_copy", "")
-  For improved versions: context.get("improved_copy", context.get("generated_copy", ""))
+  Step 2 output: context.get("<step_2_output_key>", "")  — use the EXACT output_key from skill.yaml
+  Step 3 output: context.get("step_3_output", {})
+  Improved output: context.get("<step_4_output_key>", context.get("<step_2_output_key>", ""))
+
+  CRITICAL: The context key MUST match the output_key in skill.yaml EXACTLY.
+  If skill.yaml says output_key: generated_scope, the code MUST use context.get("generated_scope")
+  If skill.yaml says output_key: generated_validation, the code MUST use context.get("generated_validation")
+  NEVER use generic names like step_2_output or step_4_output — read the actual output_key values.
+
+  Pattern for step_3 (critic) getting step_2's output:
+    output_key_from_yaml = "<whatever step_2's output_key is>"
+    text = context.get("improved_<noun>", context.get("<output_key_from_yaml>", ""))
+
+  Pattern for step_5 getting best output:
+    improved = context.get("<step_4_output_key>", "")
+    generated = context.get("<step_2_output_key>", "")
+    final = improved if improved else generated
 
 === CRITICAL: CODE COMPLETENESS RULES ===
 
@@ -542,6 +558,8 @@ SHORTEN the handler implementations rather than omitting STEP_HANDLERS or __main
 - Using tuple messages like ("system", "prompt") — MUST use {"role": "system", "content": "prompt"}
 - Using weighted average for quality_score — MUST use min()
 - Omitting fallback call_openai after call_resolved failure
+- Using context.get("step_2_output") or context.get("step_4_output") — MUST use the actual output_key from skill.yaml
+- Setting cached: true on step_3 or step_4 in critic loops — caching breaks loop counter, causes infinite loops
 """
 
 
@@ -566,15 +584,27 @@ def step_2_llm(inputs, context):
     raw_yaml = classification.get("raw_yaml", "")
 
     # Build step summary for the prompt
+    # Build output_key map for context access rules
+    output_key_map = {}
+    for sc in step_classes:
+        output_key_map[sc['step_id']] = sc.get('output_key', sc['step_id'] + '_output')
+
     step_summary = []
     for sc in step_classes:
+        ok = sc.get('output_key', sc['step_id'] + '_output')
         step_summary.append(
             f"  {sc['step_id']}: type={sc['step_type']}, handler={sc['handler_type']}, "
-            f"output={sc['output_format']}, calls_llm={sc['calls_llm']}, "
+            f"output_key={ok}, calls_llm={sc['calls_llm']}, "
             f"is_final={sc['is_final_step']}\n"
             f"    name: {sc['step_name']}\n"
             f"    desc: {sc['step_description'][:200]}")
     step_block = "\n".join(step_summary)
+
+    # Build output_key instruction for context access
+    ok_instruction = "\nCONTEXT KEY MAP (use these EXACT keys in context.get()):\n"
+    for sid, ok in output_key_map.items():
+        ok_instruction += f"  {sid} -> context.get(\"{ok}\")\n"
+    ok_instruction += "NEVER use step_2_output or step_4_output — use the exact keys above.\n" 
 
     # Input fields summary
     input_summary = "\n".join(
@@ -643,6 +673,7 @@ GENERATION RULES:
 """
 
     user_msg = f"""Generate the complete run.py for skill '{skill_id}'.
+{ok_instruction}
 
 SKILL.YAML for reference:
 {raw_yaml[:4000]}

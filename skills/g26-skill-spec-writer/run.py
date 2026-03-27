@@ -620,6 +620,12 @@ CRITIC LOOP CONVENTION:
     - left: "step_3_output.quality_score", op: ">=", right: 7, go_to: step_5
     - left: "loop_counters.critic_loop", op: ">=", right: 2, go_to: step_5
 
+  CRITICAL CACHE RULE FOR CRITIC LOOPS:
+  step_3 (critic) MUST have cached: false — cached results bypass loop counter increment
+  step_4 (improve) MUST have cached: false — same reason
+  Only step_1 and step_2 may have cached: true. Step_5 is always cached: false.
+  If step_3 or step_4 are cached, the loop runs forever replaying stale results.
+
 CRITIC STEP CONVENTION:
   step_3 is ALWAYS step_type: critic — even when the skill has heavy deterministic validation.
   A critic step runs BOTH deterministic checks AND LLM evaluation in the same handler.
@@ -683,6 +689,7 @@ OBSERVABILITY CONVENTION:
 - metrics_file MUST be the shared path ~/.nemoclaw/logs/skill-metrics.jsonl
 - contracts.required_fields MUST be [result] — not invented field names
 - composable.can_feed_into and accepts_input_from MUST use real skill IDs or empty lists
+- step_3 and step_4 MUST have cached: false — cached critic/improve steps cause infinite loops
 - If the concept describes transformation, calibration, rewriting → skill_type is transformer
 - If the concept describes evaluation, scoring, review → skill_type is evaluator
 - Most skills with LLM generation SHOULD have a critic loop unless trivially simple

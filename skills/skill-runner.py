@@ -24,6 +24,7 @@ import os
 import subprocess
 import sys
 import time
+import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import TypedDict, Annotated
