@@ -47,6 +47,10 @@ MAX_PRIVATE_ENTRIES = 500
 AUTO_PROMOTE_CONFIDENCE = 0.75
 MAX_PROMPT_INJECTION_ENTRIES = 10
 MAX_PROMPT_INJECTION_CHARS = 4000
+DEFAULT_PROMPT_TOKEN_BUDGET = 1000  # ~4000 chars, configurable per agent
+SHARED_RETENTION_DAYS = 30          # TTL for shared workspace entries
+DECAY_HALF_LIFE_DAYS = 30           # entries lose 50% relevance after this many days
+DECAY_ACCESS_BONUS = 0.1            # each access adds this to relevance
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -67,6 +71,49 @@ def _make_entry(value, source_agent, importance="standard", confidence=0.5,
         "access_count": 0,
         "last_accessed": None,
     }
+
+
+def _calculate_relevance(entry):
+    """Calculate relevance score with decay.
+    
+    relevance = confidence × recency_factor × (1 + access_bonus)
+    recency_factor decays from 1.0 to 0.5 over DECAY_HALF_LIFE_DAYS
+    """
+    confidence = entry.get("confidence", 0.5)
+    access_count = entry.get("access_count", 0)
+    
+    # Calculate age in days
+    ts = entry.get("timestamp", "")
+    if ts:
+        try:
+            created = datetime.fromisoformat(ts)
+            age_days = (datetime.now(timezone.utc) - created).total_seconds() / 86400
+        except (ValueError, TypeError):
+            age_days = 0
+    else:
+        age_days = 0
+    
+    # Recency factor: exponential decay
+    import math
+    recency = math.pow(0.5, age_days / DECAY_HALF_LIFE_DAYS) if DECAY_HALF_LIFE_DAYS > 0 else 1.0
+    
+    # Access bonus
+    access_bonus = 1.0 + (access_count * DECAY_ACCESS_BONUS)
+    
+    return round(confidence * recency * access_bonus, 4)
+
+
+def _is_expired(entry, retention_days=SHARED_RETENTION_DAYS):
+    """Check if an entry has exceeded its TTL."""
+    ts = entry.get("timestamp", "")
+    if not ts:
+        return False
+    try:
+        created = datetime.fromisoformat(ts)
+        age_days = (datetime.now(timezone.utc) - created).total_seconds() / 86400
+        return age_days > retention_days
+    except (ValueError, TypeError):
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -220,7 +267,7 @@ class SharedWorkspaceMemory:
             self._audit("BLOCKED_WRITE", agent, key, reason)
             return False, f"MEMORY VIOLATION: {agent} cannot write '{key}': {reason}"
 
-        # Conflict detection
+        # 3-tier conflict detection
         if key in self.store:
             existing = self.store[key]
             existing_agent = existing.get("source_agent")
@@ -228,26 +275,45 @@ class SharedWorkspaceMemory:
             if existing_agent != agent:
                 existing_importance = existing.get("importance", "standard")
 
-                # Critical keys: block and escalate
+                # TIER 1 — CRITICAL: block + escalate to executive_operator
                 if existing_importance == "critical" or importance == "critical":
                     conflict = {
                         "key": key,
                         "existing_agent": existing_agent,
                         "new_agent": agent,
+                        "tier": "critical",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "resolution": "PENDING — escalate to executive_operator",
                     }
                     self.conflicts.append(conflict)
                     self._audit("CONFLICT_CRITICAL", agent, key,
-                               f"Blocked: {existing_agent} wrote critical key, {agent} tried to overwrite")
+                               f"Blocked: {existing_agent} wrote critical, {agent} tried to overwrite")
                     return False, (
-                        f"CONFLICT: Critical key '{key}' owned by {existing_agent}. "
+                        f"CONFLICT [CRITICAL]: Key '{key}' owned by {existing_agent}. "
                         f"Escalate to executive_operator."
                     )
 
-                # Auxiliary keys: last-write-wins with audit
-                self._audit("OVERWRITE", agent, key,
-                           f"Previous: {existing_agent}, new: {agent} (last-write-wins)")
+                # TIER 2 — AMBIGUOUS: standard vs standard from different agents
+                if existing_importance == "standard" and importance == "standard":
+                    conflict = {
+                        "key": key,
+                        "existing_agent": existing_agent,
+                        "new_agent": agent,
+                        "tier": "ambiguous",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "resolution": "PENDING — flag for review committee (MA-10)",
+                    }
+                    self.conflicts.append(conflict)
+                    self._audit("CONFLICT_AMBIGUOUS", agent, key,
+                               f"Ambiguous: {existing_agent} and {agent} both write standard key")
+                    # Allow write but flag for review
+                    self._audit("OVERWRITE_FLAGGED", agent, key,
+                               f"Overwrote {existing_agent}'s value — flagged for review")
+
+                # TIER 3 — MINOR: auxiliary keys, last-write-wins silently
+                else:
+                    self._audit("OVERWRITE", agent, key,
+                               f"Previous: {existing_agent}, new: {agent} (last-write-wins)")
 
         # Write
         self.store[key] = _make_entry(
@@ -305,6 +371,38 @@ class SharedWorkspaceMemory:
                 conflict["resolution"] = f"RESOLVED: {winner_agent} wins — {rationale}"
                 self._audit("CONFLICT_RESOLVED", "executive_operator", key, rationale)
                 break
+
+    def cleanup_expired(self, retention_days=None):
+        """Remove expired entries. Archive them, don't delete.
+        
+        Returns: list of archived keys
+        """
+        ttl = retention_days or SHARED_RETENTION_DAYS
+        archived = []
+        archive_path = self.dir / "archived.jsonl"
+
+        for key in list(self.store.keys()):
+            entry = self.store[key]
+            if _is_expired(entry, ttl):
+                with open(archive_path, "a") as f:
+                    f.write(json.dumps({key: entry}) + "\n")
+                del self.store[key]
+                archived.append(key)
+                self._audit("EXPIRED", entry.get("source_agent", "system"), key,
+                           f"TTL exceeded ({ttl} days)")
+
+        if archived:
+            self._save()
+        return archived
+
+    def get_ranked_entries(self, limit=20):
+        """Get entries ranked by relevance score (decay-adjusted)."""
+        ranked = []
+        for key, entry in self.store.items():
+            relevance = _calculate_relevance(entry)
+            ranked.append((key, entry, relevance))
+        ranked.sort(key=lambda x: x[2], reverse=True)
+        return ranked[:limit]
 
     def promotable_entries(self):
         """Get entries eligible for long-term promotion.
@@ -470,7 +568,12 @@ class MemorySystem:
         return self._private_cache[agent_id]
 
     def inject_context(self, agent_id, max_entries=MAX_PROMPT_INJECTION_ENTRIES,
-                       max_chars=MAX_PROMPT_INJECTION_CHARS):
+                       max_chars=None, token_budget=None):
+        # Use token budget to derive max_chars (~4 chars per token)
+        if token_budget:
+            max_chars = token_budget * 4
+        elif max_chars is None:
+            max_chars = DEFAULT_PROMPT_TOKEN_BUDGET * 4
         """Build context string for injecting into an agent's LLM prompt.
         
         Priority: private lessons > shared critical > shared standard > long-term relevant
@@ -493,25 +596,13 @@ class MemorySystem:
             parts.append(text)
             char_count += len(text)
 
-        # 2. Shared critical entries
-        critical = self.shared.read_by_importance("critical")
-        for key, entry in sorted(critical.items(),
-                                  key=lambda x: x[1].get("timestamp", ""), reverse=True):
+        # 2+3. Shared entries ranked by relevance (decay-adjusted)
+        ranked = self.shared.get_ranked_entries(limit=max_entries * 2)
+        for key, entry, relevance in ranked:
             if len(parts) >= max_entries:
                 break
-            text = f"[SHARED CRITICAL] {key} (from {entry['source_agent']}): {str(entry['value'])[:200]}"
-            if char_count + len(text) > max_chars:
-                break
-            parts.append(text)
-            char_count += len(text)
-
-        # 3. Shared standard entries (from current workflow)
-        standard = self.shared.read_by_importance("standard")
-        for key, entry in sorted(standard.items(),
-                                  key=lambda x: x[1].get("confidence", 0), reverse=True):
-            if len(parts) >= max_entries:
-                break
-            text = f"[SHARED] {key} (from {entry['source_agent']}): {str(entry['value'])[:200]}"
+            imp = entry.get("importance", "standard")[0].upper()
+            text = f"[SHARED {imp} r={relevance:.2f}] {key} (from {entry['source_agent']}): {str(entry['value'])[:200]}"
             if char_count + len(text) > max_chars:
                 break
             parts.append(text)
