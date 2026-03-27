@@ -1,0 +1,292 @@
+name: j36-biz-idea-validator
+version: "1.0.0"
+display_name: "Business Idea Validator"
+description: "A business idea validator that takes a business idea, target market, and competitive landscape. Produces structured validation output with market viability assessment (TAM/SAM/SOM with three-path sizing), competitive positioning analysis, revenue model feasibility with revenue grounding (numeric tokens or derivation chain or data gap acknowledgment), risk assessment with categorized risks (market, technical, financial, regulatory, operational), go/no-go recommendation linked to specific findings, and actionable next steps. Scope-driven generation with anti-fabrication controls ensuring all market data is grounded in input or explicitly flagged as estimates."
+author: "Core88"
+created: "2026-03-26"
+family: F36
+domain: J
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: "You are a rigorous business analyst and venture strategist specializing in early-stage idea validation. You combine market sizing discipline (TAM/SAM/SOM with three-path sizing: top-down, bottom-up, value-theory), competitive analysis frameworks, and revenue model feasibility assessment. You never fabricate market data — all figures must be grounded in provided inputs or explicitly flagged as estimates with stated assumptions. You produce structured, actionable validation reports that give founders and stakeholders clear go/no-go signals backed by specific findings."
+
+inputs:
+  - name: business_idea
+    type: string
+    required: true
+    description: "Description of the business idea including the product or service, value proposition, and how it solves a problem."
+    validation:
+      min_length: 50
+      max_length: 5000
+  - name: target_market
+    type: string
+    required: true
+    description: "Description of the target market including customer segments, demographics, geography, and any known market size data or references."
+    validation:
+      min_length: 30
+      max_length: 3000
+  - name: competitive_landscape
+    type: string
+    required: true
+    description: "Description of known competitors, their positioning, strengths, weaknesses, and any market share data available."
+    validation:
+      min_length: 30
+      max_length: 3000
+  - name: scope
+    type: string
+    required: false
+    description: "Depth of validation analysis. Quick produces 3-5 items per section, standard produces 5-10, comprehensive produces 10-20."
+    default: "standard"
+    validation:
+      allowed_values:
+        - quick
+        - standard
+        - comprehensive
+  - name: revenue_model_hints
+    type: string
+    required: false
+    description: "Optional hints about intended revenue model (e.g., SaaS subscription, marketplace commission, freemium, advertising). Helps ground revenue feasibility analysis."
+    default: ""
+    validation:
+      max_length: 2000
+  - name: known_constraints
+    type: string
+    required: false
+    description: "Optional known constraints such as budget limits, regulatory requirements, geographic restrictions, or technical limitations that should factor into risk assessment."
+    default: ""
+    validation:
+      max_length: 2000
+
+outputs:
+  - name: result
+    type: string
+    description: "Complete structured business idea validation report in markdown format containing market viability assessment, competitive positioning analysis, revenue model feasibility, categorized risk assessment, go/no-go recommendation, and actionable next steps."
+  - name: result_file
+    type: file_path
+    description: "Path to the written validation report artifact file."
+  - name: envelope_file
+    type: file_path
+    description: "Path to the envelope metadata JSON file for this validation run."
+
+artifacts:
+  storage_location: "skills/j36-biz-idea-validator/outputs/"
+  filename_pattern: "j36-biz-idea-validator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "j36-biz-idea-validator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse inputs and build validation plan"
+    step_type: local
+    task_class: general_short
+    description: "Parses and validates all inputs. Determines scope-driven item counts (quick=3-5, standard=5-10, comprehensive=10-20). Extracts structured data from business_idea, target_market, and competitive_landscape. Identifies any numeric market data provided in inputs for grounding. Builds a generation plan specifying sections, depth targets, and grounding constraints."
+    input_source: "inputs.business_idea"
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_1_output"
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Failed to parse inputs and build validation plan. Check that business_idea, target_market, and competitive_landscape meet minimum length requirements."
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: "Generate comprehensive business validation report"
+    step_type: llm
+    task_class: complex_reasoning
+    description: "Generates the full structured business idea validation report following the generation plan from step_1. Produces all required sections: (1) Market Viability Assessment with TAM/SAM/SOM using three-path sizing (top-down, bottom-up, value-theory) where each figure includes a derivation chain or is explicitly flagged as an estimate with stated assumptions; (2) Competitive Positioning Analysis mapping competitors on key dimensions; (3) Revenue Model Feasibility with revenue grounding — every revenue projection must include numeric tokens, a derivation chain, or an explicit data gap acknowledgment; (4) Risk Assessment with categorized risks across market, technical, financial, regulatory, and operational dimensions; (5) Go/No-Go Recommendation explicitly linked to specific findings from prior sections; (6) Actionable Next Steps prioritized by impact. Item counts per section follow scope setting. Anti-fabrication rule: all market data must trace to input data or be flagged as [ESTIMATE: assumption stated]."
+    input_source: "step_1.output"
+    output_key: generated_validation
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "generated_validation"
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Failed to generate business validation report. The LLM did not produce output. Retrying with the same generation plan."
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: "Evaluate validation report quality and grounding"
+    step_type: critic
+    task_class: moderate
+    description: "Two-layer validation of the generated report. Deterministic layer: checks presence of all required sections (market viability, competitive positioning, revenue feasibility, risk assessment, go/no-go, next steps), verifies TAM/SAM/SOM figures are present with sizing paths, counts items per section against scope targets, checks that revenue projections contain numeric tokens or derivation chains or [ESTIMATE] flags, verifies risk categories (market, technical, financial, regulatory, operational) are all represented, confirms go/no-go recommendation references specific findings. LLM layer: evaluates analytical depth and coherence, checks logical consistency between market sizing and revenue projections, assesses whether competitive positioning insights are actionable, evaluates risk completeness relative to the business idea, scores anti-fabrication compliance (no ungrounded market claims). Combines scores with min() to produce quality_score 0-10."
+    input_source: "step_2.output"
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "step_3_output"
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: "Critic evaluation failed to produce a quality assessment. Unable to validate the business validation report."
+    transition:
+      default: step_4
+      conditions:
+        - left: "step_3_output.quality_score"
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: "Validation report meets quality threshold — proceed to artifact writing."
+        - left: "loop_counters.critic_loop"
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: "Maximum improvement iterations reached — proceed with best available output."
+
+  - id: step_4
+    name: "Improve validation report from critic feedback"
+    step_type: llm
+    task_class: complex_reasoning
+    description: "Improves the business validation report based on specific critic feedback. Addresses identified gaps: missing sections, insufficient item counts for scope level, ungrounded market data lacking [ESTIMATE] flags, revenue projections without derivation chains, missing risk categories, go/no-go recommendation not linked to findings, or weak competitive positioning analysis. Preserves all content that passed validation while surgically improving flagged areas. Maintains anti-fabrication discipline — any new data introduced must be grounded or flagged."
+    input_source: "step_3.output"
+    output_key: improved_validation
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "improved_validation"
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: step_5
+      escalation_message: "Failed to improve the validation report based on critic feedback. Falling back to artifact writing with current best output."
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: "Write final validation artifact to disk"
+    step_type: local
+    task_class: general_short
+    description: "Final deterministic gate step. Selects the highest-quality validation report from generation or improvement candidates. Performs a last structural check to confirm all six required sections are present. Writes the final markdown artifact to the configured storage location and returns the artifact path."
+    input_source: "__final_output__"
+    output_key: artifact_path
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: "artifact_path"
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: "Failed to write the final validation report artifact to disk."
+    transition:
+      default: "__end__"
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1500
+      max_length: 50000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 300
+      max_cost_usd: 2.50
+  declarative_guarantees:
+    - "All TAM/SAM/SOM figures include three-path sizing (top-down, bottom-up, value-theory) or explicitly state which paths are infeasible given inputs."
+    - "Every revenue projection includes numeric tokens, a derivation chain, or an explicit [ESTIMATE] flag with stated assumptions."
+    - "No market data is fabricated — all figures trace to provided inputs or are flagged as estimates."
+    - "Risk assessment covers all five categories: market, technical, financial, regulatory, and operational."
+    - "Go/no-go recommendation explicitly references specific findings from the analysis sections."
+    - "Item counts per section respect the scope setting: quick=3-5, standard=5-10, comprehensive=10-20."
+    - "Actionable next steps are prioritized by impact and linked to identified risks or opportunities."
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: "step_3_output.quality_score"
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_validation
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_validation
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_validation
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: "All steps are safe — this skill produces analysis artifacts with no external side effects. No API calls to external services, no data writes beyond the local artifact file."
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: "business_idea_validation_report"
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
