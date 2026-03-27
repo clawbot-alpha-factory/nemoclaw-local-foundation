@@ -1,0 +1,9 @@
+{
+  "skill_id": "j36-biz-idea-validator",
+  "inputs": {
+    "business_idea": "An AI-powered platform that generates personalized onboarding sequences for SaaS products based on user behavior patterns and industry best practices.",
+    "target_market": "B2B SaaS companies with 1000 to 50000 users focused on product-led growth where onboarding impacts conversion.",
+    "competitive_landscape": "Appcues Series B 200 employees template-based. Pendo public enterprise-focused. Userpilot Series A mid-market. Gap: none offer AI-generated personalized flows.",
+    "scope": "quick"
+  }
+}

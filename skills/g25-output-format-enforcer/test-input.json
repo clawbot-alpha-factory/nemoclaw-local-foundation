@@ -1,0 +1,7 @@
+{
+  "skill_id": "g25-output-format-enforcer",
+  "inputs": {
+    "input_text": "Here is a summary of the market research:\n\nThe AI meeting assistant market is growing at 25 percent annually. Key players include Otter.ai, Fireflies, and Grain. The total addressable market is estimated at 5 billion dollars by 2027.",
+    "target_format": "markdown"
+  }
+}

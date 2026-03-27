@@ -1,0 +1,9 @@
+{
+  "skill_id": "e08-comp-intel-synth",
+  "inputs": {
+    "competitor_data": "Confluence: Atlassian product, enterprise wiki, 60000 customers, priced at 5.75 per user. Coda: Series D startup, docs plus tables plus automation, growing in mid-market. Slite: Series A, async-first knowledge base for remote teams. Clickup Docs: part of Clickup project management suite, bundled free with PM tool.",
+    "focus_company": "Notion",
+    "industry_context": "Productivity software and knowledge management for teams",
+    "analysis_priorities": "product differentiation and pricing strategy"
+  }
+}

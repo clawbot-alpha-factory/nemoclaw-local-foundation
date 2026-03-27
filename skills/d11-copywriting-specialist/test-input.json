@@ -1,0 +1,11 @@
+{
+  "skill_id": "d11-copywriting-specialist",
+  "inputs": {
+    "copy_brief": "Write a landing page for ClawBot AI, an intelligent automation platform that reduces manual data entry by 85 percent. Include a clear call to action: Start Your Free Trial.",
+    "target_audience": "VP of Customer Success at B2B SaaS companies with 50-200 employees who are frustrated with manual processes",
+    "copy_format": "landing_page",
+    "brand_voice": "Professional but warm, direct, benefit-focused",
+    "reference_material": "ClawBot AI beta: 85 percent reduction in manual entry, 500 plus companies, 3x faster onboarding, 49 dollars per user per month",
+    "copy_length": "standard"
+  }
+}

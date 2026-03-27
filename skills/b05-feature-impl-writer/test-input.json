@@ -1,0 +1,9 @@
+{
+  "skill_id": "b05-feature-impl-writer",
+  "inputs": {
+    "feature_spec": "Add a rate limiting middleware to the Express.js API that limits each authenticated user to 100 requests per minute using a sliding window algorithm. Must support Redis-backed distributed counting for multi-instance deployments.",
+    "language": "typescript",
+    "integration_context": "Express.js REST API with Redis cache",
+    "implementation_scope": "standard"
+  }
+}

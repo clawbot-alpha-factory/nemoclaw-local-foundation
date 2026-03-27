@@ -1,0 +1,7 @@
+{
+  "skill_id": "c07-runbook-author",
+  "inputs": {
+    "system_description": "A Kubernetes-deployed microservices application with 5 services, PostgreSQL database, Redis cache, and RabbitMQ message broker. Monitored via Prometheus and Grafana.",
+    "procedures": "cold start, health check, database failover, service restart, log review"
+  }
+}

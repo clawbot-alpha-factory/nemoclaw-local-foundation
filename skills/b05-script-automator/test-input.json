@@ -1,0 +1,1 @@
+{"skill_id": "b05-script-automator", "inputs": {"task_description": "A bash script that monitors a directory for new CSV files, validates their headers match an expected schema, moves valid files to a processed directory, and logs invalid files with the reason for rejection. Should run as a cron job every 5 minutes.", "target_shell": "bash"}}

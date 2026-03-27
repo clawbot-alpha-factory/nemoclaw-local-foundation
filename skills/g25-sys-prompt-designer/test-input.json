@@ -1,0 +1,9 @@
+{
+  "skill_id": "g25-sys-prompt-designer",
+  "inputs": {
+    "skill_purpose": "An AI customer support agent that handles billing inquiries, subscription changes, and refund requests for a SaaS product. Must never promise refunds without manager approval, must always verify account ownership first.",
+    "skill_id": "h40-billing-support-agent",
+    "tag": "customer-facing",
+    "llm_steps": "[{\"step_id\": \"step_2\", \"step_name\": \"Handle billing inquiry\", \"step_description\": \"Process the customer billing request and generate appropriate response\", \"step_type\": \"llm\", \"task_class\": \"moderate\"}]"
+  }
+}

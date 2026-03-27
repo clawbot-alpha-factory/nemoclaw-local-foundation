@@ -1,0 +1,8 @@
+{
+  "skill_id": "a01-arch-spec-writer",
+  "inputs": {
+    "subsystem_name": "Event Processing Pipeline",
+    "subsystem_concept": "A real-time event processing system that ingests user clickstream data from web and mobile apps, processes events through a rules engine, and triggers personalized notifications via email, push, and SMS channels. Must handle 10000 events per second with sub-500ms latency.",
+    "constraints": "Horizontal scalability, fault tolerance with no data loss"
+  }
+}
