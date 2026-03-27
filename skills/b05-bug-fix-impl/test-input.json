@@ -1,0 +1,9 @@
+{
+  "skill_id": "b05-bug-fix-impl",
+  "inputs": {
+    "bug_description": "The extract_section function matches H1 headings when it should only match H2. Returns wrong section content when document title contains a keyword.",
+    "affected_code_snippet": "pattern = rf'(?:^|\\n)##?\\s[^\\n]*{re.escape(kw)}[^\\n]*\\n(.*?)(?=\\n##?\\s[^#]|\\Z)'",
+    "expected_behavior": "Only match H2 headings (## Heading) and capture content until the next H2 heading.",
+    "actual_behavior": "Also matches H1 headings (# Title), causing document title to be returned as section content."
+  }
+}

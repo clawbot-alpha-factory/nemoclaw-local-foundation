@@ -1,0 +1,8 @@
+{
+  "skill_id": "e08-meeting-summary-gen",
+  "inputs": {
+    "transcript": "Meeting notes: Discussed Q3 roadmap priorities. Sarah proposed focusing on API stability over new features. John disagreed, wants to ship 3 new integrations by end of Q3. Team voted 4-2 in favor of stability-first approach. Action: Sarah to draft stability roadmap by Friday. John to identify which integrations can wait until Q4. Next review meeting scheduled for July 15. Budget discussion: current API spend is 5 dollars per day, need to reduce to 3 dollars per day.",
+    "attendees": "Sarah (VP Engineering), John (Product Lead), Mike (DevOps), Lisa (QA Lead), Tom (Backend), Amy (Frontend)",
+    "meeting_type": "planning"
+  }
+}

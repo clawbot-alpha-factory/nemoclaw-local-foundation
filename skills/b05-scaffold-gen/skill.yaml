@@ -1,0 +1,340 @@
+name: b05-scaffold-gen
+version: 1.0.0
+display_name: Scaffold Generator
+description: >
+  Generates a complete project scaffold for a given project type, language, framework,
+  and feature requirements. Produces directory structure, boilerplate files, configuration
+  templates, dependency manifest, and setup instructions. Each generated file includes
+  purpose comments. Only generates files appropriate for the stated stack.
+author: Core88
+created: "2026-03-27"
+family: F05
+domain: B
+tag: internal
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are an expert software architect and scaffold engineer. You produce precise,
+  idiomatic project scaffolds tailored to the stated stack. You never fabricate files
+  or dependencies that do not belong to the chosen language, framework, or project type.
+  Every file you generate includes a clear purpose comment at the top.
+
+inputs:
+  - name: project_type
+    type: string
+    required: true
+    description: >
+      The type of project to scaffold. Determines top-level structure and tooling choices.
+    validation:
+      allowed_values:
+        - web-api
+        - cli-tool
+        - library
+        - microservice
+  - name: language
+    type: string
+    required: true
+    description: >
+      Primary programming language for the project (e.g., python, typescript, go, rust, java).
+    validation:
+      min_length: 2
+      max_length: 32
+  - name: framework
+    type: string
+    required: false
+    description: >
+      Framework or runtime to use (e.g., fastapi, express, gin, actix, spring-boot).
+      Leave empty for language-native scaffolds with no framework.
+    default: ""
+    validation:
+      max_length: 64
+  - name: feature_requirements
+    type: string
+    required: true
+    description: >
+      Comma-separated or prose description of features to include (e.g., auth, database,
+      logging, docker, ci-cd, testing, linting).
+    validation:
+      min_length: 3
+      max_length: 1000
+  - name: project_name
+    type: string
+    required: true
+    description: >
+      The name of the project, used as the root directory name and in package manifests.
+    validation:
+      min_length: 1
+      max_length: 128
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      Full scaffold specification including directory tree, file contents with purpose
+      comments, dependency manifest, and setup instructions in structured markdown.
+  - name: result_file
+    type: file_path
+    description: Path to the written scaffold markdown artifact.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and output references.
+
+artifacts:
+  storage_location: skills/b05-scaffold-gen/outputs/
+  filename_pattern: "b05-scaffold-gen_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "b05-scaffold-gen_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs Validate Stack Build Generation Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates the project_type, language, framework, and feature_requirements inputs.
+      Resolves which files, directories, and dependencies are appropriate for the stated
+      stack. Produces a structured generation plan listing every file to be created,
+      its purpose, and the dependency manifest entries required.
+    input_source: inputs.project_type
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input validation failed. Ensure project_type is one of web-api, cli-tool,
+        library, or microservice, and that language and feature_requirements are provided.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Complete Project Scaffold
+    step_type: llm
+    task_class: premium
+    description: >
+      Using the validated generation plan from step_1, produces the full project scaffold.
+      Outputs a structured markdown document containing: (1) annotated directory tree,
+      (2) full content of each boilerplate file with a purpose comment header,
+      (3) dependency manifest (e.g., requirements.txt, package.json, go.mod, Cargo.toml),
+      (4) configuration templates (e.g., .env.example, docker-compose.yml, CI config),
+      (5) setup instructions. Only generates files appropriate for the stated stack.
+    input_source: step_1.output
+    output_key: generated_scaffold
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_scaffold
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Scaffold generation failed after retries. The LLM did not produce a valid
+        scaffold document. Check model availability and input complexity.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Scaffold Quality Completeness Correctness
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated scaffold. Deterministic checks: verifies
+      directory tree is present, at least one dependency manifest file is included,
+      setup instructions section exists, and each file block contains a purpose comment.
+      LLM evaluation: scores the scaffold on stack appropriateness (no fabricated
+      dependencies), file completeness for the stated project_type, idiomatic structure
+      for the language/framework, and clarity of purpose comments. Combines scores
+      with min() and returns a quality_score 0-10.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Critic evaluation failed. Unable to score the generated scaffold.
+        Escalating for manual review.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Scaffold meets quality threshold — proceed directly to artifact write.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — accept best available scaffold.
+
+  - id: step_4
+    name: Improve Scaffold Based On Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the generated scaffold using the structured feedback from the critic step.
+      Addresses identified issues such as missing files, fabricated dependencies,
+      non-idiomatic structure, or unclear purpose comments. Produces an improved
+      scaffold document that resolves all flagged deficiencies while preserving
+      correct sections from the prior generation.
+    input_source: step_3.output
+    output_key: improved_scaffold
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_scaffold
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Scaffold improvement step failed. Falling back to best available scaffold
+        from prior generation.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Scaffold Artifact To Disk
+    step_type: local
+    task_class: general_short
+    description: >
+      Final deterministic gate. Receives the best-quality scaffold from the critic loop
+      via __final_output__, performs a last structural check, and writes the artifact
+      to the configured storage location. Returns confirmation that the artifact was
+      written successfully.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Artifact write failed. The scaffold could not be persisted to disk.
+        Check storage permissions and available disk space.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 500
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 180
+      max_cost_usd: 0.50
+  declarative_guarantees:
+    - The scaffold only includes files and dependencies appropriate for the stated language, framework, and project_type.
+    - Every generated file includes a purpose comment at the top of its content block.
+    - A dependency manifest appropriate to the language is always included in the output.
+    - Setup instructions are always present and reference the actual generated structure.
+    - No files are fabricated for frameworks or runtimes not specified in the inputs.
+    - The directory tree is always present and consistent with the generated file contents.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_scaffold
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_scaffold
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_scaffold
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill performs no external writes beyond the local artifact storage path.
+    All steps are safe to run without human approval. The scaffold is a read-only
+    document until the consuming workflow acts on it.
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: project_scaffold_document
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

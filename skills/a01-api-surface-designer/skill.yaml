@@ -1,0 +1,348 @@
+name: a01-api-surface-designer
+version: 1.0.0
+display_name: API Surface Designer
+description: >
+  Designs a structured API surface from a service description, target consumers, and design
+  constraints. Produces an endpoint inventory, request/response schemas, authentication model,
+  error taxonomy, rate limiting and pagination strategy, versioning approach, and backwards
+  compatibility notes. All endpoints are traceable to stated service capabilities.
+author: Core88
+created: "2026-03-27"
+family: F01
+domain: A
+tag: internal
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior API architect with deep expertise in RESTful and GraphQL design,
+  OpenAPI specification, authentication patterns, and developer experience. You produce
+  precise, traceable API surfaces grounded strictly in the stated service capabilities.
+
+inputs:
+  - name: service_description
+    type: string
+    required: true
+    description: >
+      A detailed description of the service, its capabilities, data entities, and business
+      operations it exposes. All designed endpoints must be traceable to this description.
+    validation:
+      min_length: 100
+      max_length: 8000
+
+  - name: target_consumers
+    type: string
+    required: true
+    description: >
+      Description of the intended API consumers (e.g., mobile clients, third-party partners,
+      internal microservices). Influences authentication model, versioning, and pagination design.
+    validation:
+      min_length: 20
+      max_length: 2000
+
+  - name: design_constraints
+    type: string
+    required: false
+    description: >
+      Optional constraints such as protocol preference (REST/GraphQL), authentication
+      requirements, rate limit tiers, pagination style, or backwards compatibility requirements.
+    validation:
+      max_length: 2000
+    default: ""
+
+  - name: api_style
+    type: string
+    required: false
+    description: Preferred API style. Defaults to REST if not specified.
+    validation:
+      allowed_values:
+        - REST
+        - GraphQL
+        - gRPC
+        - REST+GraphQL
+    default: REST
+
+  - name: output_format
+    type: string
+    required: false
+    description: Preferred output format for the API specification document.
+    validation:
+      allowed_values:
+        - markdown
+        - yaml
+        - json
+    default: markdown
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      The complete API surface specification including endpoint inventory, schemas,
+      authentication model, error taxonomy, rate limiting, pagination, versioning,
+      and backwards compatibility notes.
+  - name: result_file
+    type: file_path
+    description: Path to the written API specification artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the execution envelope JSON file.
+
+artifacts:
+  storage_location: skills/a01-api-surface-designer/outputs/
+  filename_pattern: "a01-api-surface-designer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "a01-api-surface-designer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Service Capabilities and Build Design Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates all inputs, extracts the explicit service capabilities from the service
+      description, maps them to candidate endpoints, and builds a structured generation
+      plan including api_style, consumer profile, and constraint summary. Ensures the
+      anti-fabrication contract is anchored before generation begins.
+    input_source: inputs.service_description
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 1 failed to parse service capabilities and build a design plan.
+        Check that service_description meets minimum length and is coherent.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Structured API Surface Specification
+    step_type: llm
+    task_class: premium
+    description: >
+      Generates the full API surface specification grounded in the service capabilities
+      extracted in step_1. Produces: endpoint inventory (method, path, purpose), request
+      and response schemas with field types, authentication and authorization model, error
+      response taxonomy, rate limiting and pagination strategy, versioning approach, and
+      backwards compatibility notes. Every endpoint must cite the service capability it
+      serves. Uses the api_style and design_constraints from step_1_output.
+    input_source: step_1.output
+    output_key: generated_api_spec
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_api_spec
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Step 2 failed to generate the API surface specification after retries.
+        Escalating for manual review of the service description and constraints.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate API Specification Quality and Traceability
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated API specification. Deterministic layer checks:
+      presence of endpoint inventory, schema definitions, authentication model, error taxonomy,
+      rate limiting section, versioning section, and backwards compatibility notes. LLM layer
+      scores: endpoint traceability to service capabilities (anti-fabrication), schema
+      completeness, error taxonomy coverage, design consistency, and consumer-appropriateness.
+      Combines scores with min() and emits a quality_score 0-10.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Step 3 critic evaluation failed. Cannot assess API specification quality.
+        Escalating for manual review.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Quality score meets acceptance threshold; skip improvement and write artifact.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached; proceed with best available specification.
+
+  - id: step_4
+    name: Improve API Specification Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the API specification using the structured feedback from the critic step.
+      Addresses identified gaps in traceability, schema completeness, error taxonomy,
+      or design consistency. Ensures all endpoints remain anchored to stated service
+      capabilities and no fabricated endpoints are introduced during improvement.
+    input_source: step_3.output
+    output_key: improved_api_spec
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_api_spec
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Step 4 failed to improve the API specification. Falling back to step_5
+        with the last evaluated version.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final API Specification Artifact
+    step_type: local
+    task_class: general_short
+    description: >
+      Deterministic final gate that selects the highest-quality API specification from
+      the critic loop candidates, performs a final structural check, and writes the
+      artifact to the designated output path. Returns the artifact path confirmation.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 5 failed to write the final API specification artifact.
+        Check storage permissions and output path configuration.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 180
+      max_cost_usd: 0.80
+  declarative_guarantees:
+    - All endpoints in the specification are traceable to explicitly stated service capabilities.
+    - No endpoints are fabricated beyond what the service description supports.
+    - The specification includes endpoint inventory, request/response schemas, authentication model, error taxonomy, rate limiting, pagination strategy, versioning approach, and backwards compatibility notes.
+    - Schema field types are explicitly declared for all request and response objects.
+    - The error response taxonomy covers standard HTTP error classes relevant to the service.
+    - The versioning approach addresses backwards compatibility explicitly.
+    - The specification is appropriate for the stated target consumers.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_api_spec
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_api_spec
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_api_spec
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill performs read-only analysis and generation. No external systems are
+    modified. All outputs are written to local artifact storage only.
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: structured_api_surface_specification
+  can_feed_into:
+    - b02-openapi-schema-generator
+    - c05-sdk-documentation-writer
+  accepts_input_from:
+    - e12-market-research-analyst
+    - f03-service-capability-mapper
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

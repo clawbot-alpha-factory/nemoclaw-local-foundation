@@ -1,0 +1,352 @@
+name: a01-sys-context-mapper
+version: 1.0.0
+display_name: System Context Mapper
+description: >
+  Takes a system name, description, and known integrations to produce a structured
+  system context document. Outputs external actors (users, systems, services), data
+  flows between actors and the system (direction, format, frequency), trust boundaries,
+  system capabilities summary, constraints and assumptions, and a C4-style context
+  narrative. All actors and flows are traceable to input description or explicitly
+  marked as inferred.
+author: Core88
+created: "2026-03-27"
+family: F01
+domain: A
+tag: internal
+skill_type: transformer
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior software architect specializing in system context analysis and
+  C4 model documentation. You produce precise, traceable system context documents
+  that clearly distinguish between stated facts and inferred relationships.
+
+inputs:
+  - name: system_name
+    type: string
+    required: true
+    description: The name of the system being mapped.
+    validation:
+      min_length: 2
+      max_length: 120
+  - name: system_description
+    type: string
+    required: true
+    description: >
+      A prose description of the system including its purpose, users, and known
+      behaviors. This is the primary source of truth for actor and flow extraction.
+    validation:
+      min_length: 50
+      max_length: 8000
+  - name: known_integrations
+    type: string
+    required: false
+    description: >
+      A list or prose description of known external systems, APIs, or services the
+      system integrates with. May be empty if unknown.
+    default: ""
+    validation:
+      max_length: 4000
+  - name: domain_context
+    type: string
+    required: false
+    description: >
+      Optional domain or industry context (e.g., "healthcare", "fintech", "e-commerce")
+      to inform trust boundary and constraint inference.
+    default: ""
+    validation:
+      max_length: 500
+  - name: output_detail_level
+    type: string
+    required: false
+    description: >
+      Controls the depth of the generated context document.
+    default: standard
+    validation:
+      allowed_values:
+        - minimal
+        - standard
+        - detailed
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      The structured system context document in markdown, including actors, data
+      flows, trust boundaries, capabilities summary, constraints, assumptions,
+      and C4-style context narrative.
+  - name: result_file
+    type: file_path
+    description: Path to the written markdown artifact on disk.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/a01-sys-context-mapper/outputs/
+  filename_pattern: "a01-sys-context-mapper_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "a01-sys-context-mapper_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs and Build Extraction Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates all inputs, normalizes the system description and integrations text,
+      and constructs a structured extraction plan that guides the LLM generation step.
+      Identifies whether domain_context and known_integrations are present to adjust
+      inference scope. Produces a normalized input bundle.
+    input_source: inputs.system_description
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input parsing failed. Verify that system_name and system_description meet
+        minimum length requirements and are valid UTF-8 strings.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Structured System Context Document
+    step_type: llm
+    task_class: premium
+    description: >
+      Generates the full system context document from the normalized input bundle.
+      Extracts and enumerates external actors (human users, external systems, third-party
+      services), maps data flows with direction, format, and frequency, identifies trust
+      boundaries, summarizes system capabilities, lists constraints and assumptions, and
+      writes a C4-style context narrative. Every actor and flow is tagged as either
+      [STATED] (traceable to input) or [INFERRED] (reasoned from context). Inferred
+      items include a brief rationale.
+    input_source: step_1.output
+    output_key: generated_context_doc
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_context_doc
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Context document generation failed after retries. The LLM may have timed out
+        or the input description may be too ambiguous. Review system_description quality.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Context Document Quality and Traceability
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated context document. Deterministic checks:
+      verifies presence of all required sections (actors, data flows, trust boundaries,
+      capabilities, constraints, assumptions, C4 narrative), confirms all actors are
+      tagged [STATED] or [INFERRED], and checks that inferred items include rationale.
+      LLM evaluation: scores completeness, traceability fidelity, flow specificity
+      (direction/format/frequency populated), trust boundary clarity, narrative coherence,
+      and anti-fabrication compliance. Final score is min(deterministic_pass * 10, llm_score).
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Critic evaluation failed to produce a quality score. Check critic step
+        configuration and model availability.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: >
+            Quality score meets acceptance threshold. Proceed directly to artifact
+            writing without further improvement.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: >
+            Maximum improvement iterations reached. Proceed to artifact writing
+            with best available output.
+
+  - id: step_4
+    name: Improve Context Document Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the system context document using the structured feedback from the critic
+      step. Addresses specific deficiencies: adds missing sections, corrects untagged
+      actors or flows, fills in missing direction/format/frequency for data flows,
+      sharpens trust boundary definitions, and improves C4 narrative coherence. Preserves
+      all [STATED] content unchanged and only refines [INFERRED] items or adds missing
+      structure. Returns the improved full document.
+    input_source: step_3.output
+    output_key: improved_context_doc
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_context_doc
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Improvement step failed. Falling back to best available context document
+        from prior generation step.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final Context Document Artifact
+    step_type: local
+    task_class: general_short
+    description: >
+      Deterministic final gate. Confirms the selected output contains all required
+      section headers before writing. Writes the markdown artifact to the configured
+      storage location and returns the artifact path. The runner handles envelope
+      generation automatically.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Artifact write failed. Check storage permissions for
+        skills/a01-sys-context-mapper/outputs/ and available disk space.
+    transition:
+      default: __end__
+      conditions: []
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_context_doc
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_context_doc
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_context_doc
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 12000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.25
+  declarative_guarantees:
+    - Every external actor in the output is tagged [STATED] or [INFERRED].
+    - Every [INFERRED] actor or data flow includes a brief rationale sentence.
+    - All required sections are present: actors, data flows, trust boundaries, capabilities, constraints, assumptions, C4 narrative.
+    - Data flows include direction, format, and frequency fields where determinable.
+    - No actor or flow is fabricated without explicit [INFERRED] tagging.
+    - The C4-style context narrative references only actors and flows enumerated in the document.
+    - The output is valid markdown renderable without post-processing.
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill performs read-only analysis and document generation. No external
+    systems are called, no data is written outside the configured artifact path,
+    and no approval gates are required for standard operation.
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: structured_system_context_document
+  can_feed_into:
+    - b01-architecture-decision-recorder
+    - c01-api-contract-designer
+  accepts_input_from:
+    - e12-market-research-analyst

@@ -1,0 +1,7 @@
+{
+  "skill_id": "a01-api-surface-designer",
+  "inputs": {
+    "service_description": "A REST API for managing AI skill executions. Supports submitting execution requests, checking status, retrieving results, and managing skill configurations. Async execution with webhook callbacks. Must authenticate via API keys and enforce per-client rate limits.",
+    "target_consumers": "External developers building integrations with the NemoClaw skill system using Python or JavaScript"
+  }
+}

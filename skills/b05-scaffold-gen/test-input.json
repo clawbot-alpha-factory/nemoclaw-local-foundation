@@ -1,0 +1,9 @@
+{
+  "skill_id": "b05-scaffold-gen",
+  "inputs": {
+    "project_type": "cli-tool",
+    "language": "python",
+    "feature_requirements": "A CLI tool that reads YAML configuration files, validates them against a JSON schema, and reports violations with line numbers and fix suggestions. Must support stdin piping and glob patterns.",
+    "project_name": "yaml-validator"
+  }
+}

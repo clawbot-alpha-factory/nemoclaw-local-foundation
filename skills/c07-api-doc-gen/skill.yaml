@@ -1,0 +1,359 @@
+name: c07-api-doc-gen
+version: 1.0.0
+display_name: API Documentation Generator
+description: >
+  Generates structured API documentation from an API specification or endpoint descriptions.
+  Produces endpoint reference, authentication guide, error handling reference, rate limiting
+  documentation, quick start guide with curl examples, and SDK usage patterns. All examples
+  are strictly derived from the provided specification — no fabricated endpoints or parameters.
+author: Core88
+created: "2026-03-27"
+family: F07
+domain: C
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior technical writer and API documentation specialist. You produce precise,
+  developer-friendly API documentation that is strictly consistent with the provided
+  specification. You never invent endpoints, parameters, or behaviors not present in the input.
+
+inputs:
+  - name: api_specification
+    type: string
+    required: true
+    description: >
+      The API specification, endpoint descriptions, or OpenAPI/Swagger content to document.
+      May be raw text, JSON, YAML, or structured endpoint descriptions.
+    validation:
+      min_length: 100
+      max_length: 50000
+
+  - name: target_audience
+    type: string
+    required: true
+    description: >
+      The intended audience for the documentation (e.g., "backend developers", "mobile developers",
+      "third-party integrators", "internal teams").
+    validation:
+      min_length: 3
+      max_length: 200
+
+  - name: api_name
+    type: string
+    required: true
+    description: The name of the API being documented (e.g., "Payments API", "User Management API").
+    validation:
+      min_length: 2
+      max_length: 100
+
+  - name: base_url
+    type: string
+    required: false
+    description: The base URL of the API (e.g., "https://api.example.com/v1"). Used in curl examples.
+    default: "https://api.example.com/v1"
+
+  - name: authentication_type
+    type: string
+    required: false
+    description: The authentication mechanism used by the API.
+    default: "bearer_token"
+    validation:
+      allowed_values:
+        - bearer_token
+        - api_key
+        - oauth2
+        - basic_auth
+        - none
+
+  - name: include_sdk_patterns
+    type: string
+    required: false
+    description: Whether to include SDK usage pattern examples in the documentation.
+    default: "yes"
+    validation:
+      allowed_values:
+        - "yes"
+        - "no"
+
+  - name: documentation_depth
+    type: string
+    required: false
+    description: The level of detail for the generated documentation.
+    default: "standard"
+    validation:
+      allowed_values:
+        - concise
+        - standard
+        - comprehensive
+
+outputs:
+  - name: result
+    type: string
+    description: The complete structured API documentation in markdown format.
+  - name: result_file
+    type: file_path
+    description: Path to the written API documentation artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/c07-api-doc-gen/outputs/
+  filename_pattern: "c07-api-doc-gen_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "c07-api-doc-gen_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Specification and Build Documentation Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Parse and validate the provided API specification. Extract all endpoints, parameters,
+      authentication details, error codes, and rate limiting information. Build a structured
+      documentation plan that maps specification elements to documentation sections.
+      Validate that the specification is non-empty and contains parseable endpoint data.
+    input_source: inputs.api_specification
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Step 1 failed to parse the API specification. The input may be malformed or too short.
+        Please verify the api_specification field contains valid endpoint descriptions.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Comprehensive API Documentation Draft
+    step_type: llm
+    task_class: premium
+    description: >
+      Generate the full API documentation draft using the parsed specification plan from step_1.
+      Produce all required sections: endpoint reference (method, path, description, parameters,
+      request/response examples), authentication guide, error handling reference, rate limiting
+      documentation, quick start guide with curl examples, and SDK usage patterns if requested.
+      All examples must be strictly derived from the provided specification — never fabricate
+      endpoints, parameters, fields, or behaviors not present in the input.
+    input_source: step_1.output
+    output_key: generated_documentation
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_documentation
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Step 2 failed to generate API documentation. The LLM did not return a valid response.
+        Check model availability and input size constraints.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Documentation Quality and Specification Fidelity
+    step_type: critic
+    task_class: moderate
+    description: >
+      Evaluate the generated API documentation on two layers. First, deterministic checks:
+      verify all required sections are present (endpoint reference, authentication guide,
+      error handling, rate limiting, quick start, SDK patterns if requested), verify curl
+      examples reference the stated base_url, verify no endpoints appear that are absent
+      from the original specification. Second, LLM scoring across quality dimensions:
+      technical accuracy, completeness, clarity for the target audience, example correctness,
+      and structural organization. Produce a combined quality_score (0-10) using min() of
+      deterministic gate and LLM score. Return structured feedback for improvement.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Step 3 critic evaluation failed. Unable to score the generated documentation.
+        Check critic model availability.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Documentation meets quality threshold — proceed to artifact writing.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — proceed with best available output.
+
+  - id: step_4
+    name: Improve Documentation Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revise and improve the API documentation based on the structured feedback from the
+      critic step. Address all identified issues: missing sections, fabricated examples,
+      unclear parameter descriptions, incorrect curl syntax, or audience-inappropriate
+      language. Ensure all examples remain strictly consistent with the original specification.
+      Do not introduce any endpoints, parameters, or behaviors not present in the input.
+    input_source: step_3.output
+    output_key: improved_documentation
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_documentation
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Step 4 failed to produce improved documentation. The improvement LLM did not return
+        a valid response. Check model availability.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final Documentation Artifact to Storage
+    step_type: local
+    task_class: general_short
+    description: >
+      Perform a final deterministic gate check on the selected best output, then write
+      the API documentation artifact to the configured storage location. Return the
+      artifact path confirmation to the runner.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 5 failed to write the documentation artifact. Check storage permissions and
+        disk availability at skills/c07-api-doc-gen/outputs/.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 1000
+      max_length: 80000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 180
+      max_cost_usd: 0.80
+  declarative_guarantees:
+    - All documented endpoints, parameters, and fields are derived exclusively from the provided API specification.
+    - No examples, endpoints, or behaviors are fabricated beyond what is stated in the input.
+    - Curl examples reference the stated base_url and use the specified authentication_type.
+    - Documentation includes all required sections — endpoint reference, authentication guide, error handling, rate limiting, quick start, and SDK patterns when requested.
+    - Output is structured markdown suitable for developer portals or internal wikis.
+    - Quality score of 7 or higher is required before artifact is written.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_documentation
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_documentation
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_documentation
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill performs read-only processing of the provided API specification and writes
+    a local documentation artifact. No external API calls, deployments, or publishing
+    actions are performed. All steps are safe for automated execution.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: structured_api_documentation_markdown
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

@@ -1,0 +1,9 @@
+{
+  "skill_id": "e08-kb-article-writer",
+  "inputs": {
+    "topic": "How to add a new skill to the NemoClaw system",
+    "article_type": "how-to",
+    "target_audience": "developer",
+    "source_material": "Use g26-skill-spec-writer to generate the spec from a skill concept. Then use g26-skill-template-gen to generate the code from the spec. Deploy files to skills/skill-id/ directory with run.py, skill.yaml, and outputs/.gitignore. Run skill-runner.py with test inputs to verify. Fix any context key mismatches between yaml output_key and code context.get calls. Ensure step_3 and step_4 have cached:false in yaml. Run validate.py to confirm 31/31 checks pass. Commit with descriptive message."
+  }
+}

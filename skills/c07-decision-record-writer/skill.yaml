@@ -1,0 +1,361 @@
+name: c07-decision-record-writer
+version: 1.0.0
+display_name: Decision Record Writer
+description: >
+  Produces a structured Architecture Decision Record (ADR) following the Michael Nygard template.
+  Takes a decision title, context, and options considered, then generates a complete ADR with
+  status, context and problem statement, decision drivers, options with pros and cons, chosen
+  option with justification, logically derived consequences, compliance notes, and review date.
+  Anti-fabrication enforcement ensures consequences are grounded in the chosen option.
+author: Core88
+created: "2026-03-27"
+family: F07
+domain: C
+tag: internal
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior software architect and technical writer specializing in Architecture Decision
+  Records. You produce precise, well-reasoned ADRs that follow the Michael Nygard template.
+  You derive consequences logically from the chosen option and never fabricate outcomes.
+
+inputs:
+  - name: decision_title
+    type: string
+    required: true
+    description: The concise title of the architectural decision being recorded.
+    validation:
+      min_length: 5
+      max_length: 200
+
+  - name: decision_context
+    type: string
+    required: true
+    description: >
+      The context surrounding the decision — the forces at play, the problem being solved,
+      and any relevant background information.
+    validation:
+      min_length: 50
+      max_length: 4000
+
+  - name: options_considered
+    type: list
+    required: true
+    description: >
+      A list of options that were considered. Each entry should name the option and provide
+      enough detail for pros/cons analysis.
+
+  - name: chosen_option
+    type: string
+    required: true
+    description: The name of the option that was selected as the decision.
+    validation:
+      min_length: 2
+      max_length: 300
+
+  - name: decision_drivers
+    type: list
+    required: false
+    description: >
+      Key factors, constraints, or goals that drove the decision. If not provided,
+      the skill will infer drivers from the context.
+    default: []
+
+  - name: status
+    type: string
+    required: false
+    description: The current status of the ADR.
+    default: "Proposed"
+    validation:
+      allowed_values:
+        - Proposed
+        - Accepted
+        - Deprecated
+        - Superseded
+
+  - name: compliance_domains
+    type: list
+    required: false
+    description: >
+      Compliance or regulatory domains relevant to this decision (e.g., GDPR, SOC2, HIPAA).
+      If empty, the skill will note no specific compliance implications.
+    default: []
+
+  - name: review_date
+    type: string
+    required: false
+    description: >
+      ISO 8601 date string for when this ADR should be reviewed (e.g., "2027-03-27").
+      If not provided, defaults to one year from creation.
+    default: ""
+
+outputs:
+  - name: result
+    type: string
+    description: The complete ADR document in structured markdown following the Michael Nygard template.
+  - name: result_file
+    type: file_path
+    description: Path to the written ADR markdown artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/c07-decision-record-writer/outputs/
+  filename_pattern: "c07-decision-record-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "c07-decision-record-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs and Build ADR Generation Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate all inputs, normalize the options list, resolve the review date if not provided,
+      infer decision drivers from context if the list is empty, and construct a structured
+      generation plan that will guide the LLM in producing a complete, grounded ADR.
+    input_source: inputs.decision_title
+    output_key: step_1_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input validation failed for Decision Record Writer. Ensure decision_title,
+        decision_context, options_considered, and chosen_option are all provided and
+        meet minimum length requirements.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Complete ADR Document Draft
+    step_type: llm
+    task_class: premium
+    description: >
+      Using the validated inputs and generation plan, produce a complete ADR following the
+      Michael Nygard template. Include all required sections: title, status, context and
+      problem statement, decision drivers, options considered with detailed pros and cons,
+      chosen option with full justification, consequences (positive, negative, neutral)
+      logically derived from the chosen option, compliance notes, and review date.
+      Anti-fabrication: every consequence must be traceable to a specific property of the
+      chosen option.
+    input_source: step_1.output
+    output_key: generated_adr
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: generated_adr
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        ADR generation failed after retries. The LLM was unable to produce a complete
+        Architecture Decision Record. Check model availability and input quality.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate ADR Quality and Structural Completeness
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated ADR. Deterministic layer: verify all required
+      Nygard template sections are present (title, status, context, decision drivers, options
+      with pros/cons, chosen option, consequences split by positive/negative/neutral,
+      compliance notes, review date). LLM evaluation layer: score reasoning quality,
+      consequence grounding (anti-fabrication check), justification depth, and overall
+      coherence. Combine scores with min() to produce a final quality_score 0-10.
+    input_source: step_2.output
+    output_key: step_3_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        ADR critic evaluation failed. Unable to assess quality of the generated decision record.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: ADR meets quality threshold — proceed directly to artifact writing.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — write best available ADR.
+
+  - id: step_4
+    name: Improve ADR Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revise the ADR draft using the critic's structured feedback. Address all identified
+      deficiencies: strengthen consequence grounding by explicitly linking each consequence
+      to a property of the chosen option, deepen justification reasoning, fill any missing
+      template sections, and improve clarity of pros/cons analysis. Preserve all factual
+      content from the original draft while correcting quality issues.
+    input_source: step_3.output
+    output_key: improved_adr
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: improved_adr
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: step_5
+      escalation_message: >
+        ADR improvement step failed after retries. Falling back to best available draft
+        for artifact writing.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final ADR Artifact to Storage
+    step_type: local
+    task_class: general_short
+    description: >
+      Deterministic final gate: confirm the selected ADR output is non-empty and contains
+      the minimum required Nygard sections, then write the artifact to the configured
+      storage location. Returns the artifact path confirmation to the runner.
+    input_source: __final_output__
+    output_key: artifact_path
+    requires_human_approval: false
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Final artifact write failed for Decision Record Writer. The ADR could not be
+        persisted to storage. Check storage location permissions and disk availability.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 8000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.25
+  declarative_guarantees:
+    - All ADRs follow the Michael Nygard template with every required section present.
+    - Consequences are logically derived from the chosen option — no fabricated outcomes.
+    - Options considered include explicit pros and cons for each alternative.
+    - Decision drivers are either provided by the caller or inferred from the context.
+    - Compliance notes reflect only the domains specified in the input or note their absence.
+    - Review date is always present — defaulting to one year from creation if not supplied.
+    - The chosen option justification references the decision drivers explicitly.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_adr
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_adr
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_adr
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    Decision Record Writer operates entirely within the local artifact storage system.
+    No external APIs, repositories, or communication channels are invoked. All steps
+    are safe to run without human approval gates.
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: architecture_decision_record
+  can_feed_into:
+    - d11-copywriting-specialist
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

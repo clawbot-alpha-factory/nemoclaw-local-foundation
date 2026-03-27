@@ -1,0 +1,338 @@
+name: e08-kb-article-writer
+version: 1.0.0
+display_name: Knowledge Base Article Writer
+description: >
+  Produces structured knowledge base articles from a topic, target audience, and source material.
+  Generates clear titles, problem statements, step-by-step solutions, troubleshooting tips,
+  related article suggestions, and metadata tags. Supports how-to, troubleshooting, reference,
+  and conceptual article types. All solutions are grounded in provided source material to prevent fabrication.
+author: Core88
+created: "2026-03-27"
+family: F08
+domain: E
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior technical writer specializing in knowledge base content. You produce
+  accurate, well-structured articles grounded strictly in provided source material.
+  You never fabricate solutions, steps, or references not present in the source.
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: The subject or question the KB article should address.
+    validation:
+      min_length: 5
+      max_length: 300
+
+  - name: article_type
+    type: string
+    required: true
+    description: The type of KB article to produce.
+    default: how-to
+    validation:
+      allowed_values:
+        - how-to
+        - troubleshooting
+        - reference
+        - conceptual
+
+  - name: target_audience
+    type: string
+    required: true
+    description: The intended reader — e.g., end users, IT admins, developers, support agents.
+    validation:
+      min_length: 3
+      max_length: 200
+
+  - name: source_material
+    type: string
+    required: true
+    description: >
+      Raw source content — documentation excerpts, support tickets, product specs, or
+      internal notes — that grounds all solutions and steps in the article.
+    validation:
+      min_length: 50
+      max_length: 20000
+
+  - name: related_article_hints
+    type: string
+    required: false
+    description: Optional comma-separated list of related article titles or IDs to suggest.
+    default: ""
+
+  - name: tone
+    type: string
+    required: false
+    description: Desired tone for the article.
+    default: professional
+    validation:
+      allowed_values:
+        - professional
+        - friendly
+        - technical
+        - concise
+
+outputs:
+  - name: result
+    type: string
+    description: The fully structured KB article in markdown format.
+  - name: result_file
+    type: file_path
+    description: Path to the written KB article artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/e08-kb-article-writer/outputs/
+  filename_pattern: "e08-kb-article-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "e08-kb-article-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs Validate Source Build Article Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates all inputs, checks that source_material meets minimum substance requirements,
+      determines article structure based on article_type, and builds a generation plan
+      including required sections, tone directives, and audience framing.
+    input_source: inputs.topic
+    output_key: step_1_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input validation failed. Ensure topic, target_audience, source_material, and article_type
+        are all provided and meet minimum length requirements.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Structured KB Article Draft
+    step_type: llm
+    task_class: premium
+    description: >
+      Using the validated inputs and generation plan from step_1, produces a fully structured
+      KB article. The article must include: a clear title, problem statement or overview,
+      step-by-step solution or explanation, troubleshooting tips, related article suggestions,
+      and metadata tags. All content must be grounded strictly in the provided source_material.
+      No steps, solutions, or facts may be fabricated beyond what the source supports.
+    input_source: step_1.output
+    output_key: generated_article
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: generated_article
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        KB article generation failed after retries. Check source_material quality and topic clarity.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Article Quality Anti-Fabrication Compliance
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated KB article. Deterministic checks: verifies presence
+      of required sections (title, problem statement, solution steps, troubleshooting, metadata tags),
+      minimum word count, and that article_type structure matches the requested type.
+      LLM evaluation: scores accuracy grounding in source_material, clarity for target_audience,
+      structural completeness, actionability of steps, and anti-fabrication compliance.
+      Produces a combined quality_score 0-10.
+    input_source: step_2.output
+    output_key: step_3_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Critic evaluation failed. Unable to assess article quality. Escalating for manual review.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Article meets quality threshold — proceed to artifact write.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — accept best available output.
+
+  - id: step_4
+    name: Improve Article Based On Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the KB article using specific feedback from the critic evaluation in step_3.
+      Addresses identified gaps in structure, improves grounding to source_material,
+      enhances clarity for the target_audience, and corrects any fabricated or unsupported claims.
+      Preserves all content that scored well in the critic evaluation.
+    input_source: step_3.output
+    output_key: improved_article
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: improved_article
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Article improvement step failed. Falling back to best available draft for artifact write.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final Article Artifact
+    step_type: local
+    task_class: general_short
+    description: >
+      Final deterministic gate. Confirms the selected output is non-empty and structurally valid,
+      then writes the KB article to the artifact store and returns the artifact path.
+      Returns {"output": "artifact_written"} on success.
+    input_source: __final_output__
+    output_key: artifact_path
+    requires_human_approval: false
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Final artifact write failed. The KB article could not be persisted. Manual intervention required.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 400
+      max_length: 8000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.35
+  declarative_guarantees:
+    - All article content is grounded in the provided source_material — no fabricated solutions or steps.
+    - The article structure matches the requested article_type (how-to, troubleshooting, reference, or conceptual).
+    - Every article includes a title, problem statement or overview, solution or explanation, troubleshooting tips, and metadata tags.
+    - The tone and vocabulary are calibrated to the specified target_audience.
+    - Related article suggestions are drawn from provided hints or clearly marked as suggested placeholders.
+    - The critic loop ensures a minimum quality score of 7 before artifact write.
+    - Anti-fabrication compliance is explicitly evaluated in every critic pass.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_article
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_article
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_article
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill operates entirely on provided source material and writes only to the local artifact store.
+    No external APIs, databases, or publishing systems are called. All steps are safe for automated execution.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: structured_kb_article_markdown
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

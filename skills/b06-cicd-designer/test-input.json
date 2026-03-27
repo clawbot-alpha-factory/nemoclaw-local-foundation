@@ -1,0 +1,9 @@
+{
+  "skill_id": "b06-cicd-designer",
+  "inputs": {
+    "project_description": "A Python LangGraph application with 20 skills, YAML configurations, and API integrations with Anthropic, OpenAI, and Google. Uses pip for dependencies and pytest for testing.",
+    "deployment_targets": "No deployment yet, validation only. Run linting, type checking, unit tests, and one integration test.",
+    "quality_gates": "Linting with ruff, unit tests with pytest, integration test that runs one skill end-to-end, 31-check validation script.",
+    "pipeline_format": "github_actions"
+  }
+}

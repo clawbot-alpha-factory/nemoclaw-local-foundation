@@ -1,0 +1,361 @@
+name: e08-meeting-summary-gen
+version: 1.0.0
+display_name: Meeting Summary Generator
+description: >
+  Generates structured meeting summaries from transcripts or notes. Produces key decisions,
+  action items with owners and deadlines, discussion topics with outcomes, open questions,
+  follow-up meetings needed, and an executive summary. Supports standup, planning, review,
+  and general meeting types. Anti-fabrication enforced: all decisions and action items must
+  be traceable to transcript content.
+author: Core88
+created: "2026-03-27"
+family: F08
+domain: E
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a precise meeting analyst and summarizer. You extract structured information
+  from meeting transcripts with strict fidelity to source content. You never fabricate
+  decisions, action items, or attributions not present in the transcript. You produce
+  clear, actionable summaries tailored to the meeting type.
+
+inputs:
+  - name: transcript
+    type: string
+    required: true
+    description: >
+      Full meeting transcript or detailed notes. Must contain sufficient content
+      to extract decisions, action items, and discussion topics.
+    validation:
+      min_length: 100
+      max_length: 80000
+
+  - name: attendees
+    type: list
+    required: true
+    description: >
+      List of meeting attendees. Used to validate action item ownership and
+      attribute decisions to participants present in the meeting.
+
+  - name: meeting_type
+    type: string
+    required: true
+    description: >
+      Type of meeting being summarized. Determines summary structure and emphasis.
+    validation:
+      allowed_values:
+        - standup
+        - planning
+        - review
+        - general
+    default: general
+
+  - name: meeting_title
+    type: string
+    required: false
+    description: Optional title or subject of the meeting for header context.
+    default: ""
+
+  - name: meeting_date
+    type: string
+    required: false
+    description: >
+      Date of the meeting in ISO 8601 format (YYYY-MM-DD). Included in the
+      artifact header when provided; left blank if not supplied.
+    default: ""
+
+  - name: focus_areas
+    type: list
+    required: false
+    description: >
+      Optional list of topics or themes to emphasize during extraction. When
+      provided, step_2 prioritizes these areas in discussion topic coverage and
+      elevates related decisions and action items in the summary structure.
+    default: []
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      Structured meeting summary in markdown format including executive summary,
+      key decisions, action items with owners and deadlines, discussion topics,
+      open questions, and follow-up meetings.
+  - name: result_file
+    type: file_path
+    description: Path to the written markdown artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/e08-meeting-summary-gen/outputs/
+  filename_pattern: "e08-meeting-summary-gen_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "e08-meeting-summary-gen_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs and Build Extraction Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates transcript length and content sufficiency. Parses attendee list,
+      normalizes meeting type, and constructs a structured extraction plan that
+      guides the LLM generation step with meeting-type-specific section priorities.
+      Incorporates focus_areas into the extraction plan when provided, flagging
+      them as high-priority topics for step_2. Records meeting_title and
+      meeting_date for inclusion in the artifact header.
+    input_source: inputs.transcript
+    output_key: step_1_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input validation failed. Ensure transcript is at least 100 characters,
+        attendees list is non-empty, and meeting_type is one of: standup, planning,
+        review, general.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Structured Meeting Summary
+    step_type: llm
+    task_class: premium
+    description: >
+      Generates a comprehensive structured meeting summary from the transcript
+      using the extraction plan produced by step_1. Extracts key decisions with
+      attribution, action items with owners drawn from the attendees list and
+      deadlines, discussion topics with outcomes, open questions, follow-up
+      meetings, and an executive summary. When focus_areas are specified in the
+      extraction plan, those topics receive elevated coverage and appear
+      prominently in discussion topics and decisions. Applies meeting-type-specific
+      formatting and emphasis (standup: blockers and progress; planning: goals and
+      assignments; review: outcomes and retrospective items; general: balanced
+      coverage). Includes meeting_title and meeting_date in the artifact header
+      when provided. Strict anti-fabrication: every decision and action item must
+      cite evidence from the transcript.
+    input_source: step_1.output
+    output_key: generated_summary
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: generated_summary
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Meeting summary generation failed after retries. Check transcript content
+        quality and model availability.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Summary Quality and Fidelity
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated summary. Deterministic checks verify:
+      (1) presence of all required sections — executive summary, key decisions,
+      action items, discussion topics, open questions; (2) every action item has
+      an owner drawn from the attendees list; (3) every action item has a deadline
+      or explicit "TBD" marker; (4) summary length is between 300 and 20000
+      characters; (5) no section header is empty or placeholder text. LLM
+      evaluation scores completeness, accuracy relative to transcript,
+      anti-fabrication compliance, clarity, and actionability on a 1–10 scale.
+      Final quality_score is the minimum of the deterministic gate score and the
+      LLM score to ensure both layers must pass.
+    input_source: step_2.output
+    output_key: step_3_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Critic evaluation failed. Unable to assess summary quality. Escalating
+        for manual review.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Summary meets quality threshold — proceed to artifact write.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — accept best available output.
+
+  - id: step_4
+    name: Improve Summary Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the meeting summary based on specific critic feedback. Addresses
+      identified gaps in section completeness, improves action item attribution,
+      removes any fabricated content not traceable to the transcript, and enhances
+      clarity and actionability of decisions and follow-ups.
+    input_source: step_3.output
+    output_key: improved_summary
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: improved_summary
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Summary improvement step failed. Falling back to best available output
+        from previous generation.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final Summary Artifact
+    step_type: local
+    task_class: general_short
+    description: >
+      Final deterministic gate that confirms the selected summary output is
+      non-empty and well-formed. Writes the artifact to the designated storage
+      location and returns the artifact path confirmation.
+    input_source: __final_output__
+    output_key: artifact_path
+    requires_human_approval: false
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Artifact write failed. Check storage permissions for
+        skills/e08-meeting-summary-gen/outputs/ and disk availability.
+    transition:
+      default: __end__
+      conditions: []
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_summary
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_summary
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_summary
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 300
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.35
+  declarative_guarantees:
+    - All decisions and action items are traceable to explicit content in the source transcript.
+    - Action items include owner attribution drawn from the provided attendees list.
+    - Summary structure adapts to the specified meeting type (standup, planning, review, general).
+    - No content is fabricated or inferred beyond what is present in the transcript.
+    - Executive summary is always present and reflects the most critical outcomes.
+    - Open questions and follow-up meetings are surfaced when present in the transcript.
+    - Quality score of 7 or above is required before artifact is written.
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill operates entirely on provided transcript content and writes only
+    to local artifact storage. No external systems are contacted. No approval
+    gates are required for standard operation.
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: structured_meeting_summary
+  can_feed_into:
+    - d11-copywriting-specialist
+  accepts_input_from: []

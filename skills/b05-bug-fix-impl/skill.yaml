@@ -1,0 +1,335 @@
+name: b05-bug-fix-impl
+version: 1.0.0
+display_name: Bug Fix Implementer
+description: >
+  Takes a bug description, affected code snippet, expected behavior, and actual behavior.
+  Produces a structured fix with root cause analysis, minimal code changes with before/after diff,
+  explanation of why the fix works, regression risk assessment, and suggested test cases to prevent
+  recurrence. Anti-fabrication: fix must address only the stated bug without introducing unrelated changes.
+author: Core88
+created: "2026-03-27"
+family: F05
+domain: B
+tag: internal
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior software engineer specializing in precise, minimal bug fixes.
+  You analyze root causes rigorously, produce targeted code changes, and never introduce
+  unrelated modifications. You reason carefully about regression risk and test coverage.
+
+inputs:
+  - name: bug_description
+    type: string
+    required: true
+    description: A clear description of the bug being fixed.
+    validation:
+      min_length: 20
+      max_length: 2000
+
+  - name: affected_code_snippet
+    type: string
+    required: true
+    description: The code snippet containing the bug.
+    validation:
+      min_length: 10
+      max_length: 8000
+
+  - name: expected_behavior
+    type: string
+    required: true
+    description: What the code should do when working correctly.
+    validation:
+      min_length: 10
+      max_length: 1000
+
+  - name: actual_behavior
+    type: string
+    required: true
+    description: What the code currently does (the buggy behavior).
+    validation:
+      min_length: 10
+      max_length: 1000
+
+  - name: language
+    type: string
+    required: false
+    description: Programming language of the affected code snippet.
+    default: "auto-detect"
+
+  - name: severity
+    type: string
+    required: false
+    description: Severity level of the bug.
+    default: "medium"
+    validation:
+      allowed_values:
+        - low
+        - medium
+        - high
+        - critical
+
+outputs:
+  - name: result
+    type: string
+    description: Structured bug fix report with root cause analysis, before/after diff, explanation, regression risk, and test cases.
+  - name: result_file
+    type: file_path
+    description: Path to the written markdown artifact containing the full bug fix report.
+  - name: envelope_file
+    type: file_path
+    description: Path to the JSON envelope file with metadata and quality scores.
+
+artifacts:
+  storage_location: skills/b05-bug-fix-impl/outputs/
+  filename_pattern: "b05-bug-fix-impl_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "b05-bug-fix-impl_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Bug Context and Build Fix Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate all inputs, detect the programming language if not specified,
+      and construct a structured analysis plan including scope boundaries to
+      enforce the anti-fabrication constraint (fix only the stated bug).
+    input_source: inputs.bug_description
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 1 failed to parse bug context. Check that all required inputs are present
+        and meet minimum length requirements.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Targeted Bug Fix Implementation
+    step_type: llm
+    task_class: premium
+    description: >
+      Perform root cause analysis of the bug, then produce a minimal, targeted fix.
+      Output must include: (1) root cause analysis, (2) before/after unified diff,
+      (3) explanation of why the fix works, (4) regression risk assessment,
+      (5) suggested test cases. The fix must address ONLY the stated bug — no
+      unrelated refactoring, style changes, or feature additions.
+    input_source: step_1.output
+    output_key: generated_fix
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_fix
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Step 2 failed to generate a bug fix after retries. The LLM may have refused
+        or the input code snippet may be malformed.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Fix Quality and Correctness
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated fix. Deterministic checks: verify presence
+      of root cause section, before/after diff block, explanation section, regression risk
+      section, and at least one test case. LLM evaluation: score fix correctness,
+      minimality (no unrelated changes), clarity of explanation, regression risk accuracy,
+      and test case relevance. Combine scores with min() and produce a quality_score 0-10.
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Step 3 critic evaluation failed. Unable to assess fix quality.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Fix meets quality threshold — proceed to artifact write.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached — accept best available fix.
+
+  - id: step_4
+    name: Improve Fix Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revise the bug fix based on specific critic feedback. Address identified weaknesses
+      such as incomplete root cause analysis, unrelated code changes, missing test cases,
+      or unclear explanations. Maintain the anti-fabrication constraint — only fix the
+      stated bug, nothing more.
+    input_source: step_3.output
+    output_key: improved_fix
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_fix
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Step 4 failed to improve the fix. Falling back to the previous version for artifact write.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Bug Fix Artifact to Disk
+    step_type: local
+    task_class: general_short
+    description: >
+      Final deterministic gate: confirm the selected fix output is non-empty, then write
+      the structured bug fix report to the artifact storage location. Returns
+      {"output": "artifact_written"} on success.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 5 failed to write the bug fix artifact. Check disk permissions and storage path.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 400
+      max_length: 12000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.35
+  declarative_guarantees:
+    - Fix addresses only the stated bug — no unrelated refactoring or feature additions.
+    - Output always includes root cause analysis, before/after diff, and explanation.
+    - Regression risk assessment is present in every output.
+    - At least one suggested test case is included to prevent recurrence.
+    - The before/after diff is minimal and directly tied to the described bug.
+    - Quality score of 7 or above is required before artifact is written.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_fix
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_fix
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_fix
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    All steps are safe for automated execution. No external APIs, repositories,
+    or deployment systems are modified. The skill produces a report artifact only.
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: structured_bug_fix_report
+  can_feed_into:
+    - d04-code-review-analyst
+    - e08-test-case-generator
+  accepts_input_from:
+    - a01-bug-triage-classifier
+    - c03-code-context-extractor
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

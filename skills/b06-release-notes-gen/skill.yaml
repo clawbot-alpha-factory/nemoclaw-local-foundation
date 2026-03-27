@@ -1,0 +1,344 @@
+name: b06-release-notes-gen
+version: 1.0.0
+display_name: Release Notes Generator
+description: >
+  Generates structured release notes from git commit history, version number, and audience type.
+  Produces a version header, summary of changes, categorized sections (features, fixes, improvements,
+  breaking changes), migration notes if applicable, known issues, and contributor acknowledgments.
+  Anti-fabrication guarantee: all listed changes must be traceable to provided commit messages.
+author: Core88
+created: "2026-03-27"
+family: F06
+domain: B
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior technical writer and release engineer specializing in developer-facing
+  and end-user release documentation. You produce clear, accurate, and well-structured
+  release notes that faithfully reflect only the changes present in the provided commit history.
+
+inputs:
+  - name: commit_history
+    type: string
+    required: true
+    description: >
+      Raw git commit history (e.g., output of `git log --oneline` or full commit messages)
+      covering the changes to be included in this release.
+    validation:
+      min_length: 20
+      max_length: 50000
+
+  - name: version_number
+    type: string
+    required: true
+    description: >
+      The version number for this release (e.g., "2.4.1", "v3.0.0-rc1").
+    validation:
+      min_length: 3
+      max_length: 50
+
+  - name: audience_type
+    type: string
+    required: true
+    description: >
+      The intended audience for the release notes. Determines tone, depth, and terminology.
+    validation:
+      allowed_values:
+        - developers
+        - end-users
+        - internal
+        - mixed
+
+  - name: product_name
+    type: string
+    required: false
+    description: >
+      The name of the product or project being released. Used in the version header.
+    default: ""
+
+  - name: previous_version
+    type: string
+    required: false
+    description: >
+      The previous version number, used to frame the changelog context (e.g., "2.3.0").
+    default: ""
+
+  - name: known_issues
+    type: string
+    required: false
+    description: >
+      Optional list of known issues to include verbatim in the Known Issues section.
+    default: ""
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      The fully structured release notes document in Markdown format.
+  - name: result_file
+    type: file_path
+    description: >
+      Path to the written release notes artifact file.
+  - name: envelope_file
+    type: file_path
+    description: >
+      Path to the JSON envelope containing metadata and quality scores.
+
+artifacts:
+  storage_location: skills/b06-release-notes-gen/outputs/
+  filename_pattern: "b06-release-notes-gen_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "b06-release-notes-gen_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Commits and Build Generation Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validates all inputs, parses the commit history to extract individual commits,
+      identifies commit authors for contributor acknowledgments, detects conventional
+      commit prefixes (feat, fix, chore, refactor, BREAKING CHANGE, etc.), and builds
+      a structured generation plan including categorization hints and audience-specific
+      tone guidance.
+    input_source: inputs.commit_history
+    output_key: step_1_output
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 1 failed to parse commit history or build generation plan. Check that
+        commit_history is non-empty and version_number is valid.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Structured Release Notes Document
+    step_type: llm
+    task_class: premium
+    description: >
+      Using the parsed commit plan from step_1, generates the full release notes document
+      in Markdown. Includes: version header, executive summary, categorized sections
+      (Features, Bug Fixes, Improvements, Breaking Changes), migration notes if breaking
+      changes are present, known issues section, and contributor acknowledgments.
+      Strictly anti-fabrication: every listed change must map to a commit in the provided history.
+      Tone and depth are calibrated to the specified audience_type.
+    input_source: step_1.output
+    output_key: generated_release_notes
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: generated_release_notes
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Step 2 failed to generate release notes after retries. The LLM may have
+        encountered an issue with the commit history format or length.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Release Notes Quality and Traceability
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated release notes. Deterministic layer: checks
+      that all required sections are present (version header, summary, at least one
+      categorized section, contributors), verifies no fabricated changes appear that
+      lack a corresponding commit, checks Markdown structure integrity, and validates
+      audience-appropriate language. LLM layer: scores clarity, completeness, accuracy
+      of categorization, migration note quality (if applicable), and overall professional
+      quality. Combines scores with min() to produce a final quality_score (0-10).
+    input_source: step_2.output
+    output_key: step_3_output
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+      escalation_message: >
+        Step 3 critic evaluation failed. Unable to assess release notes quality.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: Quality score meets acceptance threshold; skip improvement and write artifact.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: Maximum improvement iterations reached; proceed with best available output.
+
+  - id: step_4
+    name: Improve Release Notes Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revises the release notes using the structured feedback from the critic step.
+      Addresses identified issues such as missing sections, fabricated or uncategorized
+      changes, unclear migration instructions, or audience tone mismatches. Preserves
+      all traceable changes from the original commit history and does not introduce
+      new content not grounded in the provided commits.
+    input_source: step_3.output
+    output_key: improved_release_notes
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: improved_release_notes
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Step 4 failed to produce improved release notes. Falling back to best prior output.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Final Release Notes Artifact
+    step_type: local
+    task_class: general_short
+    description: >
+      Deterministic final gate. Confirms the selected release notes output is non-empty
+      and structurally valid, then writes the artifact to disk and returns the standard
+      completion signal. The runner handles envelope generation automatically.
+    input_source: __final_output__
+    output_key: artifact_path
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    requires_human_approval: false
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Step 5 failed to write the release notes artifact. Check disk permissions
+        and storage path configuration.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 300
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.50
+  declarative_guarantees:
+    - All listed changes in the release notes are traceable to commits in the provided commit history.
+    - No changes are fabricated or inferred beyond what is present in the commit messages.
+    - Release notes include a version header, change summary, and at least one categorized section.
+    - Breaking changes, when present, are accompanied by migration notes.
+    - Contributor acknowledgments are derived solely from commit author information.
+    - Tone and terminology are calibrated to the specified audience_type.
+    - Output is valid Markdown suitable for direct publication.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_release_notes
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_release_notes
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_release_notes
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+    - step_5
+  approval_gated_steps: []
+  blocked_external_effect_steps: []
+  notes: >
+    This skill operates entirely on provided commit data and produces a local artifact.
+    No external systems are written to. No approval gates are required for standard operation.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: structured_release_notes_markdown
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

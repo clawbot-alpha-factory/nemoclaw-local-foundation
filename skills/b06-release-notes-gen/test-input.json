@@ -1,0 +1,8 @@
+{
+  "skill_id": "b06-release-notes-gen",
+  "inputs": {
+    "commit_history": "feat: add 10 Tier 2 skills with meta-skill automation; fix: reroute premium from Opus to Sonnet saving 5x cost; feat: regression test suite with 20/20 passing; fix: checkpoint DB backup before every run; feat: skill chaining via input-from validated; fix: Path B external review improvements applied",
+    "version_number": "2.0.0",
+    "audience_type": "developers"
+  }
+}

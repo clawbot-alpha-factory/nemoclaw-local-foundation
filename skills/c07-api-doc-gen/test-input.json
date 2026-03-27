@@ -1,0 +1,8 @@
+{
+  "skill_id": "c07-api-doc-gen",
+  "inputs": {
+    "api_specification": "REST API with endpoints: POST /skills/run (submit execution, body: skill_id + inputs), GET /skills/status/{id} (check status, returns pending/running/complete/failed), GET /skills/result/{id} (get result artifact), GET /skills (list available skills). Auth via X-API-Key header. Returns JSON. Rate limited to 60 requests per minute per key.",
+    "target_audience": "developer",
+    "api_name": "NemoClaw Skill Execution API"
+  }
+}

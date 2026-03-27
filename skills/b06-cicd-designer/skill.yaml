@@ -1,0 +1,360 @@
+name: b06-cicd-designer
+version: 1.0.0
+display_name: CI/CD Pipeline Designer
+description: >
+  Designs a complete CI/CD pipeline specification from a project description,
+  deployment targets, and quality gates. Produces structured pipeline definitions
+  with stages (lint, test, build, deploy), trigger conditions, environment matrix,
+  artifact management, secret handling strategy, rollback procedures, notification
+  rules, and estimated pipeline duration. Supports GitHub Actions, GitLab CI, and
+  generic YAML formats. All stages are justified by project requirements — no
+  fabricated stages are included.
+author: Core88
+created: "2026-03-27"
+family: F06
+domain: B
+tag: dual-use
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+execution_role: >
+  You are a senior DevOps architect and CI/CD pipeline specialist with deep expertise
+  in GitHub Actions, GitLab CI, and cloud-native deployment patterns. You design
+  production-grade pipelines that are lean, justified by actual project requirements,
+  and follow security best practices for secret handling, artifact management, and
+  rollback procedures.
+
+inputs:
+  - name: project_description
+    type: string
+    required: true
+    description: >
+      Description of the project including language, framework, dependencies,
+      and any special build or deployment requirements.
+    validation:
+      min_length: 50
+      max_length: 4000
+
+  - name: deployment_targets
+    type: string
+    required: true
+    description: >
+      Comma-separated list of deployment targets (e.g., staging, production,
+      canary) with environment details such as cloud provider or Kubernetes cluster.
+    validation:
+      min_length: 5
+      max_length: 1000
+
+  - name: quality_gates
+    type: string
+    required: true
+    description: >
+      Quality gate requirements such as minimum test coverage percentage,
+      static analysis thresholds, security scan pass criteria, and performance benchmarks.
+    validation:
+      min_length: 10
+      max_length: 1000
+
+  - name: pipeline_format
+    type: string
+    required: true
+    description: >
+      Target pipeline format for the output specification.
+    validation:
+      allowed_values:
+        - github_actions
+        - gitlab_ci
+        - generic_yaml
+    default: github_actions
+
+  - name: additional_constraints
+    type: string
+    required: false
+    description: >
+      Optional additional constraints such as compliance requirements, cost limits,
+      specific runner types, or organizational policies.
+    validation:
+      max_length: 1000
+    default: ""
+
+outputs:
+  - name: result
+    type: string
+    description: >
+      The complete CI/CD pipeline specification in the requested format, including
+      all stages, trigger conditions, environment matrix, artifact management,
+      secret handling strategy, rollback procedures, notification rules, and
+      estimated pipeline duration.
+  - name: result_file
+    type: file_path
+    description: Path to the written pipeline specification artifact file.
+  - name: envelope_file
+    type: file_path
+    description: Path to the execution envelope JSON for this skill run.
+
+artifacts:
+  storage_location: skills/b06-cicd-designer/outputs/
+  filename_pattern: "b06-cicd-designer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "b06-cicd-designer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: Parse Inputs and Build Pipeline Design Plan
+    step_type: local
+    task_class: general_short
+    description: >
+      Validate all inputs, extract key project signals (language, framework,
+      test tooling, deployment targets, quality gate thresholds), and construct
+      a structured pipeline design plan that maps each required stage to a
+      concrete project requirement. Reject any stage that cannot be justified.
+    input_source: inputs.project_description
+    output_key: step_1_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_1_output
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Input parsing failed. Verify that project_description, deployment_targets,
+        quality_gates, and pipeline_format are all provided and meet minimum length
+        requirements.
+    transition:
+      default: step_2
+      conditions: []
+
+  - id: step_2
+    name: Generate Complete Pipeline Specification Document
+    step_type: llm
+    task_class: premium
+    description: >
+      Using the validated design plan, generate a complete CI/CD pipeline
+      specification in the requested format (GitHub Actions, GitLab CI, or
+      generic YAML). Include all justified stages with trigger conditions,
+      environment matrix, artifact management configuration, secret handling
+      strategy, rollback procedures, notification rules, and an estimated
+      pipeline duration. Every stage must cite the project requirement that
+      justifies its inclusion.
+    input_source: step_1.output
+    output_key: generated_pipeline
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: true
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: generated_pipeline
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
+      escalation_message: >
+        Pipeline specification generation failed after retries. The LLM may have
+        timed out or returned an empty response. Check budget state and model
+        availability.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_3
+    name: Evaluate Pipeline Quality and Completeness
+    step_type: critic
+    task_class: moderate
+    description: >
+      Two-layer validation of the generated pipeline specification. Deterministic
+      checks verify that all required sections are present (stages, triggers,
+      environment matrix, artifact config, secret handling, rollback, notifications,
+      duration estimate) and that no unjustified stages exist. LLM evaluation
+      scores the specification on correctness, security posture, completeness,
+      format compliance, and anti-fabrication adherence. Final score is the
+      minimum of deterministic and LLM scores.
+    input_source: step_2.output
+    output_key: step_3_output
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: step_3_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Critic evaluation failed. Falling back to artifact write with last
+        available pipeline specification.
+    transition:
+      default: step_4
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 7
+          go_to: step_5
+          reason: >
+            Pipeline specification meets quality threshold — proceed directly
+            to artifact write without further improvement.
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 2
+          go_to: step_5
+          reason: >
+            Maximum improvement iterations reached — write the best available
+            pipeline specification to artifact.
+
+  - id: step_4
+    name: Improve Pipeline Based on Critic Feedback
+    step_type: llm
+    task_class: premium
+    description: >
+      Revise the pipeline specification based on the critic's structured feedback.
+      Address all identified issues including missing sections, unjustified stages,
+      security gaps in secret handling, incomplete rollback procedures, or format
+      non-compliance. Preserve all correctly designed sections and improve only
+      the flagged areas.
+    input_source: step_3.output
+    output_key: improved_pipeline
+    requires_human_approval: false
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    failure:
+      success_conditions:
+        - left: improved_pipeline
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+      escalation_message: >
+        Pipeline improvement step failed. Falling back to artifact write with
+        the last evaluated pipeline specification.
+    transition:
+      default: step_3
+      conditions: []
+
+  - id: step_5
+    name: Write Pipeline Artifact to Storage
+    step_type: local
+    task_class: general_short
+    description: >
+      Final deterministic gate that confirms the pipeline specification is
+      non-empty and well-formed, then writes the artifact to the configured
+      storage location. Returns the artifact path confirmation.
+    input_source: __final_output__
+    output_key: artifact_path
+    requires_human_approval: false
+    idempotency:
+      rerunnable: false
+      cached: false
+      never_auto_rerun: true
+    failure:
+      success_conditions:
+        - left: artifact_path
+          op: not_empty
+          right: true
+      strategy: halt
+      retry_count: 0
+      fallback_step: null
+      escalation_message: >
+        Artifact write failed. The pipeline specification could not be persisted
+        to storage. Check disk space and storage location permissions.
+    transition:
+      default: __end__
+      conditions: []
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 180
+      max_cost_usd: 0.35
+  declarative_guarantees:
+    - Every pipeline stage included in the output is explicitly justified by a stated project requirement.
+    - No stages are fabricated or included by default without a corresponding requirement signal.
+    - The output includes all required sections — stages, triggers, environment matrix, artifact management, secret handling, rollback procedures, notification rules, and estimated duration.
+    - Secret handling strategy follows least-privilege principles and never exposes secrets in logs or artifacts.
+    - Rollback procedures are defined for every deployment target specified in the input.
+    - The pipeline format strictly conforms to the requested target (GitHub Actions, GitLab CI, or generic YAML).
+    - Quality gate thresholds from the input are reflected as enforceable checks within the pipeline stages.
+
+critic_loop:
+  enabled: true
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_4
+  score_field: step_3_output.quality_score
+  acceptance_score: 7
+  max_improvements: 2
+  counter_name: critic_loop
+  fallback_final_step: step_5
+
+final_output:
+  select: highest_quality
+  candidates:
+    - key: generated_pipeline
+      from_step: step_2
+      score_from: step_3_output.quality_score
+    - key: improved_pipeline
+      from_step: step_4
+      score_from: step_3_output.quality_score
+  fallback: generated_pipeline
+
+approval_boundaries:
+  safe_steps:
+    - step_1
+    - step_2
+    - step_3
+    - step_4
+  approval_gated_steps: []
+  blocked_external_effect_steps:
+    - step_5
+  notes: >
+    Steps 1 through 4 are safe for automated execution. Step 5 writes the
+    artifact to persistent storage and is blocked from external side effects
+    beyond the configured storage location. No deployment actions are taken
+    by this skill — it produces a specification only.
+
+routing:
+  default_alias: complex_reasoning
+  allow_override: false
+
+composable:
+  output_type: cicd_pipeline_specification
+  can_feed_into: []
+  accepts_input_from: []
+
+observability:
+  log_level: detailed
+  track_cost: true
+  track_latency: true
+  track_tokens: true
+  track_quality: true
+  metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"

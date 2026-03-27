@@ -1,0 +1,9 @@
+{
+  "skill_id": "c07-decision-record-writer",
+  "inputs": {
+    "decision_title": "Route all LLM calls through a budget-enforced proxy",
+    "decision_context": "Need cost control across 3 providers (Anthropic, OpenAI, Google) with per-provider spending limits. Direct API calls have no cost guardrails. Budget overruns consumed 15 dollars in one session due to Opus pricing underestimation.",
+    "options_considered": "Direct API calls with manual tracking, Centralized budget-enforced proxy, Per-skill cost limits hardcoded in each file",
+    "chosen_option": "Option B: Centralized budget-enforced proxy"
+  }
+}
