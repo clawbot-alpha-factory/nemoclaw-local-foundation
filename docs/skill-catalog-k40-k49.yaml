@@ -1,0 +1,366 @@
+# Skill Catalog: k40-k49 (Pending Agent Build)
+# Status: REGISTERED — specs locked, awaiting agent-driven build when system goes live
+# Source: Framework Library (agency-agents assessment)
+# Created: 2026-03-28
+
+skills:
+
+  - id: k40-deal-qualifier
+    display_name: "Deal Qualifier (MEDDPICC)"
+    family: K40
+    domain: K
+    tag: sales-qualification
+    skill_type: analyzer
+    framework: FW-001
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Scores deals across all 8 MEDDPICC dimensions (Metrics, Economic Buyer,
+      Decision Criteria, Decision Process, Paper Process, Identify Pain,
+      Champion, Competition). Produces qualification report with scores,
+      red flags, zone classification (strong/at-risk/weak), and prioritized
+      next-action recommendations.
+    inputs:
+      - deal_description (string, required, 50-15000 chars)
+      - deal_stage (enum: prospecting/discovery/evaluation/negotiation/closing, default: discovery)
+      - deal_value (string, optional)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: deal_qualification_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k43-pipeline-analyzer, k47-account-expansion-planner, h30-cold-email-writer]
+      accepts_from: [c09-market-analyst, j36-biz-idea-validator]
+    declarative_guarantees:
+      - "All 8 MEDDPICC dimensions scored 1-10 with evidence"
+      - "Total score computed out of 80"
+      - "Zone classification: strong >=60, at-risk 40-59 or zero in M/EB/IP/CH, weak <40"
+      - "Red flags surfaced per dimension"
+      - "Missing information flagged as gaps, not scored generously"
+
+  - id: k41-ppc-campaign-architect
+    display_name: "PPC Campaign Architect"
+    family: K41
+    domain: K
+    tag: paid-acquisition
+    skill_type: generator
+    framework: FW-011
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Designs complete PPC campaign structures including campaign hierarchy,
+      ad group organization, keyword strategy, match type allocation, negative
+      keyword lists, bid strategy recommendations, and budget distribution.
+      Covers Google Ads and Microsoft Ads.
+    inputs:
+      - product_description (string, required, 50-10000 chars)
+      - target_audience (string, required)
+      - monthly_budget (string, required)
+      - campaign_goals (enum: awareness/traffic/leads/sales, default: leads)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: ppc_campaign_plan
+    routing: premium
+    contracts:
+      min_length: 800
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k48-ad-creative-writer, k43-pipeline-analyzer]
+      accepts_from: [c09-market-analyst, j36-biz-idea-validator]
+    declarative_guarantees:
+      - "Campaign hierarchy includes campaigns, ad groups, and keywords"
+      - "Match types allocated with rationale"
+      - "Budget distribution covers all campaigns"
+      - "Negative keyword lists included"
+
+  - id: k42-paid-social-planner
+    display_name: "Paid Social Planner"
+    family: K42
+    domain: K
+    tag: paid-acquisition
+    skill_type: generator
+    framework: null
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Plans paid social campaigns across Meta (Facebook/Instagram), LinkedIn,
+      and TikTok. Defines audience targeting, creative format recommendations,
+      budget allocation across platforms, A/B test structure, and funnel-stage
+      alignment.
+    inputs:
+      - product_description (string, required, 50-10000 chars)
+      - target_audience (string, required)
+      - monthly_budget (string, required)
+      - platforms (multi-enum: meta/linkedin/tiktok, default: [meta, linkedin])
+      - campaign_objective (enum: awareness/consideration/conversion, default: conversion)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: paid_social_campaign_plan
+    routing: premium
+    contracts:
+      min_length: 800
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k48-ad-creative-writer, k43-pipeline-analyzer]
+      accepts_from: [c09-market-analyst, k44-content-strategy-planner]
+    declarative_guarantees:
+      - "Platform-specific targeting defined per platform"
+      - "Budget allocation across platforms with rationale"
+      - "Creative format recommendations per platform"
+      - "A/B test structure included"
+
+  - id: k43-pipeline-analyzer
+    display_name: "Pipeline Analyzer"
+    family: K43
+    domain: K
+    tag: sales-analytics
+    skill_type: analyzer
+    framework: FW-004
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Analyzes a sales pipeline for velocity, conversion rates, stage
+      distribution, deal aging, and forecast accuracy. Identifies bottleneck
+      stages, at-risk deals, and revenue gap to target. Produces actionable
+      recommendations to improve pipeline health and velocity.
+    inputs:
+      - pipeline_data (string, required, 100-15000 chars)
+      - revenue_target (string, optional)
+      - time_period (string, optional, default: "current quarter")
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: pipeline_analysis_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k40-deal-qualifier, k47-account-expansion-planner]
+      accepts_from: [k40-deal-qualifier, c09-market-analyst]
+    declarative_guarantees:
+      - "Stage-by-stage conversion rates calculated"
+      - "Deal aging identified with risk flags"
+      - "Revenue gap to target quantified"
+      - "Bottleneck stages identified with evidence"
+
+  - id: k44-content-strategy-planner
+    display_name: "Content Strategy Planner"
+    family: K44
+    domain: K
+    tag: content-strategy
+    skill_type: generator
+    framework: FW-008
+    assigned_agent: narrative_content_lead
+    status: registered
+    description: >
+      Creates a content strategy and editorial calendar aligned to business
+      goals, audience segments, funnel stages, and distribution channels.
+      Defines content pillars, topic clusters, publishing cadence, and
+      success metrics.
+    inputs:
+      - business_context (string, required, 50-10000 chars)
+      - target_audience (string, required)
+      - content_goals (enum: awareness/authority/leads/retention, default: authority)
+      - time_horizon (enum: 1-month/3-month/6-month, default: 3-month)
+      - channels (multi-enum: blog/linkedin/email/twitter/youtube, default: [blog, linkedin, email])
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: content_strategy_plan
+    routing: premium
+    contracts:
+      min_length: 800
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k45-seo-audit-writer, k46-linkedin-content-writer, k48-ad-creative-writer]
+      accepts_from: [c09-market-analyst, j36-biz-idea-validator]
+    declarative_guarantees:
+      - "Content pillars defined with rationale"
+      - "Editorial calendar with specific topics and dates"
+      - "Funnel-stage alignment per content piece"
+      - "Success metrics defined per channel"
+
+  - id: k45-seo-audit-writer
+    display_name: "SEO Audit Writer"
+    family: K45
+    domain: K
+    tag: seo
+    skill_type: analyzer
+    framework: FW-010
+    assigned_agent: narrative_content_lead
+    status: registered
+    description: >
+      Produces a structured SEO audit covering technical SEO, on-page
+      optimization, content gaps, keyword opportunities, backlink assessment,
+      and competitor positioning. Prioritizes fixes by impact and effort.
+    inputs:
+      - site_description (string, required, 50-10000 chars)
+      - target_keywords (string, optional)
+      - competitors (string, optional)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: seo_audit_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k44-content-strategy-planner, k49-ai-citation-optimizer]
+      accepts_from: [c09-market-analyst]
+    declarative_guarantees:
+      - "Technical, on-page, and content SEO assessed separately"
+      - "Keyword opportunities prioritized by volume and difficulty"
+      - "Fixes prioritized by impact × effort matrix"
+      - "Competitor positioning included when data provided"
+
+  - id: k46-linkedin-content-writer
+    display_name: "LinkedIn Content Writer"
+    family: K46
+    domain: K
+    tag: social-content
+    skill_type: transformer
+    framework: FW-009
+    assigned_agent: narrative_content_lead
+    status: registered
+    description: >
+      Creates LinkedIn posts optimized for engagement using proven hook
+      patterns, storytelling frameworks, and platform-specific formatting.
+      Supports thought leadership, company updates, case studies, and
+      personal brand content.
+    inputs:
+      - topic (string, required, 10-5000 chars)
+      - post_type (enum: thought-leadership/case-study/announcement/personal-story/how-to, default: thought-leadership)
+      - target_audience (string, optional)
+      - tone (enum: professional/casual/authoritative/conversational, default: professional)
+      - include_cta (boolean, default: true)
+    output_type: linkedin_post
+    routing: premium
+    contracts:
+      min_length: 200
+      max_length: 3000
+      max_cost_usd: 0.10
+      max_execution_seconds: 90
+      min_quality_score: 7
+    composable:
+      feeds_into: [i35-tone-calibrator]
+      accepts_from: [k44-content-strategy-planner, c09-market-analyst]
+    declarative_guarantees:
+      - "Hook in first two lines optimized for feed engagement"
+      - "Post length within LinkedIn best practices (1000-1500 chars)"
+      - "CTA included when requested"
+      - "No hashtag spam — max 3 relevant hashtags"
+
+  - id: k47-account-expansion-planner
+    display_name: "Account Expansion Planner"
+    family: K47
+    domain: K
+    tag: account-growth
+    skill_type: generator
+    framework: null
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Analyzes an existing customer account and identifies expansion
+      opportunities: upsell, cross-sell, new departments, new use cases,
+      and renewal risk mitigation. Produces a prioritized expansion plan
+      with revenue estimates and recommended outreach approach.
+    inputs:
+      - account_description (string, required, 50-10000 chars)
+      - current_products (string, required)
+      - contract_details (string, optional)
+      - expansion_goals (enum: upsell/cross-sell/multi-department/renewal, default: upsell)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: account_expansion_plan
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [h30-cold-email-writer, k40-deal-qualifier]
+      accepts_from: [k43-pipeline-analyzer, c09-market-analyst]
+    declarative_guarantees:
+      - "Expansion opportunities categorized by type"
+      - "Revenue estimates per opportunity"
+      - "Renewal risk factors identified"
+      - "Outreach approach recommended per opportunity"
+
+  - id: k48-ad-creative-writer
+    display_name: "Ad Creative Writer"
+    family: K48
+    domain: K
+    tag: ad-copy
+    skill_type: generator
+    framework: FW-012
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Generates ad creative copy for Google RSAs (Responsive Search Ads),
+      Meta ads, and LinkedIn sponsored content. Follows platform-specific
+      character limits, headline/description patterns, and A/B test
+      variant generation.
+    inputs:
+      - product_description (string, required, 50-10000 chars)
+      - platform (enum: google-rsa/meta/linkedin, required)
+      - target_audience (string, required)
+      - campaign_objective (enum: awareness/traffic/leads/sales, default: leads)
+      - num_variants (integer, default: 3, min: 1, max: 10)
+    output_type: ad_creative_set
+    routing: premium
+    contracts:
+      min_length: 300
+      max_cost_usd: 0.12
+      max_execution_seconds: 90
+      min_quality_score: 7
+    composable:
+      feeds_into: [i35-tone-calibrator]
+      accepts_from: [k41-ppc-campaign-architect, k42-paid-social-planner, k44-content-strategy-planner]
+    declarative_guarantees:
+      - "Platform character limits respected"
+      - "Google RSA: 15 headlines (30 chars) + 4 descriptions (90 chars)"
+      - "Each variant has distinct angle or hook"
+      - "A/B test rationale included per variant"
+
+  - id: k49-ai-citation-optimizer
+    display_name: "AI Citation Optimizer"
+    family: K49
+    domain: K
+    tag: ai-seo
+    skill_type: analyzer
+    framework: FW-014
+    assigned_agent: narrative_content_lead
+    status: registered
+    description: >
+      Analyzes content for AI citation optimization — ensuring content is
+      structured to be cited by AI assistants (ChatGPT, Claude, Perplexity,
+      Gemini). Covers structured data, entity clarity, claim attribution,
+      source authority signals, and answer-ready formatting.
+    inputs:
+      - content (string, required, 100-15000 chars)
+      - content_url (string, optional)
+      - target_queries (string, optional)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: ai_citation_audit_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k45-seo-audit-writer, k44-content-strategy-planner]
+      accepts_from: [k45-seo-audit-writer, c09-market-analyst]
+    declarative_guarantees:
+      - "Content scored on AI-citability dimensions"
+      - "Structured data recommendations included"
+      - "Answer-ready formatting suggestions provided"
+      - "Entity clarity and claim attribution assessed"
