@@ -469,13 +469,13 @@ Defer enterprise features (SSO, compliance, custom vocabulary) to version 2.
     except Exception as e:
         test("MA-14: System health checked", False, str(e)[:60])
 
-    # MA-14: All 11 domains scored
+    # MA-14: All 12 domains scored
     try:
-        test("MA-14: All 11 domains scored",
-             len(health.get("domain_scores", {})) == 11,
+        test("MA-14: All 12 domains scored",
+             len(health.get("domain_scores", {})) == 12,
              f"{len(health.get('domain_scores', {}))} domains")
     except Exception as e:
-        test("MA-14: All 11 domains scored", False, str(e)[:60])
+        test("MA-14: All 12 domains scored", False, str(e)[:60])
 
     if verbose:
         print()
@@ -567,9 +567,129 @@ Defer enterprise features (SSO, compliance, custom vocabulary) to version 2.
         import context_manager
         import internal_competition
         import access_control
-        test("Cross: All 19 MA modules import cleanly", True)
+        import web_browser
+        test("Cross: All 19 MA modules + browser bridge import cleanly", True)
     except Exception as e:
-        test("Cross: All 19 MA modules import cleanly", False, str(e)[:60])
+        test("Cross: All 19 MA modules + browser bridge import cleanly", False, str(e)[:60])
+
+    if verbose:
+        print()
+
+    # ══════════════════════════════════════════════════════════════
+    # PHASE 11: BROWSER AUTOMATION (PinchTab)
+    # ══════════════════════════════════════════════════════════════
+    if verbose:
+        print("  ── Phase 11: Browser Automation ──")
+
+    # MA-19: Web access domain exists
+    try:
+        from access_control import AccessController, ACCESS_DOMAINS
+        test("MA-19: Web access domain exists", "web" in ACCESS_DOMAINS)
+    except Exception as e:
+        test("MA-19: Web access domain exists", False, str(e)[:60])
+
+    # MA-19: Growth lead has web navigate permission
+    try:
+        ac_web = AccessController()
+        r_web = ac_web.check_access("growth_revenue_lead", "web", "navigate")
+        test("MA-19: Growth lead web navigate OK", r_web.granted)
+    except Exception as e:
+        test("MA-19: Growth lead web navigate OK", False, str(e)[:60])
+
+    # MA-19: Engineering lead blocked from web click
+    try:
+        r_eng_web = ac_web.check_access("engineering_lead", "web", "click")
+        test("MA-19: Engineering web click blocked", not r_eng_web.granted)
+    except Exception as e:
+        test("MA-19: Engineering web click blocked", False, str(e)[:60])
+
+    # MA-8: Web safety rules exist
+    try:
+        from behavior_guard import BehaviorGuard, RULES
+        web_rules = [r for r in RULES if r.startswith("web_")]
+        test("MA-8: 4 web safety rules defined", len(web_rules) == 4)
+    except Exception as e:
+        test("MA-8: 4 web safety rules defined", False, str(e)[:60])
+
+    # MA-8: Payment form blocked
+    try:
+        bg_web = BehaviorGuard()
+        r_pay = bg_web.check("growth_revenue_lead", "task", {
+            "web_action": True,
+            "web_form_fields": ["name", "credit_card_number", "cvv"],
+        })
+        has_payment = any(v["rule"] == "web_never_submit_payment" for v in r_pay["violations"])
+        test("MA-8: Payment form blocked", has_payment)
+    except Exception as e:
+        test("MA-8: Payment form blocked", False, str(e)[:60])
+
+    # MA-8: Screenshot before submit enforced
+    try:
+        r_ss = bg_web.check("narrative_content_lead", "task", {
+            "web_action": True,
+            "web_is_form_submit": True,
+            "web_screenshot_taken": False,
+        })
+        has_ss = any(v["rule"] == "web_screenshot_before_submit" for v in r_ss["violations"])
+        test("MA-8: Screenshot before submit enforced", has_ss)
+    except Exception as e:
+        test("MA-8: Screenshot before submit enforced", False, str(e)[:60])
+
+    # MA-14: Browser health domain exists
+    try:
+        from system_health import HEALTH_DOMAINS as HD
+        test("MA-14: Browser health domain exists", "browser" in HD)
+    except Exception as e:
+        test("MA-14: Browser health domain exists", False, str(e)[:60])
+
+    # MA-14: Browser health check runs
+    try:
+        from system_health import DomainChecker
+        dc = DomainChecker()
+        b_score, b_count, b_notes = dc.check_browser()
+        test("MA-14: Browser health check runs", 0 <= b_score <= 1.0)
+    except Exception as e:
+        test("MA-14: Browser health check runs", False, str(e)[:60])
+
+    # MA-6: Browser budgets defined
+    try:
+        from cost_governor import BROWSER_BUDGETS, AgentLedger
+        test("MA-6: Browser budgets defined", len(BROWSER_BUDGETS) == 4)
+    except Exception as e:
+        test("MA-6: Browser budgets defined", False, str(e)[:60])
+
+    # MA-6: Browser action tracking works
+    try:
+        bl = AgentLedger()
+        bl.record_browser("integration_test_agent", "navigate", "plan_int", "task_int")
+        usage = bl.get_browser_usage("integration_test_agent")
+        test("MA-6: Browser action tracking works", usage["total"] >= 1)
+    except Exception as e:
+        test("MA-6: Browser action tracking works", False, str(e)[:60])
+
+    # Bridge: PinchTabClient importable
+    try:
+        from web_browser import PinchTabClient
+        client = PinchTabClient(agent_id="integration_test")
+        test("Bridge: PinchTabClient importable", True)
+    except Exception as e:
+        test("Bridge: PinchTabClient importable", False, str(e)[:60])
+
+    # Bridge: Health check returns tuple
+    try:
+        ok, result = client.health()
+        test("Bridge: Health returns (bool, data) tuple",
+             isinstance(ok, bool) and result is not None)
+    except Exception as e:
+        test("Bridge: Health returns (bool, data) tuple", False, str(e)[:60])
+
+    # Config: pinchtab-config.yaml exists
+    try:
+        import yaml as yaml_mod
+        config_path = Path.home() / "nemoclaw-local-foundation" / "config" / "pinchtab-config.yaml"
+        test("Config: pinchtab-config.yaml exists", config_path.exists())
+    except Exception as e:
+        test("Config: pinchtab-config.yaml exists", False, str(e)[:60])
 
     if verbose:
         print()
@@ -581,8 +701,8 @@ Defer enterprise features (SSO, compliance, custom vocabulary) to version 2.
         print(f"  {'═' * 56}")
         status = "PASS ✅" if tp == tt else f"PARTIAL ({tp}/{tt})"
         print(f"  Integration Test: {status}")
-        print(f"  Systems tested: 19")
-        print(f"  Phases completed: 10")
+        print(f"  Systems tested: 19 + browser")
+        print(f"  Phases completed: 11")
         print(f"  Checks: {tp}/{tt} passed")
         print(f"  {'═' * 56}")
 
@@ -609,7 +729,7 @@ def main():
         failed = [r for r in results if not r["passed"]]
 
         if passed == total:
-            print(f"  ✅ PASS: {passed}/{total} checks across 19 MA systems")
+            print(f"  ✅ PASS: {passed}/{total} checks across 19 MA systems + browser")
         else:
             print(f"  ❌ PARTIAL: {passed}/{total} checks")
             print(f"  Failures:")
