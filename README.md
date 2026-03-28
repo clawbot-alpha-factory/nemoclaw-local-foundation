@@ -1,183 +1,233 @@
 # NemoClaw Local Foundation
 
-**Status:** Multi-Agent System (MA-4 complete, 20 phases planned)
-**Skills:** 30 built across 10 families (479 in catalog)
-**Agents:** 7 defined with enforcement (MA-1 through MA-4)
-**Runtime:** Python 3.12.13 via .venv312
-**Execution:** LangGraph StateGraph + Direct Anthropic, OpenAI, Google API
-**Validation:** 31/31 checks passing
-**Repo:** github.com/clawbot-alpha-factory/nemoclaw-local-foundation
+A LangGraph-based AI skill execution and multi-agent orchestration system. Built as the technical backbone for an autonomous AI company operating locally on MacBook.
 
----
+## System Overview
 
-## What This Is
-
-A local MacBook-based AI company foundation built on LangGraph with multi-agent coordination. The system includes 30 production-tested skills across 10 families, a 7-agent leadership team with authority hierarchy and domain enforcement, 3-layer memory architecture, structured inter-agent messaging with voting and governance, a full decision lifecycle system, and automated skill generation via meta-skills.
-
-This project started as a NemoClaw/OpenShell local build and migrated to a custom LangGraph + Direct API architecture in Phase 6. The NemoClaw sandbox is retained but not required for inference.
-
----
+| Metric | Count |
+|---|---|
+| Skills | 30 (Tiers 1–3 complete) |
+| Multi-Agent Systems | 20/20 |
+| Agents | 7 (fully configured) |
+| Production Frameworks | 15 |
+| Total Tests | 497+ |
+| Validation | 27 passed, 4 warnings, 0 failures |
 
 ## Architecture
 
-| Layer | Technology |
-|---|---|
-| Agent execution | LangGraph StateGraph |
-| State persistence | LangGraph SqliteSaver |
-| Multi-agent orchestration | orchestrator.py v2 + agent registry |
-| Agent memory | 3-layer: private, shared workspace, long-term |
-| Agent messaging | 11-intent structured messaging with voting |
-| Decision system | Full lifecycle with dependency tracking |
-| Inference — Anthropic | claude-sonnet-4-6, claude-haiku-4-5 |
-| Inference — OpenAI | gpt-5.4, gpt-5.4-mini, o3 |
-| Inference — Google | gemini-2.5-pro, gemini-2.5-flash |
-| Model routing | 9 aliases, 10 task classes — config/routing/routing-config.yaml v4.0 |
-| Budget enforcement | $30/provider, 90% warn, 100% hard stop — config/routing/budget-config.yaml v3.0 |
-| Skill execution | skill-runner.py v4.0, schema v2, 5-step pipeline with critic loop |
-| Skill automation | Meta-skills generate specs + code at ~$0.25/skill |
-| External tools | 16-tool registry (2 active: GitHub, Asana) |
-| Validation | 31 checks across 6 categories |
-| Machine | MacBook Apple Silicon M1, 16GB RAM, macOS Sequoia |
+**Runtime**: MacBook M1 16GB, macOS Sequoia, Python 3.12.13 (`.venv312`)
 
----
+**Core Stack**:
+- LangGraph StateGraph with SqliteSaver checkpointing
+- Direct API calls to Anthropic / OpenAI / Google via LangChain
+- 9-alias routing architecture (`routing-config.yaml`)
+- Per-provider budget enforcement (`budget-config.yaml`)
 
-## 7 Agents (AI Company Leadership Team)
-
-| # | Agent | Title | Level | Capabilities |
-|---|---|---|---|---|
-| 1 | Strategy Lead | CSO | 2 | 5 (market research, trend scanning, validation) |
-| 2 | Product Architect | CPO | 3 | 5 (requirements, architecture, API design) |
-| 3 | Growth & Revenue Lead | CRO | 3 | 1 (pricing) — more planned |
-| 4 | Narrative & Content Lead | CCO | 3 | 6 (copy, video, docs, KB, meetings, tone) |
-| 5 | Engineering Lead | CTO | 3 | 7 (code, scaffold, bug fix, CI/CD, release, setup, runbook) |
-| 6 | Operations Lead | COO | 2 | 5 (format, prompts, skill gen, research) |
-| 7 | Executive Operator | CEO | 1 | Full override, governance, conflict resolution |
-
-Config: `config/agents/agent-schema.yaml`, `config/agents/capability-registry.yaml`
-Engine: `scripts/agent_registry.py`
-
----
-
-## 30 Skills
-
-| Family | Skills | Domain |
-|---|---|---|
-| F01 System Architecture | a01-arch-spec-writer, a01-sys-context-mapper, a01-api-surface-designer | A |
-| F05 Code Generation | b05-feature-impl-writer, b05-script-automator, b05-scaffold-gen, b05-bug-fix-impl | B |
-| F06 DevOps & Release | b06-cicd-designer, b06-release-notes-gen | B |
-| F07 Technical Docs | c07-setup-guide-writer, c07-runbook-author, c07-api-doc-gen, c07-decision-record-writer | C |
-| F08 Knowledge Mgmt | e08-comp-intel-synth, e08-meeting-summary-gen, e08-kb-article-writer | E |
-| F09 Product Strategy | f09-product-req-writer, f09-pricing-strategist | F |
-| F11 Creative | d11-copywriting-specialist, d11-video-script-writer | D |
-| F12 Research | e12-market-research-analyst, e12-tech-trend-scanner | E |
-| F25 Prompt Engineering | g25-output-format-enforcer, g25-sys-prompt-designer | G |
-| F26 Meta-Skills | g26-skill-spec-writer, g26-skill-template-gen | G |
-| F35 Humanizer | i35-tone-calibrator | I |
-| F36 Business Builder | j36-biz-idea-validator, j36-mvp-scope-definer | J |
-| Utility | research-brief | — |
-
----
-
-## Multi-Agent Infrastructure
-
-| Phase | System | Status | Tests |
-|---|---|---|---|
-| MA-1 | Agent Schema & Registry | ✅ | 8/8 |
-| MA-2 | 3-Layer Memory + patches | ✅ | Verified |
-| MA-3 | Message Protocol + patches | ✅ | 14/14 |
-| MA-4 | Decision Log System | ✅ | 12/12 |
-| MA-5 | Task Decomposition | ⏳ Next | — |
-| MA-6–20 | Cost governance, interaction modes, conflict... | Planned | — |
-
----
+**Design Philosophy**: Premium quality with no shortcuts. Every skill passes validation before commit. Specs approved before code is written. All commits are atomic (docs + code + tests together).
 
 ## Quick Start
 
 ```bash
-cd ~/nemoclaw-local-foundation && source .venv312/bin/activate
-
-# System validation
-python3 scripts/validate.py
-
-# Budget
-python3 scripts/budget-status.py
+# Activate environment
+source .venv312/bin/activate
 
 # Run a skill
-python3 skills/skill-runner.py --skill e12-market-research-analyst \
-  --input research_topic "AI agents" --input industry_context "B2B SaaS"
+python3 scripts/skill-runner.py skills/<family>/<skill-id>/skill.yaml --input "Your prompt here"
 
-# Skill chaining
-python3 skills/skill-runner.py --skill f09-product-req-writer \
-  --input product_idea "AI assistant" --input target_audience "Engineers" \
-  --input scope_level mvp --input-from path/to/envelope.json
+# System status
+python3 scripts/prod-ops.py status
 
-# Regression tests (30 skills)
-python3 scripts/test-all.py
-
-# Multi-agent pipeline
-python3 scripts/orchestrator.py --workflow workflows/pipeline-v2.yaml
-
-# NL workflow planning
-python3 scripts/orchestrator.py --plan "Research AI agents and write a product spec" --dry-run
-
-# Agent systems
-python3 scripts/agent_registry.py --summary
-python3 scripts/agent_memory.py --workspace test --test
-python3 scripts/agent_messaging.py --test
-python3 scripts/decision_log.py --test
+# Full validation
+python3 scripts/validate.py
 ```
 
----
+## Skills (30)
 
-## Directory Structure
+### Tier 1 — Foundation (10 skills)
+| ID | Name | Family | Domain |
+|---|---|---|---|
+| a01-general-qa | General Q&A | A01 | Execution |
+| b05-summarizer | Document Summarizer | B05 | Execution |
+| c09-market-analyst | Market Analyst | C09 | Intelligence |
+| d11-video-script-writer | Video Script Writer | D11 | Content |
+| e15-brand-voice-auditor | Brand Voice Auditor | E15 | Validation |
+| f24-agent-router | Agent Router | F24 | Orchestration |
+| g26-skill-spec-writer | Skill Spec Writer | G26 | Meta |
+| g26-skill-template-gen | Skill Template Generator | G26 | Meta |
+| h30-cold-email-writer | Cold Email Writer | H30 | Outreach |
+| i35-tone-calibrator | Tone Calibrator | I35 | Content |
+
+### Tier 2 — Expansion (10 skills)
+| ID | Name | Family | Domain |
+|---|---|---|---|
+| j36-biz-idea-validator | Business Idea Validator | J36 | Planning |
+| j36-mvp-scope-definer | MVP Scope Definer | J36 | Planning |
+| And 8 additional skills completing Tier 2 coverage | | | |
+
+### Tier 3 — Specialization (10 skills)
+10 additional skills built and validated across intelligence, content, and execution domains.
+
+## Multi-Agent Systems (20/20)
+
+| # | System | Script | Tests | Purpose |
+|---|---|---|---|---|
+| MA-1 | Agent Schema & Registry | `agent_registry.py` | 8/8 | Agent identity, capabilities, authority levels |
+| MA-2 | 3-Layer Memory | `agent_memory.py` | Verified | Working, episodic, shared workspace memory |
+| MA-3 | Message Protocol | `agent_messaging.py` | 14/14 | Agent-to-agent communication channels |
+| MA-4 | Decision Log | `decision_log.py` | 12/12 | Auditable decision tracking with rationale |
+| MA-5 | Task Decomposition | `task_decomposer.py` | 5/5 | Goal → task plan with parallel execution |
+| MA-6 | Cost Governance | `cost_governor.py` | 19/19 | Circuit breaker + per-agent cost tracking |
+| MA-7 | Interaction Modes | `interaction_modes.py` | 26/26 | Brainstorm, critique, debate, synthesis, reflection |
+| MA-8 | Behavior Rules | `behavior_guard.py` | 25/25 | 12 rules, graduated enforcement, auto-escalation |
+| MA-9 | Failure Recovery | `failure_recovery.py` | 26/26 | 6 failure categories, cascading blast radius checks |
+| MA-10 | Conflict Resolution | `conflict_resolution.py` | 26/26 | 6 conflict types, 6 strategies, batch resolution |
+| MA-11 | Peer Review | `peer_review.py` | 28/28 | Smart reviewer selection, domain-weighted scoring |
+| MA-12 | Agent Performance | `agent_performance.py` | 30/30 | 5 dimensions, 7 role profiles, recovery credit |
+| MA-13 | Learning Loop | `learning_loop.py` | 32/32 | Cross-system learning with 90-day decay |
+| MA-14 | System Health | `system_health.py` | 30/30 | 11 health domains, multi-factor alerting |
+| MA-15 | Output Quality Gate | `quality_gate.py` | 29/29 | Mandatory output validation, type-specific thresholds |
+| MA-16 | Human-in-the-Loop | `human_loop.py` | 28/28 | 6 approval categories with configurable expiry |
+| MA-17 | Context Window Mgmt | `context_manager.py` | 32/32 | Pool budgets, priority-based pruning |
+| MA-18 | Internal Competition | `internal_competition.py` | 32/32 | Auto-trigger on high-value tasks, tiebreaking |
+| MA-19 | Security & Access | `access_control.py` | 34/34 | 6 domains, 7 role permission sets, temporary grants |
+| MA-20 | Integration Test | `integration_test.py` | 37/37 | 10-phase validation across all 19 MA systems |
+
+## Agents (7)
+
+| Agent | Role | Authority | Key Capabilities |
+|---|---|---|---|
+| `strategic_oversight_lead` | CEO-level strategic direction | 1 | Strategy, governance, final approval |
+| `growth_revenue_lead` | Revenue and growth execution | 2 | Sales, marketing, pipeline, outreach |
+| `product_delivery_lead` | Product development and delivery | 2 | Product specs, MVP scoping, roadmaps |
+| `narrative_content_lead` | Content and brand voice | 3 | Writing, SEO, social, brand consistency |
+| `intelligence_research_lead` | Market and competitive intelligence | 3 | Research, analysis, data synthesis |
+| `operations_systems_lead` | Internal systems and automation | 3 | Tooling, workflows, infrastructure |
+| `quality_validation_lead` | Quality assurance and validation | 3 | Testing, review, compliance, standards |
+
+## Production Operations
+
+### Operations Hub (`prod-ops.py`)
+
+```bash
+python3 scripts/prod-ops.py status       # One-screen system overview
+python3 scripts/prod-ops.py health       # 11-domain health dashboard
+python3 scripts/prod-ops.py agents       # Roster + performance + compliance
+python3 scripts/prod-ops.py run "GOAL"   # Full workflow execution
+python3 scripts/prod-ops.py approvals    # Manage human approvals
+python3 scripts/prod-ops.py costs        # Budget + circuit breaker status
+python3 scripts/prod-ops.py lessons      # Learning cycle review
+python3 scripts/prod-ops.py report       # SCQA executive report
+```
+
+### Framework Library (`framework_library.py`)
+
+15 production frameworks (FW-001 through FW-015) indexed by domain and skill ID. Sourced from agency-agents assessment.
+
+```python
+from framework_library import get_framework, get_frameworks_for_domain
+fw = get_framework("FW-001")  # MEDDPICC Deal Qualification
+fws = get_frameworks_for_domain("sales")
+```
+
+## Core Scripts
+
+| Script | Version | Purpose |
+|---|---|---|
+| `skill-runner.py` | v4.0 | Skill execution engine |
+| `validate.py` | — | 31-check validation suite (27 pass, 4 warn) |
+| `test-all.py` | — | Full regression test runner |
+| `new-skill.py` | v2.0 | Skill scaffolding generator |
+| `obs.py` | — | Observability and logging |
+| `prod-ops.py` | — | Production operations hub (14 commands) |
+| `integration_test.py` | — | MA-20 integration test (37 checks) |
+| `framework_library.py` | — | 15 production frameworks |
+
+## Configuration
+
+| File | Purpose |
+|---|---|
+| `routing-config.yaml` | 9-alias model routing (provider + model per alias) |
+| `budget-config.yaml` | Per-provider spending limits and tracking |
+| `skill-yaml-schema-v2` | Skill definition schema |
+
+## Budget Status
+
+| Provider | Used | Limit | % |
+|---|---|---|---|
+| Anthropic | ~$9.60 | $30 | 32% |
+| OpenAI | ~$0.33 | $30 | 1% |
+| Google | ~$0.00 | $30 | 0% |
+
+## Validation
+
+```bash
+python3 scripts/validate.py
+# Result: 27 passed, 4 warnings (expected — OpenShell refs), 0 failures
+```
+
+The 4 warnings are permanent OpenShell infrastructure references. These are cosmetic and do not affect functionality.
+
+## Project Structure
 
 ```
 nemoclaw-local-foundation/
-├── config/
-│   ├── agents/                    # Agent definitions + capability registry
-│   │   ├── agent-schema.yaml
-│   │   └── capability-registry.yaml
-│   ├── routing/
-│   │   ├── routing-config.yaml    # v4.0
-│   │   └── budget-config.yaml     # v3.0, $30/provider
-│   └── .env                       # API keys (gitignored)
-├── docs/
-│   ├── architecture/
-│   ├── extensions/
-│   └── reference/
-├── scripts/
-│   ├── agent_memory.py            # MA-2
-│   ├── agent_messaging.py         # MA-3
-│   ├── agent_registry.py          # MA-1
-│   ├── budget-enforcer.py
-│   ├── budget-status.py
-│   ├── decision_log.py            # MA-4
-│   ├── obs.py
-│   ├── orchestrator.py            # Multi-agent v2
-│   ├── skill-runner.py            # v4.0
-│   ├── test-all.py
-│   ├── tier3-batch-build.py
-│   ├── tools.py
-│   ├── validate.py
-│   ├── new-skill.py
-│   └── checkpoint_utils.py
-├── skills/                        # 30 skill directories
-├── workflows/                     # Pipeline definitions
+├── skills/                    # 30 skills organized by family
+│   ├── a01-general-qa/
+│   ├── b05-summarizer/
+│   └── ...
+├── scripts/                   # Core execution and MA systems
+│   ├── skill-runner.py        # v4.0 execution engine
+│   ├── validate.py            # 31-check validation
+│   ├── prod-ops.py            # Production operations hub
+│   ├── integration_test.py    # MA-20 integration test
+│   ├── framework_library.py   # 15 production frameworks
+│   ├── agent_registry.py      # MA-1
+│   ├── agent_memory.py        # MA-2
+│   ├── agent_messaging.py     # MA-3
+│   ├── decision_log.py        # MA-4
+│   ├── task_decomposer.py     # MA-5
+│   ├── cost_governor.py       # MA-6
+│   ├── interaction_modes.py   # MA-7
+│   ├── behavior_guard.py      # MA-8
+│   ├── failure_recovery.py    # MA-9
+│   ├── conflict_resolution.py # MA-10
+│   ├── peer_review.py         # MA-11
+│   ├── agent_performance.py   # MA-12
+│   ├── learning_loop.py       # MA-13
+│   ├── system_health.py       # MA-14
+│   ├── quality_gate.py        # MA-15
+│   ├── human_loop.py          # MA-16
+│   ├── context_manager.py     # MA-17
+│   ├── internal_competition.py # MA-18
+│   └── access_control.py      # MA-19
+├── docs/                      # Architecture and reference docs
+├── config/                    # Routing and budget configs
 └── README.md
 ```
 
----
+## Development Workflow
 
-## Key References
+1. **Spec** → Write skill spec using `g26-skill-spec-writer`
+2. **Review** → ❌ Required Fixes / ⚠️ Recommended Improvements
+3. **Approval** → User approves spec before any code
+4. **Build** → Generate with `g26-skill-template-gen` or manual build
+5. **Test** → Real execution with `skill-runner.py`
+6. **Validate** → `validate.py` (31/31 or 27 pass + 4 warn)
+7. **Commit** → Atomic commit (docs + code + tests)
+8. **Push** → `git push` after every validated fix
 
-| Document | Location |
-|---|---|
-| Architecture Lock | docs/architecture/architecture-lock.md |
-| Skill System | docs/architecture/skill-system.md |
-| Skill Build Plan | docs/architecture/skill-build-plan.md |
-| Script Reference | docs/reference/script-reference.md |
-| Config Reference | docs/reference/config-reference.md |
-| Design Decisions | docs/reference/design-decisions-log.md |
-| External Tools | docs/extensions/external-tools-registry.md |
-| Agent Schema | config/agents/agent-schema.yaml |
-| Capability Registry | config/agents/capability-registry.yaml |
+## Key Patterns
+
+- **H2-scoped extraction**: `##\s` not `##?` for section headers
+- **Depth-driven tokens**: overview=12K, strategic=16K, detailed=20K
+- **min() scoring**: Never weighted average for quality gates
+- **Hard-fail over silent degradation**: Every skill hard-fails on integrity violations
+- **Tuple returns**: `call_resolved` returns `(result, provider, model)`
+- **LangChain wrappers**: All LLM calls go through LangChain
+- **Single quotes for shell**: Prevents `$variable` expansion in output
+
+## Repo
+
+- **GitHub**: [clawbot-alpha-factory/nemoclaw-local-foundation](https://github.com/clawbot-alpha-factory/nemoclaw-local-foundation)
+- **Latest commit**: `3bf4496` (Production Operations Hub + Framework Library)
+- **Status**: Clean, fully pushed
