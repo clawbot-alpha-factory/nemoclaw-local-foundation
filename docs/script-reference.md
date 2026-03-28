@@ -315,6 +315,85 @@ python3 scripts/integration_test.py --test
 
 ---
 
+
+---
+
+## Browser Automation
+
+### web_browser.py
+**Purpose**: PinchTab browser bridge. All browser actions go through this — never raw HTTP from skills.
+**Tests**: 40/40
+
+```python
+from web_browser import PinchTabClient
+
+browser = PinchTabClient(agent_id="growth_revenue_lead")
+
+# Health
+ok, result = browser.health()        # {status, tabs}
+running = browser.is_running()       # bool
+
+# Navigation
+ok, result = browser.navigate(url)   # {tabId, title, url}
+ok, result = browser.navigate(url, new_tab=True, block_images=True)
+
+# Content extraction
+ok, result = browser.snapshot(interactive=True)  # {nodes: [{ref, role, name}], count}
+ok, result = browser.text(raw=False)             # {text, title, url, truncated}
+ok, result = browser.find("search text")         # [{ref, role, name}]
+
+# Actions (all via POST /action with kind field)
+ok, result = browser.click("e5")              # Click by ref
+ok, result = browser.fill("e3", "value")      # Fill input
+ok, result = browser.press("Enter", ref="e7") # Press key
+ok, result = browser.type_text("e4", "Hello") # Type with timing
+ok, result = browser.scroll("down")           # Scroll
+ok, result = browser.hover("e2")              # Hover
+ok, result = browser.focus("e1")              # Focus
+ok, result = browser.select("e6", "option2")  # Select dropdown
+
+# Capture
+ok, result = browser.screenshot("/path/to/file.jpg")
+ok, result = browser.pdf("/path/to/file.pdf")
+
+# JavaScript (rate-limited, max 5/task)
+ok, result = browser.eval_js("document.title")
+
+# Instance management
+ok, result = browser.start_instance(profile_id="test", headless=True)
+ok, result = browser.stop_instance("inst_abc")
+ok, result = browser.list_instances()
+ok, result = browser.list_tabs()
+
+# Scheduler
+ok, result = browser.schedule_task("click", "tab123", ref="e5", priority=3)
+ok, result = browser.get_task_result("tsk_abc")
+
+# Composite
+ok, result = browser.navigate_and_extract(url)  # navigate + text in one call
+
+# Per-task reset
+browser.reset_task_counters()  # Reset click + eval counters at start of each skill run
+```
+
+**Key behaviors**:
+- All methods return `(success: bool, data_or_error)` tuples
+- Rate limiting: navigations/hour, clicks/task, text/hour, screenshots/hour
+- Domain safety: blocked domains checked before navigation
+- Action logging: all actions logged to `~/.nemoclaw/browser/action-log.jsonl`
+- Health check: auto-detect if PinchTab is running
+- Config: reads `config/pinchtab-config.yaml` for rate limits, blocked domains, profiles
+
+### Web-Aware Skills (k50-k54) — Registered for Agent Build
+
+| Skill | Name | Agent | PinchTab Actions |
+|---|---|---|---|
+| k50-web-researcher | Web Deep Researcher | intelligence_research_lead | navigate, text, scroll |
+| k51-competitor-scraper | Competitor Intelligence Scraper | intelligence_research_lead | navigate, snapshot, text, click |
+| k52-lead-enricher | Web Lead Enricher | growth_revenue_lead | navigate, fill, click, text |
+| k53-social-poster | Social Media Publisher | narrative_content_lead | navigate, fill, click, screenshot |
+| k54-dashboard-reader | Analytics Dashboard Reader | operations_systems_lead | navigate, text, click, screenshot |
+
 ## Key Integration Patterns
 
 | Pattern | Rule |

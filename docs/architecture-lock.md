@@ -191,6 +191,26 @@ Locked architectural decisions for the NemoClaw Local Foundation. These decision
 | L-306 | Required fixes | ❌ items applied before build begins |
 | L-307 | Review format | Structured tables with ratings, not prose |
 
+
+## Browser Automation Locks
+
+| # | Decision | Locked Value | Rationale |
+|---|---|---|---|
+| L-400 | Browser automation tool | PinchTab 0.8.6 (Go binary, HTTP API) | Accessibility-first, 800 tokens/page, stealth mode, multi-instance |
+| L-401 | Bridge pattern | All browser actions via PinchTabClient bridge, never raw HTTP from skills | Single control point for logging, rate limiting, safety |
+| L-402 | Server URL | localhost:9867 | PinchTab default, local-only |
+| L-403 | Element targeting | Accessibility-tree refs (e0, e1, e5), not pixel coordinates | Stable across page changes, token-efficient |
+| L-404 | Action endpoint | POST /action with kind field (click, fill, press, type, scroll, hover, focus, select) | Single action endpoint, not per-action endpoints |
+| L-405 | Text extraction | GET /text with optional mode=raw | ~800 tokens/page vs ~10K for screenshots |
+| L-406 | Snapshot format | GET /snapshot?filter=interactive returns {nodes: [{ref, role, name}]} | Minimal token footprint for element discovery |
+| L-407 | Instance isolation | One profile per agent, max 4 instances | Profile persistence for login sessions, memory-bounded |
+| L-408 | Web access domain | 7 access domains total (6 original + web) | Per-agent web permissions enforced by MA-19 |
+| L-409 | Web safety rules | 4 rules: payment block, destructive block, screenshot-before-submit, first-login-approval | Enforced by MA-8 behavior guard |
+| L-410 | Browser health | 12th health domain in MA-14 (PinchTab server, instances, memory, error rate) | Alerts if instances > 4 or memory > 1GB |
+| L-411 | Browser budgets | Tracked in MA-6 AgentLedger alongside API costs | navigate/hr, click/task, text/hr, screenshot/hr |
+| L-412 | Auth model | PinchTab CLI reads token from ~/.pinchtab/config.json automatically | No token in env vars or NemoClaw config |
+| L-413 | Security posture | Guard DOWN for development (all domains, eval enabled) | Required for external website automation |
+
 ## Lock Modification Rules
 
 1. No lock may be changed without explicit user approval

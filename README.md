@@ -6,11 +6,11 @@ A LangGraph-based AI skill execution and multi-agent orchestration system. Built
 
 | Metric | Count |
 |---|---|
-| Skills | 30 (Tiers 1–3 complete) |
+| Skills | 30 built + 15 registered (Tiers 1–3 complete, k40-k54 awaiting agent build) |
 | Multi-Agent Systems | 20/20 |
 | Agents | 7 (fully configured) |
 | Production Frameworks | 15 |
-| Total Tests | 497+ |
+| Total Tests | 640+ |
 | Validation | 27 passed, 4 warnings, 0 failures |
 
 ## Architecture
@@ -129,6 +129,46 @@ fw = get_framework("FW-001")  # MEDDPICC Deal Qualification
 fws = get_frameworks_for_domain("sales")
 ```
 
+
+## Browser Automation (PinchTab)
+
+NemoClaw agents can control Chrome via [PinchTab](https://github.com/pinchtab/pinchtab) — a 12MB Go binary providing HTTP-based browser control with accessibility-first element refs.
+
+**What it enables**: Navigate websites, extract content (~800 tokens/page), fill forms, click buttons, take screenshots, read dashboards, post to social media — all governed by MA systems.
+
+**Install**:
+```bash
+curl -fsSL https://pinchtab.com/install.sh | bash
+pinchtab  # Start server (select Guard DOWN for development)
+```
+
+**Python Bridge** (`scripts/web_browser.py`):
+```python
+from web_browser import PinchTabClient
+browser = PinchTabClient(agent_id="growth_revenue_lead")
+ok, result = browser.navigate("https://example.com")
+ok, text = browser.text()
+ok, snap = browser.snapshot(interactive=True)
+ok, result = browser.click("e5")
+```
+
+**Governance**: All browser actions are governed by:
+- **MA-19**: Web access domain — per-agent permissions (navigate, text, click, fill, screenshot, eval)
+- **MA-8**: 4 web safety rules — block payment forms, block destructive actions, require screenshot before submit, require approval for first login
+- **MA-14**: Browser health domain — PinchTab server, instance count, memory usage, error rate monitoring
+- **MA-6**: Browser action budgets — navigations/hour, clicks/task, text extractions/hour, screenshots/hour
+
+**Configuration**: `config/pinchtab-config.yaml` — per-agent profiles, rate limits, blocked domains, scheduler settings.
+
+**Web-Aware Skills** (registered, awaiting agent build):
+| ID | Name | Agent | PinchTab Actions |
+|---|---|---|---|
+| k50 | Web Deep Researcher | intelligence_research_lead | navigate, text, scroll |
+| k51 | Competitor Intelligence Scraper | intelligence_research_lead | navigate, snapshot, text, click |
+| k52 | Web Lead Enricher | growth_revenue_lead | navigate, fill, click, text |
+| k53 | Social Media Publisher | narrative_content_lead | navigate, fill, click, screenshot |
+| k54 | Analytics Dashboard Reader | operations_systems_lead | navigate, text, click, screenshot |
+
 ## Core Scripts
 
 | Script | Version | Purpose |
@@ -141,6 +181,7 @@ fws = get_frameworks_for_domain("sales")
 | `prod-ops.py` | — | Production operations hub (14 commands) |
 | `integration_test.py` | — | MA-20 integration test (37 checks) |
 | `framework_library.py` | — | 15 production frameworks |
+| `web_browser.py` | — | PinchTab browser bridge (40 tests) |
 
 ## Configuration
 
@@ -149,6 +190,7 @@ fws = get_frameworks_for_domain("sales")
 | `routing-config.yaml` | 9-alias model routing (provider + model per alias) |
 | `budget-config.yaml` | Per-provider spending limits and tracking |
 | `skill-yaml-schema-v2` | Skill definition schema |
+| `pinchtab-config.yaml` | PinchTab per-agent profiles, rate limits, safety rules |
 
 ## Budget Status
 
