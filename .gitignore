@@ -217,3 +217,4 @@ skills/research-brief/outputs/*
 
 # Python 3.12 virtual environment
 .venv312/
+command-center/frontend/node_modules/
