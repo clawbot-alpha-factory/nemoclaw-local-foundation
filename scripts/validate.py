@@ -94,7 +94,7 @@ def c1_python_version():
 def c1_openshell_path():
     out, _, rc = run("which openshell")
     if rc != 0 or not out:
-        return FAIL, "openshell not in PATH — run: source ~/.zshrc"
+        return WARN, "openshell not in PATH (not required for skill execution)"
     return PASS, out
 
 def c1_node_version():
@@ -112,14 +112,14 @@ def c2_gateway_reachable():
     out, _, rc = run("openshell gateway info 2>/dev/null")
     if rc == 0 and "127.0.0.1:8080" in out:
         return PASS, "gateway endpoint https://127.0.0.1:8080"
-    return FAIL, "Gateway not reachable — run: nemoclaw start"
+    return WARN, "Gateway not reachable (OpenShell not required for skill execution)"
 
 def c2_sandbox_ready():
     out, _, rc = run("openshell sandbox list 2>/dev/null")
     if rc != 0:
         return WARN, "OpenShell sandbox not running (not required for skill execution)"
     if "nemoclaw-assistant" not in out:
-        return FAIL, "sandbox nemoclaw-assistant not found"
+        return WARN, "sandbox not running (OpenShell not required for skill execution)"
     if "Ready" in out:
         return PASS, "nemoclaw-assistant Ready"
     return WARN, f"Sandbox found but status unclear: {out[:80]}"
