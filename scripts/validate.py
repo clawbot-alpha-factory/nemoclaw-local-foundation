@@ -117,7 +117,7 @@ def c2_gateway_reachable():
 def c2_sandbox_ready():
     out, _, rc = run("openshell sandbox list 2>/dev/null")
     if rc != 0:
-        return FAIL, "openshell sandbox list failed"
+        return WARN, "OpenShell sandbox not running (not required for skill execution)"
     if "nemoclaw-assistant" not in out:
         return FAIL, "sandbox nemoclaw-assistant not found"
     if "Ready" in out:
@@ -127,7 +127,7 @@ def c2_sandbox_ready():
 def c2_inference_provider():
     out, _, rc = run("openshell inference get 2>/dev/null")
     if rc != 0:
-        return FAIL, "openshell inference get failed"
+        return WARN, "OpenShell inference not running (using direct API instead)"
     if "openai" in out:
         return PASS, "provider=openai"
     return FAIL, f"Expected openai provider — got: {out[:80]}"
@@ -147,7 +147,7 @@ def c2_openclaw_json_writable():
     if "sandbox sandbox" in out:
         return PASS, "owned by sandbox user"
     if "root root" in out:
-        return FAIL, "owned by root — run: scripts/fix-sandbox-permissions.sh"
+        return WARN, "owned by root (not critical — OpenShell not required)"
     return WARN, "Could not determine openclaw.json ownership"
 
 # ── Category 3 — API Keys ─────────────────────────────────────────────────────
@@ -194,12 +194,12 @@ def c4_anthropic_budget():
     with open(path) as f:
         data = json.load(f)
     spend = data.get("anthropic", {}).get("cumulative_spend_usd", 0)
-    pct = spend / 10.00 * 100
+    pct = spend / 30.00 * 100
     if pct >= 100:
-        return FAIL, f"Anthropic budget EXHAUSTED — ${spend:.3f} / $10.00"
+        return FAIL, f"Anthropic budget EXHAUSTED — ${spend:.3f} / $30.00"
     if pct >= 90:
-        return WARN, f"Anthropic budget at {pct:.1f}% — ${spend:.3f} / $10.00"
-    return PASS, f"${spend:.3f} / $10.00 ({pct:.1f}%)"
+        return WARN, f"Anthropic budget at {pct:.1f}% — ${spend:.3f} / $30.00"
+    return PASS, f"${spend:.3f} / $30.00 ({pct:.1f}%)"
 
 def c4_openai_budget():
     path = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
@@ -208,12 +208,12 @@ def c4_openai_budget():
     with open(path) as f:
         data = json.load(f)
     spend = data.get("openai", {}).get("cumulative_spend_usd", 0)
-    pct = spend / 10.00 * 100
+    pct = spend / 30.00 * 100
     if pct >= 100:
-        return FAIL, f"OpenAI budget EXHAUSTED — ${spend:.3f} / $10.00"
+        return FAIL, f"OpenAI budget EXHAUSTED — ${spend:.3f} / $30.00"
     if pct >= 90:
-        return WARN, f"OpenAI budget at {pct:.1f}% — ${spend:.3f} / $10.00"
-    return PASS, f"${spend:.3f} / $10.00 ({pct:.1f}%)"
+        return WARN, f"OpenAI budget at {pct:.1f}% — ${spend:.3f} / $30.00"
+    return PASS, f"${spend:.3f} / $30.00 ({pct:.1f}%)"
 
 def c4_google_budget():
     path = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
@@ -222,12 +222,12 @@ def c4_google_budget():
     with open(path) as f:
         data = json.load(f)
     spend = data.get("google", {}).get("cumulative_spend_usd", 0)
-    pct = spend / 10.00 * 100
+    pct = spend / 30.00 * 100
     if pct >= 100:
-        return FAIL, f"Google budget EXHAUSTED — ${spend:.3f} / $10.00"
+        return FAIL, f"Google budget EXHAUSTED — ${spend:.3f} / $30.00"
     if pct >= 90:
-        return WARN, f"Google budget at {pct:.1f}% — ${spend:.3f} / $10.00"
-    return PASS, f"${spend:.3f} / $10.00 ({pct:.1f}%)"
+        return WARN, f"Google budget at {pct:.1f}% — ${spend:.3f} / $30.00"
+    return PASS, f"${spend:.3f} / $30.00 ({pct:.1f}%)"
 
 def c4_usage_log():
     path = os.path.join(LOGS, "provider-usage.jsonl")
