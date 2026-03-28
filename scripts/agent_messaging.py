@@ -161,7 +161,9 @@ class Channel:
             self.turn_count += 1
         msg.turn_number = self.turn_count
 
-        # Persist
+        # Persist (skip ephemeral chat)
+        if msg.intent == "chat" and self.chat_retention == "ephemeral":
+            return  # in-memory only, not persisted
         with open(self.messages_path, "a") as f:
             f.write(json.dumps(msg.to_dict()) + "\n")
         self._save_meta()
@@ -210,7 +212,7 @@ class Channel:
                 "total": total,
                 "votes": dict(self.votes),
             }
-        elif rejections > (total - self.approval_required):
+        elif total >= self.approval_required and rejections > (total - self.approval_required):
             # Impossible to reach threshold
             return True, "rejected", {
                 "approvals": approvals,
@@ -355,7 +357,7 @@ class MessageBus:
 
         # ── Rule: Turn limit (adversarial channels) ──
         if channel.channel_type == "adversarial" and channel.is_turn_limit_reached():
-            if intent != "chat" and intent != "acknowledge":
+            if intent not in ("chat", "acknowledge", "withdraw"):
                 if not channel.synthesis_requested:
                     channel.synthesis_requested = True
                     channel._save_meta()
@@ -441,6 +443,12 @@ class MessageBus:
             workflow_id=self.workspace_id,
         )
 
+        # Auto-link to parent message
+        if parent_message_id:
+            parent = self._find_message(channel, parent_message_id)
+            if parent:
+                parent.responses.append(msg.id)
+
         # Add to channel
         channel.add_message(msg)
 
@@ -496,14 +504,34 @@ class MessageBus:
         }
         self.action_log.append(action)
 
-        # If decision → log to decision log via registry
+        # If memory_write → write to shared memory
+        if trigger.get("type") == "memory_write" and self.memory:
+            target_key = trigger.get("target", f"msg_{msg.id}")
+            self.memory.shared.write(
+                target_key, msg.content,
+                agent=msg.sender, importance="standard",
+                confidence=msg.confidence,
+            )
+
+        # If decision → log with full debate context
         if trigger.get("type") == "decision" and self.registry:
+            channel = self.channels.get(msg.channel_id)
+            options = []
+            if channel:
+                options = [
+                    f"[{m.sender}/{m.intent}] {m.content[:150]}"
+                    for m in channel.get_active_messages()
+                    if m.intent in ["propose", "critique", "challenge"]
+                ]
+            vote_summary = ""
+            if channel and channel.votes:
+                vote_summary = f" Votes: {channel.votes}"
             self.registry.log_decision(
                 owner=msg.sender,
-                context=f"Channel: {msg.channel_id}",
-                options=[],
+                context=f"Channel: {msg.channel_id}, {len(options)} debate messages{vote_summary}",
+                options=options,
                 decision=msg.content,
-                rationale=f"Decided via messaging (confidence: {msg.confidence})",
+                rationale=f"Derived from {len(options)} messages (confidence: {msg.confidence}){vote_summary}",
             )
 
     def get_pending_responses(self, priority_filter=None):
@@ -518,10 +546,11 @@ class MessageBus:
         return [p for p in self.pending_responses
                 if not p["responded"] and p["priority"] == "urgent"]
 
-    def check_timeouts(self):
+    def check_timeouts(self, auto_escalate=True):
         """Check for timed-out response requests.
         
-        Returns: list of timed-out messages (should escalate to executive_operator)
+        If auto_escalate=True, sends escalation messages automatically.
+        Returns: list of timed-out messages
         """
         timed_out = []
         now = datetime.now(timezone.utc)
@@ -532,6 +561,27 @@ class MessageBus:
             elapsed = (now - msg_time).total_seconds()
             if elapsed > p["timeout_s"]:
                 timed_out.append(p)
+                if auto_escalate:
+                    # Auto-send escalation to executive_operator
+                    escalate_channel = self.get_or_create_channel(
+                        "system-escalations", "topic", chat_mode=False
+                    )
+                    escalate_msg = Message(
+                        sender="system",
+                        channel_id="system-escalations",
+                        intent="escalate",
+                        content=(
+                            f"TIMEOUT: No response to message {p['message_id']} "
+                            f"from {p['sender']} in channel {p['channel_id']} "
+                            f"(waited {int(elapsed)}s, limit {p['timeout_s']}s)"
+                        ),
+                        recipients=["executive_operator"],
+                        priority="urgent",
+                        requires_response=False,
+                        workflow_id=self.workspace_id,
+                    )
+                    escalate_channel.add_message(escalate_msg)
+                    p["escalated"] = True
         return timed_out
 
     def mark_responded(self, original_message_id, response_message_id):

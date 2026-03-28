@@ -69,6 +69,7 @@ def _make_entry(value, source_agent, importance="standard", confidence=0.5,
         "tags": tags or [],
         "workflow_id": workflow_id,
         "source_capability": source_capability,
+        "source_capability": source_capability,
         "access_count": 0,
         "last_accessed": None,
     }
@@ -278,6 +279,8 @@ class SharedWorkspaceMemory:
 
                 # TIER 1 — CRITICAL: block + escalate to executive_operator
                 if existing_importance == "critical" or importance == "critical":
+                    existing_conf = existing.get("confidence", 0.5)
+                    new_conf = confidence
                     conflict = {
                         "key": key,
                         "existing_agent": existing_agent,
@@ -288,6 +291,9 @@ class SharedWorkspaceMemory:
                         "resolution_type": None,  # override | merge | discard
                         "decided_by": None,
                         "rationale": None,
+                        "existing_confidence": existing_conf,
+                        "new_confidence": new_conf,
+                        "confidence_delta": round(abs(existing_conf - new_conf), 3),
                     }
                     self.conflicts.append(conflict)
                     self._audit("CONFLICT_CRITICAL", agent, key,
@@ -299,6 +305,8 @@ class SharedWorkspaceMemory:
 
                 # TIER 2 — AMBIGUOUS: standard vs standard from different agents
                 if existing_importance == "standard" and importance == "standard":
+                    existing_conf = existing.get("confidence", 0.5)
+                    new_conf = confidence
                     conflict = {
                         "key": key,
                         "existing_agent": existing_agent,
@@ -309,6 +317,9 @@ class SharedWorkspaceMemory:
                         "resolution_type": None,
                         "decided_by": None,
                         "rationale": None,
+                        "existing_confidence": existing_conf,
+                        "new_confidence": new_conf,
+                        "confidence_delta": round(abs(existing_conf - new_conf), 3),
                     }
                     self.conflicts.append(conflict)
                     self._audit("CONFLICT_AMBIGUOUS", agent, key,
