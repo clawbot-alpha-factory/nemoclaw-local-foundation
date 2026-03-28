@@ -1,0 +1,87 @@
+# Multi-Agent Pipeline v2.0 — Market to Product
+# Demonstrates: shared memory, agent roles, contracts, validation, failure handling
+
+name: "Market to Product Pipeline v2"
+mode: multi_agent
+
+context:
+  workspace_id: market_to_product_pipeline
+  shared_memory: true
+
+# Inter-agent contracts
+contracts:
+  market_analyst_to_product_manager:
+    required_fields:
+      - key_insights
+      - target_segments
+  product_manager_to_pricing_analyst:
+    required_fields:
+      - market_analyst_full_output
+
+steps:
+  # Agent 1: Market Analyst — researches the market
+  - agent: market_analyst
+    skill: e12-market-research-analyst
+    type: executor
+    inputs:
+      research_topic: "AI-powered meeting assistants for remote teams"
+      industry_context: "B2B SaaS companies with 50 to 500 remote employees"
+    outputs_to_memory:
+      - key_insights
+      - target_segments
+      - trends
+      - market_overview
+    on_failure:
+      retry: 1
+      fallback: halt
+
+  # Agent 2: Formatter — normalizes market research output
+  - agent: formatter
+    skill: g25-output-format-enforcer
+    type: formatter
+    inputs:
+      input_text: ""  # Will be populated from chain
+      target_format: markdown
+    chain_from: previous
+    on_failure:
+      retry: 0
+      fallback: skip
+
+  # Agent 3: Product Manager — writes requirements from market insights
+  - agent: product_manager
+    skill: f09-product-req-writer
+    type: executor
+    inputs:
+      product_idea: "AI meeting assistant with transcription, action items, and CRM sync"
+      target_audience: "Engineering managers at remote-first SaaS companies"
+      business_context: "Competing with Otter.ai and Fireflies. Differentiate on action item tracking."
+      scope_level: mvp
+    inputs_from_memory:
+      - key_insights
+      - target_segments
+    chain_from: previous
+    outputs_to_memory:
+      - requirements_quality_score
+    on_failure:
+      retry: 1
+      fallback: halt
+
+  # Agent 4: Pricing Analyst — defines pricing strategy
+  - agent: pricing_analyst
+    skill: f09-pricing-strategist
+    type: executor
+    inputs:
+      product_description: "AI meeting assistant with transcription and action item tracking for remote teams"
+      target_market: "B2B SaaS companies with 50 to 500 employees"
+      competitive_pricing: "Otter.ai 17 dollars per user, Fireflies 19 dollars per user, Grain 15 dollars per user"
+      cost_structure: "API costs 0.02 dollars per minute of audio, infrastructure 500 dollars per month fixed"
+      pricing_scope: mvp
+    inputs_from_memory:
+      - target_segments
+    chain_from: previous
+    outputs_to_memory:
+      - pricing_model
+      - revenue_projections
+    on_failure:
+      retry: 1
+      fallback: halt

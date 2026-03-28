@@ -1,9 +1,9 @@
 # Script Reference
 
 > **Location:** `docs/reference/script-reference.md`
-> **Version:** 1.0
-> **Date:** 2026-03-24
-> **Phase:** 12 — Documentation Consolidation
+> **Version:** 2.0
+> **Date:** 2026-03-28
+> **Phase:** MA-4 — Multi-Agent System
 
 ---
 
@@ -247,3 +247,135 @@ bash scripts/fix-sandbox-permissions.sh
 | fix-sandbox-permissions.sh | Bash | Shell script |
 | skill-runner.py | .venv312/bin/python | Imports LangGraph, langchain |
 | validate_graph.py | .venv312/bin/python | Imports LangGraph |
+
+
+---
+
+## scripts/agent_registry.py
+
+**Purpose:** MA-1 Agent Registry — enforcement engine for 7-agent AI company. Validates domain boundaries, memory write permissions, authority hierarchy, capability ownership.
+
+**Added:** MA-1 (2026-03-28)
+
+**Usage:**
+```bash
+python3 scripts/agent_registry.py --summary
+python3 scripts/agent_registry.py --validate-action strategy_lead market_research
+python3 scripts/agent_registry.py --validate-memory engineering_lead market_overview
+python3 scripts/agent_registry.py --validate-override executive_operator strategy_lead
+python3 scripts/agent_registry.py --agent-caps strategy_lead
+python3 scripts/agent_registry.py --find-task "pricing strategy"
+```
+
+**Config:** `config/agents/agent-schema.yaml`, `config/agents/capability-registry.yaml`
+
+---
+
+## scripts/agent_memory.py
+
+**Purpose:** MA-2 Three-layer memory — private (per-agent), shared (per-workflow), long-term (cross-workflow). Domain-enforced writes, 3-tier conflict escalation, memory decay, TTL, relevance-ranked prompt injection.
+
+**Added:** MA-2 (2026-03-28)
+
+**Usage:**
+```bash
+python3 scripts/agent_memory.py --workspace my_workflow --test
+python3 scripts/agent_memory.py --workspace my_workflow --summary
+python3 scripts/agent_memory.py --workspace my_workflow --dump-shared
+python3 scripts/agent_memory.py --workspace my_workflow --inject strategy_lead
+python3 scripts/agent_memory.py --workspace my_workflow --promote
+```
+
+---
+
+## scripts/agent_messaging.py
+
+**Purpose:** MA-3 Structured messaging — 11 intents, 5 channel types, voting, withdrawal, chat mode, hybrid blocking, timeout escalation, forced synthesis.
+
+**Added:** MA-3 (2026-03-28)
+
+**Usage:**
+```bash
+python3 scripts/agent_messaging.py --test
+python3 scripts/agent_messaging.py --list-channels
+python3 scripts/agent_messaging.py --read-channel pricing-debate
+```
+
+---
+
+## scripts/decision_log.py
+
+**Purpose:** MA-4 Decision lifecycle — proposed → debated → decided → executing → evaluated → learned. Dependencies, reversibility, structured outcomes, velocity, auto-lesson extraction.
+
+**Added:** MA-4 (2026-03-28)
+
+**Usage:**
+```bash
+python3 scripts/decision_log.py --test
+python3 scripts/decision_log.py --summary
+python3 scripts/decision_log.py --list
+python3 scripts/decision_log.py --pending
+python3 scripts/decision_log.py --accuracy strategy_lead
+python3 scripts/decision_log.py --velocity
+```
+
+---
+
+## scripts/orchestrator.py
+
+**Purpose:** Multi-agent workflow orchestrator v2. Shared memory, agent roles, contracts, failure handling (retry/skip/halt/redirect), NL planning via LLM.
+
+**Added:** Phase 40 (2026-03-27)
+
+**Usage:**
+```bash
+python3 scripts/orchestrator.py --workflow workflows/pipeline-v2.yaml
+python3 scripts/orchestrator.py --workflow workflows/pipeline-v2.yaml --dry-run
+python3 scripts/orchestrator.py --plan "Research AI agents then write product spec" --dry-run
+python3 scripts/orchestrator.py --list-skills
+```
+
+---
+
+## scripts/test-all.py
+
+**Purpose:** Regression test runner. Runs each skill with test-input.json, validates completion, 600s timeout, checkpoint backup/restore.
+
+**Added:** Phase 5 (2026-03-27)
+
+**Usage:**
+```bash
+python3 scripts/test-all.py                               # all skills
+python3 scripts/test-all.py --skill e12-tech-trend-scanner # one skill
+```
+
+---
+
+## scripts/tier3-batch-build.py
+
+**Purpose:** Automated skill builder. Generates specs + code via meta-skills, applies known fixes, compile checks, tests. ~$0.25/skill.
+
+**Added:** Tier 3 (2026-03-27)
+
+**Usage:**
+```bash
+python3 scripts/tier3-batch-build.py
+```
+
+---
+
+## scripts/new-skill.py
+
+**Purpose:** Interactive skill scaffolder. Creates directory, skill.yaml template, run.py skeleton, outputs/.gitignore, test-input.json.
+
+**Added:** Phase 13 (2026-03-26)
+
+---
+
+## scripts/checkpoint_utils.py
+
+**Purpose:** Utility functions for LangGraph SqliteSaver checkpoint DB — backup, restore, clear, inspect.
+
+**Added:** Phase 10 (2026-03-24)
+
+**Usage:** Imported by other scripts. Not typically run standalone.

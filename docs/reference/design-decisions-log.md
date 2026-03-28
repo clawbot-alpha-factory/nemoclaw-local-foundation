@@ -1,9 +1,9 @@
 # Design Decisions Log
 
 > **Location:** `docs/reference/design-decisions-log.md`
-> **Version:** 1.0
-> **Date:** 2026-03-24
-> **Phase:** 12 — Documentation Consolidation
+> **Version:** 2.0
+> **Date:** 2026-03-28
+> **Phase:** MA-4 — Multi-Agent System
 
 ---
 
@@ -119,14 +119,14 @@ These documents were created before or during implementation and informed the sy
 
 | Aspect | Planning (Master Routing v1.0) | Implemented |
 |---|---|---|
-| OpenAI budget | $20/month | $10.00 cumulative |
-| Anthropic budget | $30/month | $10.00 cumulative |
-| Google budget | $5/month | $10.00 cumulative |
-| Total | $55/month | $30.00 cumulative |
+| OpenAI budget | $20/month | $30.00 cumulative |
+| Anthropic budget | $30/month | $30.00 cumulative |
+| Google budget | $5/month | $30.00 cumulative |
+| Total | $55/month | $90.00 cumulative |
 | Reset cycle | Monthly (1st of each month) | Manual reset |
 | Hard stop action | Pause and ask human | Route to fallback automatically |
 
-**Why it changed:** The foundation phase has lower usage than the planning doc projected. Equal $10 budgets per provider simplify management. Manual reset is appropriate at current scale — automated monthly reset adds complexity without current need.
+**Why it changed:** The foundation phase has lower usage than the planning doc projected. Equal $30 budgets per provider simplify management. Increased from $10 after Opus cost discovery ($0.15-0.35/call vs $0.03 estimated). Manual reset is appropriate at current scale — automated monthly reset adds complexity without current need.
 
 **Future validity:** As usage grows, the planning doc's differentiated budgets ($20/$30/$5) and monthly auto-reset are correct targets. The budget-config.yaml supports all these values — just change the numbers.
 
@@ -184,9 +184,9 @@ These documents were created before or during implementation and informed the sy
 | Complexity classifier | Pre-call classifier | Not implemented | Deferred — valid future extension |
 | Fallback chains | Per-alias with retry | Global fallback only | Deferred — valid future extension |
 | Model strings | GPT-5, o4-mini | GPT-5.4, o3 | Drifted — models updated |
-| Budget limits | $20/$30/$5 monthly | $10/$10/$10 cumulative manual | Adjusted for foundation phase |
+| Budget limits | $20/$30/$5 monthly | $30/$30/$30 cumulative manual | Adjusted after Opus cost discovery |
 | External tools | 16 tools | 16 tools (same) | Aligned |
-| Validation checks | 25 (at README write time) | 31 | Grown — README not updated |
+| Validation checks | 25 (at README write time) | 31 | Grown — README updated 2026-03-28 |
 | Cost tracking | Token-counted | Flat estimate at 2x | Simplified — future upgrade target |
 
 ---
@@ -197,3 +197,84 @@ These documents were created before or during implementation and informed the sy
 - When planning future features, check the "Future validity" notes for each decision
 - When updating the system, add a new decision entry if the change diverges from any planning doc
 - This document should be updated alongside any architectural change
+
+
+---
+
+## Decision 11 — Budget Increase ($10 → $30/provider)
+
+| Aspect | Previous | Updated |
+|---|---|---|
+| Budget per provider | $10.00 | $30.00 |
+| Token limits | cheap 4K, reasoning 8K | cheap 8K, reasoning 16K |
+| Premium routing | Opus ($0.15-0.35/call) | Sonnet ($0.06/call) |
+
+**Why it changed:** Opus costs were 4-12x the estimated $0.03/call. 67 Opus calls tracked as $2.01 actually cost ~$15-23.
+
+---
+
+## Decision 12 — Multi-Agent Architecture (7 Agents)
+
+| Aspect | Previous | Implemented |
+|---|---|---|
+| Agent system | Not designed | 7 agents, 3-level authority, domain enforcement |
+| Definitions | None | config/agents/agent-schema.yaml |
+| Capabilities | None | config/agents/capability-registry.yaml (30 mapped) |
+| Enforcement | None | scripts/agent_registry.py |
+
+**Why:** Skills don't coordinate alone. An AI company needs specialized agents with governance.
+
+---
+
+## Decision 13 — 3-Layer Memory Architecture
+
+| Aspect | Previous | Implemented |
+|---|---|---|
+| Memory | Flat key-value in orchestrator | 3 layers: private, shared, long-term |
+| Conflicts | None | 3-tier: critical (block), ambiguous (flag), minor (last-write-wins) |
+| Decay | None | Relevance scoring with 30-day half-life |
+| Promotion | None | Auto-promote confidence >= 0.75 |
+
+**Why:** Agents need isolated learning, workflow coordination, and organizational knowledge.
+
+---
+
+## Decision 14 — Structured Messaging (11 Intents)
+
+| Aspect | Previous | Implemented |
+|---|---|---|
+| Communication | Envelope chaining only | 11-intent messaging with channels |
+| Decisions | Single owner | Voting + multi-approval + withdrawal |
+| Debate | None | Adversarial channels, turn limits, forced synthesis |
+
+**Why:** Agents must propose, challenge, critique, and decide — not just pass data.
+
+---
+
+## Decision 15 — Decision Lifecycle System
+
+| Aspect | Previous | Implemented |
+|---|---|---|
+| Tracking | Basic log_decision() | Full lifecycle: proposed → evaluated → learned |
+| Dependencies | None | depends_on / blocks with chain resolution |
+| Outcomes | None | Structured scoring (expected vs actual with delta) |
+| Learning | None | Auto lesson extraction + long-term memory promotion |
+
+**Why:** Decisions without outcome tracking produce no organizational learning.
+
+---
+
+## Decision 16 — Skill Execution v4.0
+
+| Aspect | v3.0 | v4.0 |
+|---|---|---|
+| Pipeline | Flexible | Standardized 5-step: parse → generate → critique → improve → validate |
+| Output | Artifact only | Artifact + JSON envelope |
+| Critic loop | Not standardized | step_3/step_4 with cached:false |
+| Validation | LLM-based | Deterministic (regex, section detection) |
+| Checkpoint | No backup | Auto-backup before every run |
+| Testing | None | test-input.json + test-all.py |
+| Chaining | None | --input-from envelope |
+| Generation | Manual | Meta-skills at ~$0.25/skill |
+
+**Why:** 30 skills require standardized patterns. Non-deterministic validation caused flaky tests.

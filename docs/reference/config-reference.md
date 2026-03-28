@@ -1,9 +1,9 @@
 # Config Reference
 
 > **Location:** `docs/reference/config-reference.md`
-> **Version:** 1.0
-> **Date:** 2026-03-24
-> **Phase:** 12 — Documentation Consolidation
+> **Version:** 2.0
+> **Date:** 2026-03-28
+> **Phase:** MA-4 — Multi-Agent System
 
 ---
 
@@ -22,6 +22,8 @@ This document is the field-level reference for every configuration file in the N
 | routing-config.yaml | config/routing/ | Yes | Model routing — aliases, task classes, defaults |
 | budget-config.yaml | config/routing/ | Yes | Per-provider budget limits and logging config |
 | skill.yaml | skills/{name}/ | Yes | Per-skill definition (one per skill) |
+| agent-schema.yaml | config/agents/ | Yes | 7 agent definitions, authority hierarchy, domain boundaries |
+| capability-registry.yaml | config/agents/ | Yes | 30 capabilities mapped to agents with fallbacks |
 | sandbox-policy.yaml | docs/architecture/ | Yes | OpenShell sandbox policy (reference only) |
 | openclaw.json | repo root | Yes | OpenClaw sandbox configuration (sandbox-managed) |
 
@@ -89,7 +91,7 @@ set -a && source config/.env && set +a
 
 **Committed:** Yes
 
-**Current version:** v3.0
+**Current version:** v4.0
 
 **Full doc:** `docs/architecture/routing-system.md`
 
@@ -144,7 +146,7 @@ routing_rules:
 
 **Committed:** Yes
 
-**Current version:** v2.0
+**Current version:** v3.0
 
 **Full doc:** `docs/architecture/budget-system.md`
 
@@ -163,7 +165,7 @@ Three entries (one per provider), each with identical structure:
 | log_to_file | boolean | Whether to write events to budget-audit.log |
 | log_to_terminal | boolean | Whether to print events to terminal |
 
-**Current budgets:** $10.00 per provider (Anthropic, OpenAI, Google)
+**Current budgets:** $30.00 per provider (Anthropic, OpenAI, Google)
 
 **To change a budget:** Edit `total_usd` for the provider. No restart needed.
 
@@ -203,7 +205,7 @@ Three entries (one per provider), each with identical structure:
 
 | Skill | Location |
 |---|---|
-| research-brief | skills/research-brief/skill.yaml |
+| 30 skills | skills/{skill-id}/skill.yaml (see README.md for full list) |
 
 ---
 
@@ -254,5 +256,11 @@ These files are created at runtime, not committed to the repo, and referenced by
 | tools-audit.log | ~/.nemoclaw/logs/ | tools.py | External tool call events |
 | validation-runs.jsonl | ~/.nemoclaw/logs/ | validate.py | Validation run history |
 | langgraph.db | ~/.nemoclaw/checkpoints/ | skill-runner.py | LangGraph checkpoint database |
+| decision-log.json | ~/.nemoclaw/decisions/ | decision_log.py | Decision lifecycle records |
+| private.json | ~/.nemoclaw/agents/{id}/ | agent_memory.py | Per-agent private memory |
+| shared.json | ~/.nemoclaw/workspaces/{id}/ | agent_memory.py | Per-workflow shared memory |
+| long-term.json | ~/.nemoclaw/memory/ | agent_memory.py | Cross-workflow long-term memory |
+| messages.jsonl | ~/.nemoclaw/channels/{id}/ | agent_messaging.py | Per-channel message log |
+| decision-log.jsonl | ~/.nemoclaw/logs/ | agent_registry.py | Legacy decision log (append-only) |
 
 **If any runtime file is missing:** The creating script will recreate it on next run. Previous data in that file will be lost. See `docs/setup/restart-recovery-runbook.md` Section 3 for recovery procedures.

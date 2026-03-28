@@ -1,0 +1,64 @@
+{
+  "results": [
+    {
+      "status": "FAIL",
+      "skill": "a01-sys-context-mapper",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "a01-api-surface-designer",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "b05-scaffold-gen",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "b05-bug-fix-impl",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "c07-api-doc-gen",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "c07-decision-record-writer",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "b06-cicd-designer",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "b06-release-notes-gen",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "e08-meeting-summary-gen",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "status": "FAIL",
+      "skill": "e08-kb-article-writer",
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    }
+  ]
+}

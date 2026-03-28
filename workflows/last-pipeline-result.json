@@ -1,0 +1,65 @@
+{
+  "workflow": "Market to Product Pipeline v2",
+  "mode": "multi_agent",
+  "workspace_id": "market_to_product_pipeline",
+  "timestamp": "2026-03-27T22:01:05.865726+00:00",
+  "total_elapsed_s": 504,
+  "agents_planned": 4,
+  "agents_passed": 3,
+  "agents_failed": 1,
+  "memory_keys": [
+    "key_insights",
+    "target_segments",
+    "trends",
+    "market_overview",
+    "market_analyst_full_output",
+    "market_analyst_envelope_path",
+    "market_analyst_quality_score",
+    "requirements_quality_score",
+    "product_manager_full_output",
+    "product_manager_envelope_path",
+    "product_manager_quality_score",
+    "pricing_model",
+    "revenue_projections",
+    "pricing_analyst_full_output",
+    "pricing_analyst_envelope_path",
+    "pricing_analyst_quality_score"
+  ],
+  "results": [
+    {
+      "step": 1,
+      "agent": "market_analyst",
+      "skill": "e12-market-research-analyst",
+      "success": true,
+      "elapsed": 296,
+      "envelope": "/Users/core88/nemoclaw-local-foundation/skills/e12-market-research-analyst/outputs/e12-market-research-analyst_skill-e12-market-research-analyst-20260327-215241-ff83dbcf_20260327_215737_envelope.json",
+      "artifact": "/Users/core88/nemoclaw-local-foundation/skills/e12-market-research-analyst/outputs/e12-market-research-analyst_skill-e12-market-research-analyst-20260327-215241-ff83dbcf_20260327_215737.md"
+    },
+    {
+      "step": 2,
+      "agent": "formatter",
+      "skill": "g25-output-format-enforcer",
+      "success": false,
+      "elapsed": 0,
+      "error": "ERROR: Input validation failed:"
+    },
+    {
+      "step": 3,
+      "agent": "product_manager",
+      "skill": "f09-product-req-writer",
+      "success": true,
+      "elapsed": 100,
+      "envelope": "/Users/core88/nemoclaw-local-foundation/skills/f09-product-req-writer/outputs/f09-product-req-writer_skill-f09-product-req-writer-20260327-215738-32119457_20260327_215918_envelope.json",
+      "artifact": "/Users/core88/nemoclaw-local-foundation/skills/f09-product-req-writer/outputs/f09-product-req-writer_skill-f09-product-req-writer-20260327-215738-32119457_20260327_215918.md"
+    },
+    {
+      "step": 4,
+      "agent": "pricing_analyst",
+      "skill": "f09-pricing-strategist",
+      "success": true,
+      "elapsed": 107,
+      "envelope": "/Users/core88/nemoclaw-local-foundation/skills/f09-pricing-strategist/outputs/f09-pricing-strategist_skill-f09-pricing-strategist-20260327-215919-e45d80ea_20260327_220105_envelope.json",
+      "artifact": "/Users/core88/nemoclaw-local-foundation/skills/f09-pricing-strategist/outputs/f09-pricing-strategist_skill-f09-pricing-strategist-20260327-215919-e45d80ea_20260327_220105.md"
+    }
+  ]
+}

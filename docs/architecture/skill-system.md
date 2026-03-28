@@ -1,10 +1,14 @@
 # Skill System
 
 > **Location:** `docs/architecture/skill-system.md`
-> **Version:** 1.0
-> **Date:** 2026-03-24
-> **Phase:** 12 — Documentation Consolidation
-> **Source of truth:** `skills/skill-runner.py` v3.0 + `skills/research-brief/skill.yaml`
+> **Version:** 2.0
+> **Date:** 2026-03-28
+> **Phase:** MA-4 — Multi-Agent System
+> **Source of truth:** `skills/skill-runner.py` v4.0 + 30 skills across 10 families
+> **Schema:** skill-yaml-schema-v2
+> **Meta-skills:** g26-skill-spec-writer + g26-skill-template-gen (~$0.25/skill)
+> **Testing:** test-all.py with per-skill test-input.json (30/30 passing)
+> **Chaining:** --input-from envelope path for skill-to-skill data flow
 
 ---
 
@@ -54,7 +58,7 @@ Thread ID printed for resume reference
 
 | Component | Location | Purpose |
 |---|---|---|
-| skill-runner.py | skills/ | LangGraph execution engine v3.0 — reads skill.yaml, builds graph, runs steps |
+| skill-runner.py | skills/ | LangGraph execution engine v4.0 — reads skill.yaml + run.py, builds graph, runs steps, writes envelope |
 | skill.yaml | skills/{name}/ | Skill definition — inputs, outputs, steps, routing, validation, approval |
 | outputs/ | skills/{name}/outputs/ | Artifact storage (gitignored) |
 | langgraph.db | ~/.nemoclaw/checkpoints/ | LangGraph SqliteSaver checkpoint database |
@@ -67,11 +71,14 @@ Every skill follows this layout:
 
 ```
 skills/
-├── skill-runner.py              # Shared execution engine
+├── skill-runner.py              # Shared execution engine v4.0
 └── {skill-name}/
     ├── skill.yaml               # Skill definition (committed)
-    ├── outputs/                  # Artifacts (gitignored)
-    │   └── research_brief_*.md  # Generated output files
+    ├── run.py                   # Skill implementation (committed)
+    ├── test-input.json          # Regression test inputs (committed)
+    ├── outputs/                  # Artifacts + envelopes (gitignored)
+    │   ├── {skill}_*.md         # Markdown artifact
+    │   └── {skill}_*_envelope.json  # JSON envelope for chaining
     └── README.md                # Optional usage notes
 ```
 
@@ -351,47 +358,43 @@ Step 5 (write artifact) is marked `never_auto_rerun: true` to prevent duplicate 
 
 ## Creating a New Skill
 
-### Step-by-step process
+### Recommended path: Meta-skills (automated)
 
-1. **Create the skill directory:**
-   ```bash
-   mkdir -p skills/{skill-name}/outputs
-   echo "*" > skills/{skill-name}/outputs/.gitignore
-   ```
+The fastest way to create a new skill is via the meta-skill pipeline:
 
-2. **Create skill.yaml** following the specification above. Start by copying `skills/research-brief/skill.yaml` as a template.
+1. **Generate spec** via g26-skill-spec-writer (produces skill.yaml)
+2. **Generate code** via g26-skill-template-gen (produces run.py)
+3. **Apply known fixes** (context keys, cache on critic steps, step_3 improved-first read)
+4. **Create test-input.json** with realistic test inputs matching the skill's required fields
+5. **Test:** `python3 scripts/test-all.py --skill {skill-id}`
+6. **Validate:** `python3 scripts/validate.py`
+7. **Commit:** `git add skills/{skill-id}/ && git commit`
 
-3. **Define inputs and outputs** with validation rules.
+Cost: ~$0.25/skill. Batch automation: `python3 scripts/tier3-batch-build.py`
 
-4. **Define steps** with task classes. Use the task class reference in `docs/architecture/routing-system.md` to pick the right routing for each step.
+### Alternative path: Manual creation
 
-5. **Define approval boundaries.** Any step that writes to external systems must be classified as `approval_gated` or `blocked_external`.
+1. **Scaffold:** `python3 scripts/new-skill.py` (interactive)
+2. **Edit** skill.yaml and run.py following i35-tone-calibrator as reference
+3. **Test and commit** as above
 
-6. **Test the skill:**
-   ```bash
-   ~/nemoclaw-local-foundation/.venv312/bin/python \
-     ~/nemoclaw-local-foundation/skills/skill-runner.py \
-     --skill {skill-name} \
-     --input {key} "{value}"
-   ```
+### Naming convention
 
-7. **Validate the system still passes:**
-   ```bash
-   python3 scripts/validate.py
-   ```
+Format: `{domain_letter}{family_number}-{skill-slug}` (e.g., `e12-market-research-analyst`)
+- Domain letter: lowercase a-l (12 domains)
+- Family number: zero-padded (a01, f09, j36)
+- Slug: lowercase-hyphenated, max 30 chars
+- Step IDs: `step_1`, `step_2`, etc.
 
-8. **Commit:**
-   ```bash
-   git add skills/{skill-name}/skill.yaml skills/{skill-name}/outputs/.gitignore
-   git commit -m "feat: add {skill-name} skill"
-   git push
-   ```
+### Known patterns (mandatory for all skills)
 
-### Naming rules
-
-- Skill directory name must match the `name` field in skill.yaml
-- Use lowercase-hyphenated names: `research-brief`, `lead-scorer`, `code-reviewer`
-- Step IDs use underscore format: `step_1`, `step_2`
+- H2-scoped section extraction (`##\s` not `##?`)
+- Depth-driven token budgets (overview=12K, strategic=16K, detailed=20K)
+- `min()` scoring (never weighted average)
+- LangChain wrappers for all LLM calls
+- step_3/step_4 must have `cached: false`
+- step_3 must read improved version first: `context.get("improved_X", context.get("generated_X", ""))`
+- step_5 returns `artifact_written: true`
 
 ---
 
@@ -436,6 +439,9 @@ The research-brief skill uses the linear chain pattern. Future skills can use an
 |---|---|---|
 | Linear execution only in practice | Branching validated but no skill uses it yet | Build a skill that requires branching |
 | No parallel step execution | Steps always run sequentially | LangGraph supports parallelism — needs skill design |
-| No cross-skill dependencies | One skill cannot call another | Skill composition layer |
+| Skill chaining via envelopes | Supported via --input-from, validated e12→f09 | Direct pipeline chaining works |
 | No skill versioning at runtime | Runner does not check version compatibility | Version check in skill-runner.py |
 | Artifacts are local-only | Output files are not synced or backed up | Cloud artifact storage extension |
+| LLM non-determinism | Same input may produce slightly different output | Test inputs must allow heading/format variation |
+| List inputs from CLI | Runner passes all --input values as strings | Skills expecting lists need JSON/comma parsing in step_1 |
+| Checkpoint stale cache | cached:true on critic steps causes infinite loops | All step_3/step_4 MUST use cached:false |

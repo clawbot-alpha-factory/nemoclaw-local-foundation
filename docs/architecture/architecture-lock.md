@@ -1,11 +1,11 @@
 # Architecture Lock Document
 
 > **Location:** `docs/architecture/architecture-lock.md`
-> **Version:** 2.0
-> **Date:** 2026-03-24
+> **Version:** 3.0
+> **Date:** 2026-03-28
 > **Status:** LOCKED
-> **Phase:** 12 — Documentation Consolidation
-> **Supersedes:** v1.0 (Phase 8)
+> **Phase:** MA-4 — Multi-Agent System
+> **Supersedes:** v2.0 (Phase 12)
 
 ---
 
@@ -104,7 +104,7 @@ This is the single authoritative record of locked decisions. If a document elsew
 
 ## Locked Decision 5 — Budget Enforcement
 
-**Decision:** Per-provider cumulative budget with $10 limits, 90% warning, 100% hard stop
+**Decision:** Per-provider cumulative budget with $30 limits, 90% warning, 100% hard stop
 
 **Locked in:** Phase 7 (expanded to 3 providers in Phase 8)
 
@@ -125,7 +125,7 @@ This is the single authoritative record of locked decisions. If a document elsew
 
 ## Locked Decision 6 — Skill Execution
 
-**Decision:** Skills defined by skill.yaml, executed by skill-runner.py v3.0 as LangGraph StateGraphs
+**Decision:** Skills defined by skill.yaml + run.py, executed by skill-runner.py v4.0 as LangGraph StateGraphs
 
 **Locked in:** Phase 9
 
@@ -206,7 +206,7 @@ This is the single authoritative record of locked decisions. If a document elsew
 | Credential handling | OpenShell-managed token injection | Direct from config/.env |
 | Policy enforcement | OpenShell policy YAML — runtime enforced | Budget enforcer — application-layer |
 | Model routing | Not applicable (single model) | 9 aliases, 10 task classes, 3 providers |
-| Budget control | Not applicable | $10/provider, 90% warn, 100% hard stop |
+| Budget control | Not applicable | $30/provider, 90% warn, 100% hard stop |
 | Skill system | Not applicable | skill.yaml + skill-runner.py + LangGraph |
 | External tools | Not applicable | 16-tool registry, tools.py framework |
 | Validation | Not applicable | 31 checks across 6 categories |
@@ -222,7 +222,7 @@ This is the single authoritative record of locked decisions. If a document elsew
 | Credential isolation | config/.env gitignored, never committed | Developer-discipline dependent |
 | Execution boundaries | requires_human_approval per skill step | Application-layer only |
 | Audit trail | provider-usage.jsonl + budget-audit.log + tools-audit.log | Strong — append-only logs |
-| Spend control | Hard stop at $10/provider | Strong — enforced before every call |
+| Spend control | Hard stop at $30/provider | Strong — enforced before every call |
 
 These controls are weaker than OS-level enforcement. This is an accepted tradeoff.
 
@@ -232,12 +232,12 @@ These controls are weaker than OS-level enforcement. This is an accepted tradeof
 
 | Topic | Status | When It Will Be Locked |
 |---|---|---|
-| Multi-agent architecture | Not yet designed | When a skill requires inter-agent coordination |
+| Multi-agent architecture | MA-1 through MA-4 complete (7 agents, memory, messaging, decisions) | Locked MA-1 (2026-03-28) |
 | Per-alias fallback chains | Planned, not implemented | When provider outages become operationally frequent |
 | Complexity pre-classifier | Planned, not implemented | When multiple skills run diverse inputs |
 | Token-proportional cost tracking | Planned, not implemented | When monthly spend exceeds $50 |
 | Automated budget reset | Planned, not implemented | When monthly cycles become operationally important |
-| Second skill | Not yet built | Next skill-building phase |
+| Additional skills | 30 built across 10 families (Tiers 1-3) | Tier 1 (Phase 13), Tier 2-3 (Phase 14-15) |
 
 ---
 
@@ -249,11 +249,18 @@ These controls are weaker than OS-level enforcement. This is an accepted tradeof
 | 2 | State persistence | LangGraph SqliteSaver | Phase 7 |
 | 3 | Python runtime | 3.12.13 via .venv312 | Phase 7 |
 | 4 | Model routing | 9 aliases, 10 task classes, 3 providers | Phase 8 |
-| 5 | Budget enforcement | $10/provider, 90% warn, 100% stop | Phase 7 |
-| 6 | Skill execution | skill.yaml + skill-runner.py v3.0 | Phase 9 |
+| 5 | Budget enforcement | $30/provider, 90% warn, 100% stop | Phase 7 (updated MA-4) |
+| 6 | Skill execution | skill.yaml + run.py + skill-runner.py v4.0 | Phase 9 (updated Tier 1) |
 | 7 | External tools framework | tools.py + 16-tool registry | Phase 10.5 |
 | 8 | Validation system | 31 checks, 6 categories | Phase 10.5 |
 | 9 | Observability | 3 scripts + 5 log files | Phase 10 |
+| 10 | Skill execution v4.0 | 5-step pipeline, critic loop, envelope output, checkpoint backup | Tier 1 |
+| 11 | Budget increase | $30/provider (was $10), token limits cheap=8K reasoning=16K | Phase 5 |
+| 12 | Opus → Sonnet reroute | Opus 4-12x estimated cost, Sonnet for all except critical | Phase 5 |
+| 13 | Multi-agent architecture | 7 agents, 3-level authority, domain enforcement | MA-1 |
+| 14 | 3-layer memory | Private + shared + long-term, conflict escalation, decay | MA-2 |
+| 15 | Structured messaging | 11 intents, voting, withdrawal, chat mode | MA-3 |
+| 16 | Decision lifecycle | Proposed→decided→evaluated→learned, dependencies, velocity | MA-4 |
 
 ---
 

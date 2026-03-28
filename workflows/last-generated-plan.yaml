@@ -1,0 +1,90 @@
+context:
+  shared_memory: true
+  workspace_id: ai_code_review_prd
+mode: multi_agent
+name: ai_code_review_tools_competitive_research_to_prd
+steps:
+- agent: market_research_analyst
+  chain_from: null
+  inputs:
+    industry_context: Developer tools and software engineering productivity, with
+      emphasis on AI-assisted code quality, review automation, and engineering workflow
+      integration
+    known_data: Focus on tools that analyze pull requests, suggest fixes, detect bugs/security
+      issues, summarize diffs, and integrate with GitHub/GitLab/Bitbucket and CI workflows.
+    research_topic: Competitive landscape for AI code review tools
+    specific_questions: What are the main market segments, leading competitors, differentiators,
+      pricing/packaging patterns, customer pain points, adoption barriers, and emerging
+      opportunities for AI code review tools?
+  on_failure:
+    fallback: halt
+    retry: 1
+  outputs_to_memory:
+  - market_segments
+  - competitor_landscape
+  - differentiators
+  - pricing_patterns
+  - customer_pain_points
+  - market_opportunities
+  skill: e12-market-research-analyst
+- agent: competitive_intelligence_synthesizer
+  chain_from: previous
+  inputs:
+    competitor_data: Use shared memory from market_research_analyst plus any identified
+      competitor names, product descriptions, feature sets, and pricing patterns.
+    focus_areas: Feature comparison, positioning, target customers, integrations,
+      deployment model, and go-to-market patterns
+    focus_company: AI code review tools
+    industry_context: Developer productivity, code quality, static analysis, security
+      scanning, and AI copilots for engineering teams.
+  on_failure:
+    fallback: halt
+    retry: 1
+  outputs_to_memory:
+  - competitor_positioning_matrix
+  - feature_gap_analysis
+  - gtm_patterns
+  - strategic_white_space
+  skill: e08-comp-intel-synth
+- agent: product_requirements_owner
+  chain_from: previous
+  inputs:
+    business_context: Enter a crowded developer tools market with strong expectations
+      for Git provider integrations, review quality, low false positives, security,
+      and measurable productivity gains.
+    product_idea: An AI code review tool that helps engineering teams review pull
+      requests faster and with higher confidence by surfacing issues, summarizing
+      changes, and recommending actionable fixes.
+    target_audience: Engineering managers, senior developers, platform teams, and
+      DevOps/security-conscious software organizations
+  on_failure:
+    fallback: halt
+    retry: 1
+  outputs_to_memory:
+  - prd_objectives
+  - target_personas
+  - core_user_needs
+  - feature_priorities
+  - success_metrics
+  - product_constraints
+  skill: f09-product-req-writer
+- agent: mvp_scope_definer
+  chain_from: previous
+  inputs:
+    product_idea: AI code review tool for pull request analysis, review assistance,
+      and automated issue detection
+    resource_constraints: Lean startup team, limited engineering capacity, need to
+      validate demand quickly
+    target_audience: Engineering teams seeking faster, higher-quality code review
+      workflows
+    timeline: 90 days
+  on_failure:
+    fallback: halt
+    retry: 1
+  outputs_to_memory:
+  - mvp_scope
+  - must_have_features
+  - nice_to_have_features
+  - out_of_scope_items
+  - delivery_milestones
+  skill: j36-mvp-scope-definer
