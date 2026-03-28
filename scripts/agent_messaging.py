@@ -133,7 +133,7 @@ class Channel:
 
     def __init__(self, channel_id, channel_type="topic", max_turns=DEFAULT_MAX_TURNS,
                  participants=None, decision_mode="single_owner",
-                 approval_required=1, chat_mode=False, chat_retention=DEFAULT_CHAT_RETENTION):
+                 approval_required=1, total_expected_voters=0, chat_mode=False, chat_retention=DEFAULT_CHAT_RETENTION):
         self.channel_id = channel_id
         self.channel_type = channel_type  # topic | decision | adversarial | review | direct
         self.max_turns = max_turns
