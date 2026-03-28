@@ -249,6 +249,58 @@ capabilities:
     produces_outputs: [research_brief]
     memory_keys_written: [research_brief]
 
+
+  # ── Web Capabilities (PinchTab) ────────────────────────────────────────────
+  web_research:
+    owned_by: strategy_lead
+    skill: k50-web-researcher
+    fallback_agent: narrative_content_lead
+    requires_inputs: [url, research_question]
+    produces_outputs: [web_research_report, extracted_content, source_urls]
+    memory_keys_written: [web_research, extracted_data]
+    requires_pinchtab: true
+    pinchtab_actions: [navigate, text, snapshot, scroll]
+
+  competitor_scraping:
+    owned_by: strategy_lead
+    skill: k51-competitor-scraper
+    fallback_agent: null
+    requires_inputs: [competitor_url, our_product, focus_areas]
+    produces_outputs: [competitor_intelligence_report, feature_matrix, pricing_data]
+    memory_keys_written: [competitor_data, feature_comparison]
+    requires_pinchtab: true
+    pinchtab_actions: [navigate, snapshot, text, scroll, click]
+
+  lead_enrichment:
+    owned_by: growth_revenue_lead
+    skill: k52-lead-enricher
+    fallback_agent: null
+    requires_inputs: [company_name, enrichment_fields]
+    produces_outputs: [enriched_lead_profile, company_info, contact_data]
+    memory_keys_written: [lead_profiles, enrichment_data]
+    requires_pinchtab: true
+    pinchtab_actions: [navigate, text, snapshot, fill, click, press]
+
+  social_publishing:
+    owned_by: narrative_content_lead
+    skill: k53-social-poster
+    fallback_agent: null
+    requires_inputs: [platform, content]
+    produces_outputs: [published_post_confirmation, post_url, screenshot_evidence]
+    memory_keys_written: [published_posts]
+    requires_pinchtab: true
+    pinchtab_actions: [navigate, fill, click, press, snapshot, screenshot, text]
+    requires_human_approval: true  # external effect — always approval-gated
+
+  dashboard_reading:
+    owned_by: operations_lead
+    skill: k54-dashboard-reader
+    fallback_agent: null
+    requires_inputs: [dashboard_url, metrics_to_extract]
+    produces_outputs: [dashboard_metrics_report, metric_values, trend_analysis]
+    memory_keys_written: [dashboard_metrics]
+    requires_pinchtab: true
+    pinchtab_actions: [navigate, text, snapshot, click, scroll, screenshot]
   # ── Executive Operator ─────────────────────────────────────────────────────
   workflow_orchestration:
     owned_by: executive_operator

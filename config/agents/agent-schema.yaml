@@ -49,7 +49,7 @@ authority_hierarchy:
 
 domain_boundaries:
   strategy_lead:
-    owns: [market_intelligence, competitive_analysis, business_validation, go_no_go]
+    owns: [market_intelligence, competitive_analysis, business_validation, go_no_go, web_browsing]
     forbidden: [code_generation, prompt_modification, pricing_decisions]
     memory_write_keys: ["market_*", "trend_*", "validation_*", "go_no_go_*"]
 
@@ -59,12 +59,12 @@ domain_boundaries:
     memory_write_keys: ["requirements_*", "architecture_*", "scope_*", "decision_*"]
 
   growth_revenue_lead:
-    owns: [pricing, funnel_design, conversion, positioning, revenue_pipeline]
+    owns: [pricing, funnel_design, conversion, positioning, revenue_pipeline, web_browsing]
     forbidden: [market_research, code_generation, architecture_decisions]
     memory_write_keys: ["pricing_*", "funnel_*", "revenue_*", "conversion_*"]
 
   narrative_content_lead:
-    owns: [copywriting, scripts, documentation, brand_narrative, distribution_strategy]
+    owns: [copywriting, scripts, documentation, brand_narrative, distribution_strategy, web_browsing]
     forbidden: [pricing, architecture, code_generation, market_research]
     memory_write_keys: ["content_*", "narrative_*", "brand_*", "copy_*"]
 
@@ -74,14 +74,14 @@ domain_boundaries:
     memory_write_keys: ["code_*", "build_*", "test_*", "deploy_*", "tech_debt_*"]
 
   operations_lead:
-    owns: [orchestration, planning, scheduling, task_decomposition, reporting, format_enforcement]
+    owns: [orchestration, planning, scheduling, task_decomposition, reporting, format_enforcement, web_browsing]
     forbidden: [go_no_go_decisions, pricing, architecture_decisions]
     memory_write_keys: ["workflow_*", "schedule_*", "task_*", "report_*"]
     constraints:
       - "cannot modify prompts for agents it is actively scheduling in the same workflow"
 
   executive_operator:
-    owns: [sla_enforcement, quality_audit, conflict_resolution, cost_governance, system_health, prioritization]
+    owns: [sla_enforcement, quality_audit, conflict_resolution, cost_governance, system_health, prioritization, web_browsing]
     forbidden: []  # no restrictions — CEO level
     memory_write_keys: ["*"]  # full access
     constraints:
@@ -120,6 +120,8 @@ agents:
         - gtm-strategy-designer
         - swot-analyzer
         - market-sizing-tool
+        - k50-web-researcher
+        - k51-competitor-scraper
     memory_access:
       private: read_write
       shared: read_all, write_own_domain
@@ -199,6 +201,7 @@ agents:
         - retention-analyzer
         - i37-cold-email-seq-writer
         - i38-linkedin-outreach
+        - k52-lead-enricher
     memory_access:
       private: read_write
       shared: read_all, write_own_domain
@@ -242,6 +245,7 @@ agents:
         - brand-voice-guardian
         - social-media-scheduler
         - seo-content-optimizer
+        - k53-social-poster
     memory_access:
       private: read_write
       shared: read_all, write_own_domain
