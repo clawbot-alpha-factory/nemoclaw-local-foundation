@@ -58,7 +58,7 @@ DECAY_ACCESS_BONUS = 0.1            # each access adds this to relevance
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _make_entry(value, source_agent, importance="standard", confidence=0.5,
-                tags=None, workflow_id=None):
+                tags=None, workflow_id=None, source_capability=None):
     """Create a standardized memory entry."""
     return {
         "value": value,
@@ -68,6 +68,7 @@ def _make_entry(value, source_agent, importance="standard", confidence=0.5,
         "confidence": confidence,       # 0.0 - 1.0
         "tags": tags or [],
         "workflow_id": workflow_id,
+        "source_capability": source_capability,
         "access_count": 0,
         "last_accessed": None,
     }
@@ -284,6 +285,9 @@ class SharedWorkspaceMemory:
                         "tier": "critical",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "resolution": "PENDING — escalate to executive_operator",
+                        "resolution_type": None,  # override | merge | discard
+                        "decided_by": None,
+                        "rationale": None,
                     }
                     self.conflicts.append(conflict)
                     self._audit("CONFLICT_CRITICAL", agent, key,
@@ -302,6 +306,9 @@ class SharedWorkspaceMemory:
                         "tier": "ambiguous",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "resolution": "PENDING — flag for review committee (MA-10)",
+                        "resolution_type": None,
+                        "decided_by": None,
+                        "rationale": None,
                     }
                     self.conflicts.append(conflict)
                     self._audit("CONFLICT_AMBIGUOUS", agent, key,
@@ -364,12 +371,20 @@ class SharedWorkspaceMemory:
         """Get unresolved conflicts."""
         return [c for c in self.conflicts if c.get("resolution", "").startswith("PENDING")]
 
-    def resolve_conflict(self, key, winner_agent, rationale):
-        """Resolve a conflict by choosing the winning agent's value."""
+    def resolve_conflict(self, key, winner_agent, rationale, resolution_type="override"):
+        """Resolve a conflict by choosing the winning agent's value.
+        
+        Args:
+            resolution_type: override | merge | discard
+        """
         for conflict in self.conflicts:
             if conflict["key"] == key and conflict["resolution"].startswith("PENDING"):
                 conflict["resolution"] = f"RESOLVED: {winner_agent} wins — {rationale}"
-                self._audit("CONFLICT_RESOLVED", "executive_operator", key, rationale)
+                conflict["resolution_type"] = resolution_type
+                conflict["decided_by"] = "executive_operator"
+                conflict["rationale"] = rationale
+                self._audit("CONFLICT_RESOLVED", "executive_operator", key,
+                           f"type={resolution_type}, winner={winner_agent}: {rationale}")
                 break
 
     def cleanup_expired(self, retention_days=None):
