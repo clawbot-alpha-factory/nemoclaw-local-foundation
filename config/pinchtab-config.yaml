@@ -1,0 +1,41 @@
+pinchtab:
+  server_url: "http://localhost:9867"
+  default_mode: headless
+  max_instances: 4
+  memory_limit_mb: 1024  # total across all instances
+
+  profiles:
+    strategic_oversight_lead: {headless: false, persist: true}
+    growth_revenue_lead: {headless: true, persist: true}
+    product_delivery_lead: {headless: true, persist: true}
+    narrative_content_lead: {headless: true, persist: true}
+    intelligence_research_lead: {headless: true, persist: true}
+    operations_systems_lead: {headless: true, persist: true}
+    quality_validation_lead: {headless: true, persist: false}
+
+  rate_limits:
+    navigations_per_hour: 100
+    clicks_per_task: 50
+    text_extractions_per_hour: 200
+    screenshots_per_hour: 50
+
+  safety:
+    blocked_domains:
+      - "*.bank.*"
+      - "*.gov.*"
+      - "pay.*.com"
+      - "*.stripe.com"
+      - "*.paypal.com"
+    require_screenshot_before_submit: true
+    require_approval_for_first_login: true
+    max_eval_js_per_task: 5
+
+  scheduler:
+    enabled: true
+    strategy: "fair-fifo"
+    max_queue_size: 1000
+    max_per_agent: 100
+    max_inflight: 20
+    max_per_agent_inflight: 10
+    result_ttl_sec: 300
+    worker_count: 4

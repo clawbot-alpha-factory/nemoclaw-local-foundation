@@ -1,0 +1,216 @@
+# Skill Catalog: k50-k54 (Web-Aware Skills — Pending Agent Build)
+# Status: REGISTERED — specs locked, awaiting agent-driven build when system goes live
+# Dependency: PinchTab installed + web_browser.py bridge
+# Created: 2026-03-28
+
+skills:
+
+  - id: k50-web-researcher
+    display_name: "Web Deep Researcher"
+    family: K50
+    domain: K
+    tag: web-research
+    skill_type: analyzer
+    framework: null
+    assigned_agent: intelligence_research_lead
+    status: registered
+    description: >
+      Navigates any URL, extracts page content via PinchTab text extraction,
+      then analyzes the content with LLM to produce structured research output.
+      Supports multi-page crawling (up to 5 pages), content summarization,
+      key fact extraction, and source quality assessment.
+    pinchtab_actions: [navigate, text, snapshot, scroll]
+    inputs:
+      - url (string, required)
+      - research_question (string, required, 10-2000 chars)
+      - max_pages (integer, default: 3, max: 5)
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: web_research_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.20
+      max_execution_seconds: 180
+      min_quality_score: 7
+    composable:
+      feeds_into: [c09-market-analyst, k44-content-strategy-planner, k51-competitor-scraper]
+      accepts_from: [c09-market-analyst, j36-biz-idea-validator]
+    declarative_guarantees:
+      - "All extracted content is sourced from navigated URLs"
+      - "Source URLs and page titles included in output"
+      - "Content extraction uses PinchTab text mode (~800 tokens/page)"
+      - "Multi-page crawling respects max_pages limit"
+      - "No fabricated information — only what was found on the pages"
+    governance:
+      access_control: [navigate, text]
+      cost_tracking: true
+      human_approval: false
+      behavior_rules: [never_submit_payment]
+
+  - id: k51-competitor-scraper
+    display_name: "Competitor Intelligence Scraper"
+    family: K51
+    domain: K
+    tag: competitive-intelligence
+    skill_type: analyzer
+    framework: null
+    assigned_agent: intelligence_research_lead
+    status: registered
+    description: >
+      Extracts competitor pricing, features, positioning, and messaging from
+      their public website. Uses PinchTab snapshot for interactive element
+      detection and text extraction for content. Produces structured competitive
+      analysis with feature comparison matrix.
+    pinchtab_actions: [navigate, snapshot, text, scroll, click]
+    inputs:
+      - competitor_url (string, required)
+      - our_product (string, required, 50-5000 chars)
+      - focus_areas (multi-enum: pricing/features/positioning/messaging/team, default: [pricing, features, positioning])
+      - output_depth (enum: overview/strategic/detailed, default: strategic)
+    output_type: competitor_intelligence_report
+    routing: premium
+    contracts:
+      min_length: 500
+      max_cost_usd: 0.20
+      max_execution_seconds: 180
+      min_quality_score: 7
+    composable:
+      feeds_into: [k40-deal-qualifier, k44-content-strategy-planner, c09-market-analyst]
+      accepts_from: [c09-market-analyst, k50-web-researcher]
+    declarative_guarantees:
+      - "All data sourced from competitor's public website only"
+      - "Pricing extracted where publicly listed"
+      - "Feature comparison matrix included"
+      - "Positioning analysis based on actual messaging found"
+      - "No assumptions about non-public information"
+    governance:
+      access_control: [navigate, text, click]
+      cost_tracking: true
+      human_approval: false
+      behavior_rules: [never_submit_payment, never_delete_production_data]
+
+  - id: k52-lead-enricher
+    display_name: "Web Lead Enricher"
+    family: K52
+    domain: K
+    tag: lead-enrichment
+    skill_type: transformer
+    framework: null
+    assigned_agent: growth_revenue_lead
+    status: registered
+    description: >
+      Enriches lead data by searching company websites and professional
+      profiles for additional context: company size, tech stack, recent
+      news, key personnel, and contact information. Uses PinchTab to
+      navigate search results and extract structured data.
+    pinchtab_actions: [navigate, text, snapshot, fill, click, press]
+    inputs:
+      - company_name (string, required)
+      - company_url (string, optional)
+      - contact_name (string, optional)
+      - enrichment_fields (multi-enum: company_info/tech_stack/recent_news/key_people/social_profiles, default: [company_info, recent_news])
+      - output_depth (enum: overview/strategic/detailed, default: overview)
+    output_type: enriched_lead_profile
+    routing: premium
+    contracts:
+      min_length: 300
+      max_cost_usd: 0.15
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [h30-cold-email-writer, k40-deal-qualifier, k47-account-expansion-planner]
+      accepts_from: [k43-pipeline-analyzer, c09-market-analyst]
+    declarative_guarantees:
+      - "All data sourced from publicly accessible web pages"
+      - "Company URL verified by navigation"
+      - "No data fabrication — missing fields marked as 'not found'"
+      - "Search queries logged for audit trail"
+    governance:
+      access_control: [navigate, text, fill, click]
+      cost_tracking: true
+      human_approval: require_approval_for_first_login
+      behavior_rules: [never_submit_payment, screenshot_before_submit]
+
+  - id: k53-social-poster
+    display_name: "Social Media Publisher"
+    family: K53
+    domain: K
+    tag: social-publishing
+    skill_type: executor
+    framework: null
+    assigned_agent: narrative_content_lead
+    status: registered
+    description: >
+      Posts content to LinkedIn and Twitter/X via web UI automation. Uses
+      PinchTab with persistent profile sessions (logged-in state). Requires
+      MA-16 human approval before first use on any platform. Verifies post
+      was published successfully via post-publish page check.
+    pinchtab_actions: [navigate, fill, click, press, snapshot, screenshot, text]
+    inputs:
+      - platform (enum: linkedin/twitter, required)
+      - content (string, required, 10-3000 chars)
+      - media_path (string, optional)
+      - schedule_time (string, optional)
+    output_type: published_post_confirmation
+    routing: premium
+    contracts:
+      min_length: 100
+      max_cost_usd: 0.10
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: []
+      accepts_from: [k46-linkedin-content-writer, k44-content-strategy-planner, i35-tone-calibrator]
+    declarative_guarantees:
+      - "Content posted exactly as provided — no modifications"
+      - "Screenshot taken before and after posting for audit"
+      - "Post URL captured and returned in output"
+      - "Verification that post is publicly visible"
+      - "Human approval required for first login to each platform"
+    governance:
+      access_control: [navigate, fill, click, screenshot]
+      cost_tracking: true
+      human_approval: true  # Always requires approval — external effect
+      behavior_rules: [never_submit_payment, screenshot_before_submit, human_approval_for_first_login]
+
+  - id: k54-dashboard-reader
+    display_name: "Analytics Dashboard Reader"
+    family: K54
+    domain: K
+    tag: analytics-reading
+    skill_type: analyzer
+    framework: null
+    assigned_agent: operations_systems_lead
+    status: registered
+    description: >
+      Reads metrics from any web dashboard (Google Analytics, Stripe,
+      HubSpot, custom dashboards). Navigates to the dashboard, extracts
+      visible metrics via text extraction and snapshot, then produces
+      structured metric summaries with trend analysis.
+    pinchtab_actions: [navigate, text, snapshot, click, scroll, screenshot]
+    inputs:
+      - dashboard_url (string, required)
+      - metrics_to_extract (string, required, 10-2000 chars)
+      - date_range (string, optional, default: "last 7 days")
+      - output_depth (enum: overview/strategic/detailed, default: overview)
+    output_type: dashboard_metrics_report
+    routing: moderate
+    contracts:
+      min_length: 200
+      max_cost_usd: 0.10
+      max_execution_seconds: 120
+      min_quality_score: 7
+    composable:
+      feeds_into: [k43-pipeline-analyzer, c09-market-analyst]
+      accepts_from: []
+    declarative_guarantees:
+      - "Metrics extracted from visible dashboard state only"
+      - "Screenshot captured as evidence of dashboard state"
+      - "Metric values reported exactly as displayed"
+      - "Missing or hidden metrics flagged as unavailable"
+      - "No inference about hidden data — report only what is visible"
+    governance:
+      access_control: [navigate, text, click, screenshot]
+      cost_tracking: true
+      human_approval: require_approval_for_first_login
+      behavior_rules: [never_delete_production_data, screenshot_before_submit]
