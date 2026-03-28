@@ -41,13 +41,13 @@ ALERTS_PATH = HEALTH_DIR / "health-alerts.jsonl"
 HEALTH_DOMAINS = {
     "infrastructure": {
         "description": "API keys, budget, checkpoint DB, disk",
-        "weight": 0.15,
+        "weight": 0.13,
         "critical_threshold": 0.30,
         "warning_threshold": 0.60,
     },
     "agents": {
         "description": "Per-agent performance, compliance, workload",
-        "weight": 0.12,
+        "weight": 0.11,
         "critical_threshold": 0.35,
         "warning_threshold": 0.60,
     },
@@ -71,7 +71,7 @@ HEALTH_DOMAINS = {
     },
     "tasks": {
         "description": "Running plans, failed tasks, cost tracking",
-        "weight": 0.12,
+        "weight": 0.11,
         "critical_threshold": 0.35,
         "warning_threshold": 0.60,
     },
@@ -83,7 +83,7 @@ HEALTH_DOMAINS = {
     },
     "recovery": {
         "description": "Failure rate, recovery rate, patterns",
-        "weight": 0.10,
+        "weight": 0.09,
         "critical_threshold": 0.35,
         "warning_threshold": 0.55,
     },
@@ -101,9 +101,15 @@ HEALTH_DOMAINS = {
     },
     "learning": {
         "description": "Lessons pending, applied, efficacy",
-        "weight": 0.08,
+        "weight": 0.07,
         "critical_threshold": 0.25,
         "warning_threshold": 0.50,
+    },
+    "browser": {
+        "description": "PinchTab server, instances, memory usage",
+        "weight": 0.06,
+        "critical_threshold": 0.30,
+        "warning_threshold": 0.55,
     },
 }
 
@@ -209,6 +215,18 @@ RECOVERY_ACTIONS = {
     "interactions": {
         "critical": ["Review escalated sessions", "Close stale interaction sessions"],
         "warning": ["Monitor active session count"],
+    },
+    "browser": {
+        "critical": [
+            "Check PinchTab server: curl http://localhost:9867/health",
+            "Restart PinchTab: pinchtab (in separate terminal)",
+            "Kill stale Chrome instances: pkill -f 'chrome.*pinchtab'",
+            "Check memory: curl http://localhost:9867/instances/metrics",
+        ],
+        "warning": [
+            "Monitor instance count: curl http://localhost:9867/instances",
+            "Check action log: tail ~/.nemoclaw/browser/action-log.jsonl",
+        ],
     },
 }
 
@@ -459,6 +477,98 @@ class DomainChecker:
         except Exception:
             return 0.8, 0, []
 
+    def check_browser(self):
+        """Check PinchTab browser automation health."""
+        checks = []
+
+        # 1. PinchTab server reachable
+        try:
+            import requests
+            r = requests.get("http://localhost:9867/health", timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                checks.append(("server_health", 1.0))
+                tab_count = data.get("tabs", 0)
+                # Warn if too many tabs open (>10)
+                checks.append(("tab_count", 1.0 if tab_count <= 10 else 0.6))
+            else:
+                checks.append(("server_health", 0.0))
+        except Exception:
+            # PinchTab not running — not critical if no web skills are active
+            checks.append(("server_reachable", 0.4))
+
+        # 2. Instance count (max 4 recommended)
+        try:
+            import requests
+            r = requests.get("http://localhost:9867/instances", timeout=5)
+            if r.status_code == 200:
+                instances = r.json()
+                count = len(instances) if isinstance(instances, list) else 0
+                if count > 4:
+                    checks.append(("instance_count", 0.3))
+                elif count > 2:
+                    checks.append(("instance_count", 0.7))
+                else:
+                    checks.append(("instance_count", 1.0))
+            else:
+                checks.append(("instance_count", 0.5))
+        except Exception:
+            checks.append(("instance_count", 0.5))
+
+        # 3. Memory usage (check via /instances/metrics)
+        try:
+            import requests
+            r = requests.get("http://localhost:9867/instances/metrics", timeout=5)
+            if r.status_code == 200:
+                metrics = r.json()
+                # If total memory > 1GB, degrade
+                total_mem_mb = 0
+                if isinstance(metrics, list):
+                    for m in metrics:
+                        total_mem_mb += m.get("memoryMB", m.get("memory_mb", 0))
+                elif isinstance(metrics, dict):
+                    total_mem_mb = metrics.get("totalMemoryMB", metrics.get("total_memory_mb", 0))
+
+                if total_mem_mb > 1024:
+                    checks.append(("memory", 0.2))
+                elif total_mem_mb > 512:
+                    checks.append(("memory", 0.6))
+                else:
+                    checks.append(("memory", 1.0))
+            else:
+                checks.append(("memory", 0.7))
+        except Exception:
+            checks.append(("memory", 0.7))
+
+        # 4. Action log — check for recent errors
+        log_path = Path.home() / ".nemoclaw" / "browser" / "action-log.jsonl"
+        if log_path.exists():
+            try:
+                import json as json_mod
+                recent_errors = 0
+                recent_total = 0
+                with open(log_path) as f:
+                    lines = f.readlines()
+                for line in lines[-50:]:  # Last 50 actions
+                    try:
+                        entry = json_mod.loads(line.strip())
+                        recent_total += 1
+                        if not entry.get("success", True):
+                            recent_errors += 1
+                    except Exception:
+                        continue
+                if recent_total > 0:
+                    error_rate = recent_errors / recent_total
+                    checks.append(("error_rate", max(0.0, 1.0 - error_rate * 2)))
+                else:
+                    checks.append(("error_rate", 1.0))
+            except Exception:
+                checks.append(("error_rate", 0.8))
+        else:
+            checks.append(("action_log", 1.0))  # No log = no actions = fine
+
+        return self._aggregate(checks)
+
     def _aggregate(self, checks):
         """Aggregate check results into a domain score."""
         if not checks:
@@ -625,6 +735,7 @@ class SystemHealthObserver:
             "conflicts": self.checker.check_conflicts,
             "reviews": self.checker.check_reviews,
             "learning": self.checker.check_learning,
+            "browser": self.checker.check_browser,
         }
 
     def check_all(self):
@@ -743,7 +854,7 @@ def run_tests():
             print(f"  ❌ {name}: {detail}")
 
     # Test 1: Domain definitions
-    test("11 health domains", len(HEALTH_DOMAINS) == 11)
+    test("12 health domains", len(HEALTH_DOMAINS) == 12)
 
     # Test 2: Weights sum to ~1.0
     total_weight = sum(d["weight"] for d in HEALTH_DOMAINS.values())
@@ -786,8 +897,8 @@ def run_tests():
          0 <= result["composite_score"] <= 1.0, f"{result['composite_score']}")
 
     # Test 11: All 11 domains scored
-    test("All 11 domains scored",
-         len(result["domain_scores"]) == 11, f"{len(result['domain_scores'])}")
+    test("All 12 domains scored",
+         len(result["domain_scores"]) == 12, f"{len(result['domain_scores'])}")
 
     # Test 12: Status determined
     test("Status determined",
@@ -882,6 +993,30 @@ def run_tests():
          observer._overall_status(0.50, []) == "DEGRADED")
     test("CRITICAL status for low scores",
          observer._overall_status(0.20, []) == "CRITICAL")
+
+    # ── Browser Health Domain Tests ──
+
+    # Test: Browser domain exists
+    test("Browser health domain exists", "browser" in HEALTH_DOMAINS)
+    test("Browser domain weight", HEALTH_DOMAINS["browser"]["weight"] == 0.06)
+
+    # Test: Browser check runs (may show PinchTab not running)
+    browser_score, browser_count, browser_notes = checker.check_browser()
+    test("Browser check runs", 0 <= browser_score <= 1.0, f"score={browser_score}")
+
+    # Test: Browser in full health check
+    full = observer.check_all()
+    test("Browser in domain_scores", "browser" in full["domain_scores"])
+
+    # Test: Browser recovery actions exist
+    test("Browser recovery actions", "browser" in RECOVERY_ACTIONS)
+    test("Browser has critical recovery",
+         len(RECOVERY_ACTIONS["browser"]["critical"]) >= 3)
+
+    # Test: Weights still sum to ~1.0
+    new_total = sum(d["weight"] for d in HEALTH_DOMAINS.values())
+    test("Weights sum to ~1.0 after browser addition",
+         abs(new_total - 1.0) < 0.02, f"sum={new_total}")
 
     print(f"\n  Results: {tp}/{tt} passed")
     return tp == tt

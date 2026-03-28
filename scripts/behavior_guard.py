@@ -133,6 +133,32 @@ RULES = {
         "severity": "warn_only",
         "check": "conflict_of_interest_check",
     },
+
+    # ── WEB SAFETY ──
+    "web_never_submit_payment": {
+        "category": "web_safety",
+        "description": "Agent must never submit forms containing payment fields via browser",
+        "severity": "blockable",
+        "check": "web_payment_check",
+    },
+    "web_never_delete_production": {
+        "category": "web_safety",
+        "description": "Agent must never perform destructive actions (delete, remove, destroy) on production systems via browser",
+        "severity": "blockable",
+        "check": "web_destructive_check",
+    },
+    "web_screenshot_before_submit": {
+        "category": "web_safety",
+        "description": "Agent must capture screenshot evidence before submitting any form via browser",
+        "severity": "blockable",
+        "check": "web_screenshot_check",
+    },
+    "web_first_login_approval": {
+        "category": "web_safety",
+        "description": "First login to any new service via browser requires MA-16 human approval",
+        "severity": "blockable",
+        "check": "web_first_login_check",
+    },
 }
 
 
@@ -462,6 +488,34 @@ class BehaviorGuard:
             if v:
                 violations.append(v)
 
+        # ── WEB SAFETY CHECKS ──
+        if ctx.get("web_action"):
+            # Payment form check
+            if ctx.get("web_form_fields"):
+                v = self._check_web_payment(agent_id, ctx["web_form_fields"])
+                if v:
+                    violations.append(v)
+
+            # Destructive action check
+            if ctx.get("web_action_label"):
+                v = self._check_web_destructive(agent_id, ctx["web_action_label"])
+                if v:
+                    violations.append(v)
+
+            # Screenshot before submit check
+            if ctx.get("web_is_form_submit") and not ctx.get("web_screenshot_taken"):
+                v = self._check_web_screenshot(agent_id, False)
+                if v:
+                    violations.append(v)
+
+            # First login approval check
+            if ctx.get("web_is_login") and ctx.get("web_service_domain"):
+                v = self._check_web_first_login(
+                    agent_id, ctx["web_service_domain"],
+                    ctx.get("web_known_services", set()))
+                if v:
+                    violations.append(v)
+
         # ── PROCESS VIOLATIONS ──
         if not violations:
             return {"allowed": True, "enforcement": "pass", "violations": []}
@@ -603,6 +657,57 @@ class BehaviorGuard:
             }
         return None
 
+    # ── WEB SAFETY CHECK METHODS ──
+
+    def _check_web_payment(self, agent_id, form_fields):
+        """Check if form contains payment-related fields."""
+        payment_keywords = ["card", "cvv", "cvc", "expir", "payment", "billing",
+                           "credit", "debit", "account_number", "routing_number",
+                           "iban", "swift", "paypal", "stripe"]
+        if form_fields:
+            fields_lower = " ".join(str(f).lower() for f in form_fields)
+            for kw in payment_keywords:
+                if kw in fields_lower:
+                    return {
+                        "rule": "web_never_submit_payment",
+                        "message": f"{agent_id} attempting to submit form with payment field '{kw}' via browser",
+                    }
+        return None
+
+    def _check_web_destructive(self, agent_id, web_action_label):
+        """Check if browser action is destructive."""
+        destructive_keywords = ["delete", "remove", "destroy", "drop", "purge",
+                               "erase", "wipe", "unsubscribe", "cancel_account",
+                               "close_account", "terminate"]
+        if web_action_label:
+            label_lower = web_action_label.lower()
+            for kw in destructive_keywords:
+                if kw in label_lower:
+                    return {
+                        "rule": "web_never_delete_production",
+                        "message": f"{agent_id} attempting destructive action '{web_action_label}' via browser",
+                    }
+        return None
+
+    def _check_web_screenshot(self, agent_id, has_screenshot):
+        """Check if screenshot was taken before form submission."""
+        if not has_screenshot:
+            return {
+                "rule": "web_screenshot_before_submit",
+                "message": f"{agent_id} submitting form via browser without prior screenshot evidence",
+            }
+        return None
+
+    def _check_web_first_login(self, agent_id, service_domain, known_services=None):
+        """Check if this is a first login to a new service."""
+        known = known_services or set()
+        if service_domain and service_domain not in known:
+            return {
+                "rule": "web_first_login_approval",
+                "message": f"{agent_id} first login to '{service_domain}' requires MA-16 human approval",
+            }
+        return None
+
     # ── COMPLIANCE REPORTING ──
 
     def get_compliance(self, agent_id=None):
@@ -646,7 +751,7 @@ def run_tests():
             print(f"  ❌ {name}: {detail}")
 
     # Test 1: Rules defined
-    test("12 rules defined", len(RULES) == 12, f"{len(RULES)}")
+    test("16 rules defined", len(RULES) == 16, f"{len(RULES)}")
 
     # Test 2: All rules have required fields
     for rule_id, rule in RULES.items():
@@ -842,6 +947,95 @@ def run_tests():
     })
     has_coi = any(v["rule"] == "transparency_conflict_of_interest" for v in r["violations"])
     test("Undisclosed conflict of interest caught", has_coi)
+
+    # ── Web Safety Rule Tests ──
+
+    # Test: Web payment form blocked
+    guard_w1 = BehaviorGuard()
+    r = guard_w1.check("growth_revenue_lead", "task", {
+        "web_action": True,
+        "web_form_fields": ["name", "email", "credit_card_number", "cvv"],
+    })
+    has_payment = any(v["rule"] == "web_never_submit_payment" for v in r["violations"])
+    test("Web: payment form submission blocked", has_payment)
+
+    # Test: Non-payment form allowed
+    guard_w2 = BehaviorGuard()
+    r = guard_w2.check("growth_revenue_lead", "task", {
+        "web_action": True,
+        "web_form_fields": ["name", "email", "company"],
+    })
+    no_payment = not any(v["rule"] == "web_never_submit_payment" for v in r["violations"])
+    test("Web: non-payment form passes", no_payment)
+
+    # Test: Destructive action blocked
+    guard_w3 = BehaviorGuard()
+    r = guard_w3.check("operations_lead", "task", {
+        "web_action": True,
+        "web_action_label": "Delete All Records",
+    })
+    has_destructive = any(v["rule"] == "web_never_delete_production" for v in r["violations"])
+    test("Web: destructive action blocked", has_destructive)
+
+    # Test: Non-destructive action allowed
+    guard_w4 = BehaviorGuard()
+    r = guard_w4.check("operations_lead", "task", {
+        "web_action": True,
+        "web_action_label": "View Dashboard",
+    })
+    no_destructive = not any(v["rule"] == "web_never_delete_production" for v in r["violations"])
+    test("Web: non-destructive action passes", no_destructive)
+
+    # Test: Form submit without screenshot blocked
+    guard_w5 = BehaviorGuard()
+    r = guard_w5.check("narrative_content_lead", "task", {
+        "web_action": True,
+        "web_is_form_submit": True,
+        "web_screenshot_taken": False,
+    })
+    has_screenshot = any(v["rule"] == "web_screenshot_before_submit" for v in r["violations"])
+    test("Web: form submit without screenshot blocked", has_screenshot)
+
+    # Test: Form submit with screenshot passes
+    guard_w6 = BehaviorGuard()
+    r = guard_w6.check("narrative_content_lead", "task", {
+        "web_action": True,
+        "web_is_form_submit": True,
+        "web_screenshot_taken": True,
+    })
+    no_screenshot = not any(v["rule"] == "web_screenshot_before_submit" for v in r["violations"])
+    test("Web: form submit with screenshot passes", no_screenshot)
+
+    # Test: First login requires approval
+    guard_w7 = BehaviorGuard()
+    r = guard_w7.check("growth_revenue_lead", "task", {
+        "web_action": True,
+        "web_is_login": True,
+        "web_service_domain": "linkedin.com",
+        "web_known_services": set(),
+    })
+    has_login = any(v["rule"] == "web_first_login_approval" for v in r["violations"])
+    test("Web: first login requires approval", has_login)
+
+    # Test: Known service login passes
+    guard_w8 = BehaviorGuard()
+    r = guard_w8.check("growth_revenue_lead", "task", {
+        "web_action": True,
+        "web_is_login": True,
+        "web_service_domain": "linkedin.com",
+        "web_known_services": {"linkedin.com", "twitter.com"},
+    })
+    no_login = not any(v["rule"] == "web_first_login_approval" for v in r["violations"])
+    test("Web: known service login passes", no_login)
+
+    # Test: Web rules count
+    web_rules = [r for r in RULES if r.startswith("web_")]
+    test("4 web safety rules defined", len(web_rules) == 4)
+
+    # Test: 8 rule categories total
+    categories = set(r["category"] for r in RULES.values())
+    test("8 rule categories (including web_safety)", len(categories) == 8 and "web_safety" in categories,
+         f"categories={categories}")
 
     print(f"\n  Results: {tp}/{tt} passed")
     return tp == tt

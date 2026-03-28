@@ -45,6 +45,14 @@ RESERVATIONS_PATH = GOVERNOR_DIR / "reservations.json"
 CIRCUIT_BREAKER_TRIP_PCT = 1.5  # 150% of estimate → trip
 ALERT_THRESHOLDS = [0.50, 0.75, 0.90, 1.00]  # % of plan budget
 
+# Browser action budgets (enforced by web_browser.py bridge + tracked here)
+BROWSER_BUDGETS = {
+    "max_navigations_per_hour": 100,
+    "max_clicks_per_task": 50,
+    "max_text_extractions_per_hour": 200,
+    "max_screenshots_per_hour": 50,
+}
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CIRCUIT BREAKER
@@ -204,6 +212,98 @@ class AgentLedger:
 
         self._save()
 
+    def record_browser(self, agent_id, action_type, plan_id=None, task_id=None):
+        """Record a browser action for an agent.
+
+        Args:
+            agent_id: acting agent
+            action_type: navigate, click, text, screenshot, fill, etc.
+            plan_id: optional plan context
+            task_id: optional task context
+        """
+        if agent_id not in self.ledger:
+            self.ledger[agent_id] = {
+                "total_cost_usd": 0.0,
+                "task_count": 0,
+                "plan_count": [],
+                "last_task": None,
+                "entries": [],
+            }
+
+        # Initialize browser tracking if not present
+        if "browser_actions" not in self.ledger[agent_id]:
+            self.ledger[agent_id]["browser_actions"] = {
+                "total": 0,
+                "by_type": {},
+                "hourly_window_start": None,
+                "hourly_counts": {},
+            }
+
+        ba = self.ledger[agent_id]["browser_actions"]
+        ba["total"] += 1
+
+        # Track by type
+        if action_type not in ba["by_type"]:
+            ba["by_type"][action_type] = 0
+        ba["by_type"][action_type] += 1
+
+        # Track hourly for rate-limited actions
+        import time
+        now = time.time()
+        if ba["hourly_window_start"] is None or now - (ba.get("_hour_epoch", 0)) >= 3600:
+            ba["hourly_counts"] = {}
+            ba["_hour_epoch"] = now
+
+        if action_type not in ba["hourly_counts"]:
+            ba["hourly_counts"][action_type] = 0
+        ba["hourly_counts"][action_type] += 1
+
+        self._save()
+
+    def get_browser_usage(self, agent_id):
+        """Get browser action usage for an agent.
+
+        Returns: dict with total, by_type, hourly_counts
+        """
+        agent_data = self.ledger.get(agent_id, {})
+        return agent_data.get("browser_actions", {
+            "total": 0, "by_type": {}, "hourly_counts": {}
+        })
+
+    def check_browser_budget(self, agent_id, action_type):
+        """Check if agent is within browser action budget.
+
+        Returns: (allowed: bool, message: str)
+        """
+        usage = self.get_browser_usage(agent_id)
+        hourly = usage.get("hourly_counts", {})
+
+        if action_type == "navigate":
+            count = hourly.get("navigate", 0)
+            limit = BROWSER_BUDGETS["max_navigations_per_hour"]
+            if count >= limit:
+                return False, f"{agent_id}: {count}/{limit} navigations/hour exceeded"
+
+        elif action_type == "click":
+            count = hourly.get("click", 0)
+            limit = BROWSER_BUDGETS["max_clicks_per_task"]
+            if count >= limit:
+                return False, f"{agent_id}: {count}/{limit} clicks/task exceeded"
+
+        elif action_type == "text":
+            count = hourly.get("text", 0)
+            limit = BROWSER_BUDGETS["max_text_extractions_per_hour"]
+            if count >= limit:
+                return False, f"{agent_id}: {count}/{limit} text extractions/hour exceeded"
+
+        elif action_type == "screenshot":
+            count = hourly.get("screenshot", 0)
+            limit = BROWSER_BUDGETS["max_screenshots_per_hour"]
+            if count >= limit:
+                return False, f"{agent_id}: {count}/{limit} screenshots/hour exceeded"
+
+        return True, "OK"
+
     def get_agent_cost(self, agent_id):
         """Get total cost for an agent."""
         return self.ledger.get(agent_id, {}).get("total_cost_usd", 0.0)
@@ -227,6 +327,21 @@ class AgentLedger:
             tasks = data.get("task_count", 0)
             plans = len(data.get("plan_count", []))
             print(f"  {agent_id:<25s} ${cost:>9.3f} {tasks:>6d} {plans:>6d}")
+
+        # Browser action summary
+        has_browser = any("browser_actions" in d for d in self.ledger.values())
+        if has_browser:
+            print(f"\n  {'Agent':<25s} {'Browser Actions':>15s} {'Nav':>5s} {'Click':>6s} {'Text':>5s}")
+            print(f"  {'-'*25} {'-'*15} {'-'*5} {'-'*6} {'-'*5}")
+            for agent_id, data in sorted(self.ledger.items()):
+                ba = data.get("browser_actions", {})
+                total = ba.get("total", 0)
+                if total > 0:
+                    by_type = ba.get("by_type", {})
+                    print(f"  {agent_id:<25s} {total:>15d} "
+                          f"{by_type.get('navigate', 0):>5d} "
+                          f"{by_type.get('click', 0):>6d} "
+                          f"{by_type.get('text', 0):>5d}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -604,6 +719,58 @@ def run_tests():
     cb5 = CircuitBreaker()
     ok, state, _ = cb5.check(0, 0.5)
     test("Zero estimate safe", ok)
+
+    # ── Browser Budget Tests ──
+
+    # Test: Browser budgets defined
+    test("Browser budgets defined", len(BROWSER_BUDGETS) == 4)
+
+    # Test: Record browser action
+    ledger_b = AgentLedger()
+    initial_total = ledger_b.get_browser_usage("test_browser_agent").get("total", 0)
+    ledger_b.record_browser("test_browser_agent", "navigate", "plan_b1", "task_b1")
+    usage = ledger_b.get_browser_usage("test_browser_agent")
+    test("Browser action recorded", usage["total"] == initial_total + 1)
+    test("Browser action typed", usage["by_type"].get("navigate", 0) >= 1)
+
+    # Test: Multiple action types tracked
+    ledger_b.record_browser("test_browser_agent", "click", "plan_b1", "task_b1")
+    ledger_b.record_browser("test_browser_agent", "text", "plan_b1", "task_b1")
+    usage2 = ledger_b.get_browser_usage("test_browser_agent")
+    test("Multiple browser types tracked",
+         usage2["by_type"].get("click", 0) >= 1 and usage2["by_type"].get("text", 0) >= 1)
+
+    # Test: Budget check — within limits
+    allowed, msg = ledger_b.check_browser_budget("test_browser_agent", "navigate")
+    test("Browser budget: navigate within limit", allowed)
+
+    # Test: Budget check — exceeded (simulate)
+    ledger_b2 = AgentLedger()
+    if "test_exceeded_agent" not in ledger_b2.ledger:
+        ledger_b2.ledger["test_exceeded_agent"] = {
+            "total_cost_usd": 0.0, "task_count": 0, "plan_count": [],
+            "last_task": None, "entries": [],
+            "browser_actions": {
+                "total": 100, "by_type": {"navigate": 100},
+                "hourly_window_start": None, "hourly_counts": {"navigate": 100},
+                "_hour_epoch": __import__("time").time(),
+            }
+        }
+        ledger_b2._save()
+    allowed, msg = ledger_b2.check_browser_budget("test_exceeded_agent", "navigate")
+    test("Browser budget: navigate exceeded blocked", not allowed and "exceeded" in msg, msg)
+
+    # Test: Click budget check
+    allowed_click, _ = ledger_b.check_browser_budget("test_browser_agent", "click")
+    test("Browser budget: click within limit", allowed_click)
+
+    # Test: Text budget check
+    allowed_text, _ = ledger_b.check_browser_budget("test_browser_agent", "text")
+    test("Browser budget: text within limit", allowed_text)
+
+    # Test: Screenshot budget check
+    allowed_ss, _ = ledger_b.check_browser_budget("test_browser_agent", "screenshot")
+    test("Browser budget: screenshot within limit", allowed_ss)
 
     print(f"\n  Results: {tests_passed}/{tests_total} passed")
     return tests_passed == tests_total

@@ -64,6 +64,10 @@ ACCESS_DOMAINS = {
         "description": "Access sensitive business data",
         "actions": ["read_public", "read_private", "read_financial", "export"],
     },
+    "web": {
+        "description": "Browser automation via PinchTab",
+        "actions": ["navigate", "text", "click", "fill", "screenshot", "eval"],
+    },
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -78,6 +82,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote", "approve", "override", "veto"],
         "external": ["api_call", "webhook"],
         "data": ["read_public", "read_private", "read_financial", "export"],
+        "web": ["navigate", "text", "click", "fill", "screenshot", "eval"],
     },
     "strategy_lead": {
         "skills": ["execute", "list", "inspect"],
@@ -86,6 +91,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": ["api_call"],
         "data": ["read_public", "read_private"],
+        "web": ["navigate", "text", "click", "fill", "screenshot"],
     },
     "product_architect": {
         "skills": ["execute", "list", "inspect"],
@@ -94,6 +100,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": ["api_call"],
         "data": ["read_public", "read_private"],
+        "web": ["navigate", "text"],
     },
     "engineering_lead": {
         "skills": ["execute", "list", "inspect"],
@@ -102,6 +109,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": ["api_call"],
         "data": ["read_public"],
+        "web": ["navigate", "text"],
     },
     "growth_revenue_lead": {
         "skills": ["execute", "list", "inspect"],
@@ -110,6 +118,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": ["api_call", "webhook"],
         "data": ["read_public", "read_private", "read_financial"],
+        "web": ["navigate", "text", "click", "fill", "screenshot"],
     },
     "operations_lead": {
         "skills": ["execute", "list", "inspect"],
@@ -118,6 +127,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": ["api_call"],
         "data": ["read_public"],
+        "web": ["navigate", "text"],
     },
     "narrative_content_lead": {
         "skills": ["execute", "list", "inspect"],
@@ -126,6 +136,7 @@ ROLE_PERMISSIONS = {
         "decisions": ["propose", "vote"],
         "external": [],
         "data": ["read_public"],
+        "web": ["navigate", "text", "click", "fill", "screenshot"],
     },
 }
 
@@ -588,7 +599,7 @@ def run_tests():
     ac.grant_manager.grants = {}  # clean
 
     # Test 1: Access domains
-    test("6 access domains", len(ACCESS_DOMAINS) == 6)
+    test("7 access domains", len(ACCESS_DOMAINS) == 7)
 
     # Test 2: All 7 agents have role permissions
     test("7 role permission sets", len(ROLE_PERMISSIONS) == 7)
@@ -674,7 +685,7 @@ def run_tests():
          "skills" in perms and "execute" in perms.get("skills", []))
 
     # Test 22: Permissions include all domains
-    test("Permissions cover all 6 domains", len(perms) == 6)
+    test("Permissions cover all 7 domains", len(perms) == 7)
 
     # Test 23: Memory permissions
     r_mem = ac.check_access("engineering_lead", "memory", "delete")
@@ -728,6 +739,40 @@ def run_tests():
     ac.grant_manager.grants["grant_expired"] = old_grant
     expired = ac.grant_manager.cleanup_expired()
     test("Expired grants cleaned up", "grant_expired" in expired)
+
+    # ── Web Access Domain Tests ──
+    # Test: Web domain exists
+    test("Web access domain exists", "web" in ACCESS_DOMAINS)
+    test("Web domain has 6 actions", len(ACCESS_DOMAINS["web"]["actions"]) == 6)
+
+    # Test: Growth lead has web access
+    r_web = ac.check_access("growth_revenue_lead", "web", "navigate")
+    test("Growth lead: web navigate OK", r_web.granted)
+
+    r_web_click = ac.check_access("growth_revenue_lead", "web", "click")
+    test("Growth lead: web click OK", r_web_click.granted)
+
+    # Test: Growth lead blocked from eval
+    r_web_eval = ac.check_access("growth_revenue_lead", "web", "eval")
+    test("Growth lead: web eval blocked", not r_web_eval.granted)
+
+    # Test: Engineering lead limited to navigate + text
+    r_eng_nav = ac.check_access("engineering_lead", "web", "navigate")
+    r_eng_click = ac.check_access("engineering_lead", "web", "click")
+    test("Engineering: web navigate OK", r_eng_nav.granted)
+    test("Engineering: web click blocked", not r_eng_click.granted)
+
+    # Test: Executive has full web access including eval
+    r_exec_eval = ac.check_access("executive_operator", "web", "eval")
+    test("Executive: web eval OK", r_exec_eval.granted)
+
+    # Test: Content lead has web for publishing
+    r_content_fill = ac.check_access("narrative_content_lead", "web", "fill")
+    test("Content lead: web fill OK", r_content_fill.granted)
+
+    # Test: Web permissions in get_permissions
+    web_perms = ac.get_permissions("growth_revenue_lead")
+    test("Web in get_permissions", "web" in web_perms and "navigate" in web_perms["web"])
 
     print(f"\n  Results: {tp}/{tt} passed")
     return tp == tt
