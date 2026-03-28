@@ -146,7 +146,7 @@ routing_rules:
 
 **Committed:** Yes
 
-**Current version:** v3.0
+**Current version:** v4.0
 
 **Full doc:** `docs/architecture/budget-system.md`
 

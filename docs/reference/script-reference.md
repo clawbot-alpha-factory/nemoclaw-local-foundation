@@ -112,9 +112,9 @@ python3 scripts/budget-status.py
 ===========================================================
   NemoClaw Provider Budget Status
 ===========================================================
-  ANTHROPIC  | $ 0.626 / $10.00 |   6.3% | █░░░░░░░░░░░░░░░░░░░ | active
-  OPENAI     | $ 0.121 / $10.00 |   1.2% | ░░░░░░░░░░░░░░░░░░░░ | active
-  GOOGLE     | $ 0.008 / $10.00 |   0.1% | ░░░░░░░░░░░░░░░░░░░░ | active
+  ANTHROPIC  | $ 0.626 / $30.00 |   6.3% | █░░░░░░░░░░░░░░░░░░░ | active
+  OPENAI     | $ 0.121 / $30.00 |   1.2% | ░░░░░░░░░░░░░░░░░░░░ | active
+  GOOGLE     | $ 0.008 / $30.00 |   0.1% | ░░░░░░░░░░░░░░░░░░░░ | active
 ===========================================================
 ```
 
@@ -175,7 +175,7 @@ bash scripts/fix-sandbox-permissions.sh
 
 ## skills/skill-runner.py
 
-**Purpose:** LangGraph skill execution engine v3.0. Reads a skill.yaml definition, builds a LangGraph StateGraph, executes steps with budget-enforced routing, checkpoints state, and writes output artifacts.
+**Purpose:** LangGraph skill execution engine v4.0. Reads a skill.yaml + run.py definition, builds a LangGraph StateGraph, executes steps with budget-enforced routing, checkpoints state, and writes output artifacts.
 
 **Runtime:** `.venv312/bin/python` (requires LangGraph, langchain-openai, langchain-anthropic)
 

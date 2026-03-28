@@ -123,9 +123,9 @@ Every inference call passes through budget enforcement before execution. Spend i
 
 | Provider | Budget | Warn At | Hard Stop |
 |---|---|---|---|
-| Anthropic | $10.00 | 90% ($9.00) | 100% ($10.00) |
-| OpenAI | $10.00 | 90% ($9.00) | 100% ($10.00) |
-| Google | $10.00 | 90% ($9.00) | 100% ($10.00) |
+| Anthropic | $30.00 | 90% ($27.00) | 100% ($30.00) |
+| OpenAI | $30.00 | 90% ($27.00) | 100% ($30.00) |
+| Google | $30.00 | 90% ($27.00) | 100% ($30.00) |
 
 **Budget files:**
 
@@ -164,7 +164,7 @@ Skills are structured multi-step workflows executed as LangGraph StateGraphs. Ea
 
 | File | Purpose |
 |---|---|
-| skills/skill-runner.py | LangGraph skill execution engine v3.0 |
+| skills/skill-runner.py | LangGraph skill execution engine v4.0 |
 | skills/research-brief/skill.yaml | Skill definition |
 | skills/research-brief/outputs/ | Artifact output directory (gitignored) |
 
@@ -298,7 +298,7 @@ nemoclaw-local-foundation/
 │   ├── tools.py                      # External tools framework
 │   └── fix-sandbox-permissions.sh    # Sandbox permission fix
 ├── skills/
-│   ├── skill-runner.py               # LangGraph skill engine v3.0
+│   ├── skill-runner.py               # LangGraph skill engine v4.0
 │   ├── research-brief/
 │   │   ├── skill.yaml                # Skill definition
 │   │   └── outputs/                  # Artifacts (gitignored)

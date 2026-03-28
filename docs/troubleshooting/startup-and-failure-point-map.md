@@ -157,7 +157,7 @@ python3 -c "import yaml; yaml.safe_load(open('config/routing/routing-config.yaml
 
 **Symptom:** validate.py checks [19]–[21] fail. Skill steps route to fallback_openai unexpectedly. budget-audit.log shows EXHAUSTED event.
 
-**Cause:** Cumulative spend reached $10 for that provider.
+**Cause:** Cumulative spend reached $30 for that provider.
 
 **Fix:** Reset the provider's spend:
 ```bash

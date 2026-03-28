@@ -58,9 +58,9 @@ Three providers, each with an independent budget. All values from `budget-config
 
 | Provider | Budget | Warning Threshold | Hard Stop | Action at Hard Stop |
 |---|---|---|---|---|
-| Anthropic | $10.00 | 90% ($9.00) | 100% ($10.00) | Route to fallback, log event |
-| OpenAI | $10.00 | 90% ($9.00) | 100% ($10.00) | Route to fallback, log event |
-| Google | $10.00 | 90% ($9.00) | 100% ($10.00) | Route to fallback, log event |
+| Anthropic | $30.00 | 90% ($27.00) | 100% ($30.00) | Route to fallback, log event |
+| OpenAI | $30.00 | 90% ($27.00) | 100% ($30.00) | Route to fallback, log event |
+| Google | $30.00 | 90% ($27.00) | 100% ($30.00) | Route to fallback, log event |
 
 **Total budget across all providers:** $30.00
 
@@ -178,9 +178,9 @@ Shows all three providers with spend, budget, percentage, and visual bar.
 ===========================================================
   NemoClaw Provider Budget Status
 ===========================================================
-  ANTHROPIC  | $ 0.626 / $10.00 |   6.3% | █░░░░░░░░░░░░░░░░░░░ | active
-  OPENAI     | $ 0.121 / $10.00 |   1.2% | ░░░░░░░░░░░░░░░░░░░░ | active
-  GOOGLE     | $ 0.008 / $10.00 |   0.1% | ░░░░░░░░░░░░░░░░░░░░ | active
+  ANTHROPIC  | $ 0.626 / $30.00 |   6.3% | █░░░░░░░░░░░░░░░░░░░ | active
+  OPENAI     | $ 0.121 / $30.00 |   1.2% | ░░░░░░░░░░░░░░░░░░░░ | active
+  GOOGLE     | $ 0.008 / $30.00 |   0.1% | ░░░░░░░░░░░░░░░░░░░░ | active
 ===========================================================
 ```
 

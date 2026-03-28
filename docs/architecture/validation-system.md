@@ -110,9 +110,9 @@ These verify the budget tracking infrastructure is intact.
 | # | Check | What It Verifies | Pass Criteria | If It Fails |
 |---|---|---|---|---|
 | 18 | provider-spend.json exists | Spend tracker file present | File exists at ~/.nemoclaw/logs/ | Budget enforcer recreates on next run |
-| 19 | Anthropic budget < 100% | Anthropic has remaining budget | Spend < $10.00 | Reset spend or increase budget |
-| 20 | OpenAI budget < 100% | OpenAI has remaining budget | Spend < $10.00 | Reset spend or increase budget |
-| 21 | Google budget < 100% | Google has remaining budget | Spend < $10.00 | Reset spend or increase budget |
+| 19 | Anthropic budget < 100% | Anthropic has remaining budget | Spend < $30.00 | Reset spend or increase budget |
+| 20 | OpenAI budget < 100% | OpenAI has remaining budget | Spend < $30.00 | Reset spend or increase budget |
+| 21 | Google budget < 100% | Google has remaining budget | Spend < $30.00 | Reset spend or increase budget |
 | 22 | provider-usage.jsonl writable | Usage log can be written to | File exists and is writable | Check ~/.nemoclaw/logs/ directory permissions |
 
 ### Category 5 — Routing System (3 checks)
