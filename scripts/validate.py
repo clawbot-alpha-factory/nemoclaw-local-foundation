@@ -336,7 +336,7 @@ def c6_skill_runner_exists():
         content = f.read()
     if "SqliteSaver" not in content:
         return WARN, "skill-runner.py exists but SqliteSaver not detected — may be old version"
-    return PASS, "skill-runner.py v3.0 with SqliteSaver"
+    return PASS, "skill-runner.py v4.0 with SqliteSaver"
 
 def c6_skill_yaml_valid():
     path = os.path.join(REPO, "skills/research-brief/skill.yaml")
