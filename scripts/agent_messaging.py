@@ -140,6 +140,7 @@ class Channel:
         self.participants = participants or []  # empty = open to all
         self.decision_mode = decision_mode  # single_owner | vote
         self.approval_required = approval_required  # for vote mode
+        self.total_expected_voters = total_expected_voters  # 0 = decide when mathematically certain
         self.chat_mode = chat_mode
         self.chat_retention = chat_retention
         self.messages = []
@@ -196,6 +197,10 @@ class Channel:
     def check_vote_result(self):
         """Check if voting threshold is met.
         
+        Decision resolves when:
+        - All expected voters have voted, OR
+        - Mathematically impossible to change outcome
+        
         Returns: (decided, result, details)
         """
         if not self.votes:
@@ -203,30 +208,30 @@ class Channel:
 
         approvals = sum(1 for v in self.votes.values() if v == "approve")
         rejections = sum(1 for v in self.votes.values() if v == "reject")
-        total = len(self.votes)
+        total_cast = len(self.votes)
+        expected = self.total_expected_voters if self.total_expected_voters > 0 else total_cast
+        remaining = max(0, expected - total_cast)
 
-        if approvals >= self.approval_required:
-            return True, "approved", {
-                "approvals": approvals,
-                "rejections": rejections,
-                "total": total,
-                "votes": dict(self.votes),
-            }
-        elif total >= self.approval_required and rejections > (total - self.approval_required):
-            # Impossible to reach threshold
-            return True, "rejected", {
-                "approvals": approvals,
-                "rejections": rejections,
-                "total": total,
-                "votes": dict(self.votes),
-            }
-        return False, "pending", {
+        details = {
             "approvals": approvals,
             "rejections": rejections,
-            "total": total,
-            "needed": self.approval_required,
+            "total_cast": total_cast,
+            "expected_voters": expected,
+            "remaining": remaining,
             "votes": dict(self.votes),
         }
+
+        # Enough approvals — approved regardless of remaining
+        if approvals >= self.approval_required:
+            return True, "approved", details
+        # All votes in, not enough approvals
+        elif remaining == 0 and approvals < self.approval_required:
+            return True, "rejected", details
+        # Even if all remaining approve, can't reach threshold
+        elif (approvals + remaining) < self.approval_required:
+            return True, "rejected", details
+
+        return False, "pending", {**details, "needed": self.approval_required}
 
     def _save_meta(self):
         meta = {
@@ -236,6 +241,7 @@ class Channel:
             "participants": self.participants,
             "decision_mode": self.decision_mode,
             "approval_required": self.approval_required,
+            "total_expected_voters": self.total_expected_voters,
             "turn_count": self.turn_count,
             "decision_closed": self.decision_closed,
             "decision_id": self.decision_id,
@@ -298,14 +304,14 @@ class MessageBus:
 
     def create_channel(self, channel_id, channel_type="topic", max_turns=DEFAULT_MAX_TURNS,
                        participants=None, decision_mode="single_owner",
-                       approval_required=1, chat_mode=False):
+                       approval_required=1, total_expected_voters=0, chat_mode=False):
         """Create a new communication channel."""
         if channel_type not in VALID_CHANNEL_TYPES:
             return None, f"Invalid channel type: {channel_type}"
 
         channel = Channel(
             channel_id, channel_type, max_turns, participants,
-            decision_mode, approval_required, chat_mode,
+            decision_mode, approval_required, total_expected_voters, chat_mode,
         )
         self.channels[channel_id] = channel
         return channel, "OK"
@@ -668,7 +674,7 @@ if __name__ == "__main__":
         bus.create_channel("general", "topic", chat_mode=True)
         bus.create_channel("pricing-debate", "adversarial", max_turns=4,
                           participants=["strategy_lead", "growth_revenue_lead", "product_architect"])
-        bus.create_channel("launch-decision", "decision", decision_mode="vote", approval_required=2)
+        bus.create_channel("launch-decision", "decision", decision_mode="vote", approval_required=2, total_expected_voters=3)
         bus.create_channel("code-review", "review")
 
         # Test 1: Valid message
