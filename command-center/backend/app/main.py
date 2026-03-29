@@ -31,6 +31,7 @@ from .message_store import MessageStore
 from .agent_chat_service import AgentChatService
 from .comms_models import LaneType
 from .routers import comms
+from .routers import agents as agents_router
 
 from .state_aggregator import aggregator
 from .websocket_manager import ws_manager
@@ -196,6 +197,7 @@ app.include_router(state.router)
 app.include_router(health.router)
 app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
+app.include_router(agents_router.router)  # CC-4: Agents
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

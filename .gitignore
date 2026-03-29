@@ -228,3 +228,4 @@ package-lock.json
 command-center/backend/data/
 *.cc2-backup
 *.cc3-backup
+*.swp
