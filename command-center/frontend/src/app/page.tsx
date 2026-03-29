@@ -3,6 +3,7 @@
 import BrainSidebar from '../components/BrainSidebar';
 import CommsTab from '../components/CommsTab';
 import AgentsTab from '../components/AgentsTab';
+import SkillsTab from '../components/SkillsTab';
 
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
@@ -39,6 +40,7 @@ export default function CommandCenter() {
         {activeTab === 'agents' && (
           <AgentsTab />
         )}
+          {activeTab === 'skills' && <SkillsTab />}
 
         {activeTab !== 'home' && activeTab !== 'communications' && activeTab !== 'agents' && (
           <div className="flex items-center justify-center h-full">

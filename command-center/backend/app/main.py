@@ -32,6 +32,9 @@ from app.services.agent_chat_service import AgentChatService
 from app.domain.comms_models import LaneType
 from app.api.routers import comms
 from app.api.routers import agents as agents_router
+# ── CC-5 imports ──
+from app.services.skill_service import SkillService
+from app.api.routers import skills as skills_router
 
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
@@ -166,6 +169,11 @@ async def lifespan(app: FastAPI):
     app.state.message_store = message_store
     app.state.agent_chat_service = agent_chat_service
 
+
+    # ── CC-5: Skill service ──
+    _repo_root = Path(__file__).resolve().parents[3]
+    app.state.skill_service = SkillService(_repo_root)
+    logger.info(f"CC-5: SkillService loaded ({len(app.state.skill_service.skills)} skills)")
     yield
 
     # Shutdown
@@ -198,6 +206,7 @@ app.include_router(health.router)
 app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
 app.include_router(agents_router.router)  # CC-4: Agents
+app.include_router(skills_router.router)  # CC-5: Skills
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
