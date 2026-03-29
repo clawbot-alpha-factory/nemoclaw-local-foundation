@@ -131,18 +131,4 @@ class ConnectionManager:
 
 
 # Module-level singleton
-
-    # CC-2: Brain message broadcast
-    async def broadcast_brain_message(self, message: dict):
-        """Broadcast a brain insight/response to all connected WS clients."""
-        import json as _json
-        data = _json.dumps(message)
-        dead = set()
-        for ws in self._connections:
-            try:
-                await ws.send_text(data)
-            except Exception:
-                dead.add(ws)
-        self._connections -= dead
-
 ws_manager = ConnectionManager()

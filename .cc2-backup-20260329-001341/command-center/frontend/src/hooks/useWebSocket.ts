@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-
-// CC-2: AI Brain
-import { useStore } from '../lib/store';
 import type { SystemState, WSMessage } from '@/lib/types';
 
 const WS_URL = 'ws://127.0.0.1:8100/ws';
@@ -48,18 +45,6 @@ export function useWebSocket(): UseWebSocketReturn {
     ws.onmessage = (event) => {
       try {
         const msg: WSMessage = JSON.parse(event.data);
-
-        // CC-2: Handle brain insight messages from auto-insight loop
-        if (msg?.type === 'brain_insight' && msg?.data) {
-          const store = useStore.getState();
-          store.addBrainMessage({
-            role: 'assistant',
-            content: msg.data.content,
-            timestamp: msg.data.timestamp,
-            type: 'insight',
-          });
-          return;  // Don't process as state update
-        }
         if (msg.type === 'state_update' && msg.payload) {
           const incoming = msg.payload as unknown as SystemState;
           // Monotonic version check — never apply stale state

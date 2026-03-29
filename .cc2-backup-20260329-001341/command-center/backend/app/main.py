@@ -8,9 +8,6 @@ stops them cleanly on shutdown.
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -20,12 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from .auth import get_active_token, verify_ws_token
 from .config import ensure_directories, settings
 from .routers import health, state
-
-# CC-2: AI Brain
-import asyncio as _brain_asyncio
-from .brain_service import BrainService
-from .routers.brain import router as brain_router, set_dependencies as brain_set_deps
-
 from .state_aggregator import aggregator
 from .websocket_manager import ws_manager
 
@@ -70,55 +61,6 @@ async def lifespan(app: FastAPI):
         aggregator.state.ma_systems.total,
     )
 
-    
-    # CC-2: Initialize Brain service
-    _brain_routing_alias = os.environ.get("CC_BRAIN_ROUTING_ALIAS", "balanced")
-    _brain_project_root = os.environ.get("CC_PROJECT_ROOT", str(Path(__file__).parent.parent.parent.parent))
-    _brain_service = BrainService(
-        project_root=_brain_project_root,
-        routing_alias=_brain_routing_alias,
-    )
-
-    # Wire brain dependencies
-    # Detect state aggregator variable name
-
-    brain_set_deps(_brain_service, aggregator)
-    if _brain_service.is_available:
-        logger.info(f"Brain online: {_brain_service.provider_info}")
-
-    # CC-2: Auto-insight background task
-    _insight_interval = int(os.environ.get("CC_BRAIN_INSIGHT_INTERVAL_SECONDS", "300"))
-
-    async def _auto_insight_loop():
-        """Generate strategic insight every N seconds."""
-        import logging
-        _logger = logging.getLogger("cc.brain.auto")
-        _logger.info(f"Auto-insight loop started (interval: {_insight_interval}s)")
-        await _brain_asyncio.sleep(30)  # Wait 30s after startup before first insight
-        while True:
-            try:
-                if _brain_service.is_available:
-                    _state = aggregator.state
-                    _sd = _state.model_dump() if hasattr(_state, "model_dump") else _state.dict()
-                    _insight = await _brain_service.generate_insight(_sd)
-                    if _insight.get("available"):
-                        # Broadcast via WS if manager is available
-                        _wm = getattr(app.state, "ws_manager", None)
-                        if _wm and hasattr(_wm, "broadcast_brain_message"):
-                            await _wm.broadcast_brain_message({
-                                "type": "brain_insight",
-                                "data": _insight,
-                            })
-                        _logger.info("Auto-insight generated and broadcast")
-            except Exception as e:
-                _logger.error(f"Auto-insight error: {e}")
-            await _brain_asyncio.sleep(_insight_interval)
-
-    _brain_asyncio.ensure_future(_auto_insight_loop())
-
-    # Expose ws_manager on app.state for auto-insight broadcast
-    app.state.ws_manager = ws_manager
-
     yield
 
     # Shutdown
@@ -148,8 +90,6 @@ app.add_middleware(
 # Routers
 app.include_router(state.router)
 app.include_router(health.router)
-app.include_router(brain_router)  # CC-2: Brain
-app.include_router(brain_router)  # CC-2: Brain
 
 
 # ── WebSocket Endpoint ─────────────────────────────────────────────────

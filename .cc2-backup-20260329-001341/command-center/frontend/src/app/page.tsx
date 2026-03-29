@@ -1,7 +1,5 @@
 'use client';
 
-import BrainSidebar from '../components/BrainSidebar';
-
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
 import { Sidebar } from '@/components/Sidebar';
@@ -40,7 +38,6 @@ export default function CommandCenter() {
           </div>
         )}
       </main>
-        <BrainSidebar />
     </div>
   );
 }
