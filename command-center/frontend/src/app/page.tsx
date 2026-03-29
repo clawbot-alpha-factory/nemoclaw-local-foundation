@@ -5,6 +5,7 @@ import CommsTab from '../components/CommsTab';
 import AgentsTab from '../components/AgentsTab';
 import SkillsTab from '../components/SkillsTab';
 import ApprovalsTab from '../components/ApprovalsTab';
+import SettingsTab from '../components/ApprovalsTab';
 import ClientsTab from '../components/ClientsTab';
 import ProjectsTab from '../components/ProjectsTab';
 import OpsTab from '../components/OpsTab';
@@ -52,11 +53,17 @@ export default function CommandCenter() {
               <div className="text-sm text-nc-text-dim">
                 {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'approvals' && <ApprovalsTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'clients' && <ClientsTab />}
           {activeTab === 'clients' && <ClientsTab />}
           {activeTab === 'clients' && <ClientsTab />}

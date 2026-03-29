@@ -241,7 +241,9 @@ app.include_router(agents_router.router)  # CC-4: Agents
 app.include_router(skills_router.router)
 # CC-9
 from app.api.routers import approvals as approvals_router
+from app.api.routers import settings as settings_router
 app.include_router(approvals_router.router)  # CC-9
+app.include_router(settings_router.router)  # CC-10
 app.include_router(clients_router.router)  # CC-8
 app.include_router(projects_router.router)  # CC-7
 app.include_router(ops_router.router)  # CC-6
