@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.config import settings
+from .config import settings
 
 logger = logging.getLogger("cc.auth")
 

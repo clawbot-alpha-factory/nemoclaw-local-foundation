@@ -17,24 +17,24 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import get_active_token, verify_ws_token
-from app.config import ensure_directories, settings
-from app.api.routers import health, state
+from .auth import get_active_token, verify_ws_token
+from .config import ensure_directories, settings
+from .routers import health, state
 
 # CC-2: AI Brain
 import asyncio as _brain_asyncio
-from app.services.brain_service import BrainService
-from app.api.routers.brain import router as brain_router, set_dependencies as brain_set_deps
+from .brain_service import BrainService
+from .routers.brain import router as brain_router, set_dependencies as brain_set_deps
 
 # CC-3: Communications
-from app.services.message_store import MessageStore
-from app.services.agent_chat_service import AgentChatService
-from app.domain.comms_models import LaneType
-from app.api.routers import comms
-from app.api.routers import agents as agents_router
+from .message_store import MessageStore
+from .agent_chat_service import AgentChatService
+from .comms_models import LaneType
+from .routers import comms
+from .routers import agents as agents_router
 
-from app.services.state_aggregator import aggregator
-from app.adapters.websocket_manager import ws_manager
+from .state_aggregator import aggregator
+from .websocket_manager import ws_manager
 
 # ── Logging ────────────────────────────────────────────────────────────
 
