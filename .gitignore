@@ -223,3 +223,8 @@ command-center/frontend/.next/
 fix_*.py
 cc2-brain/
 package-lock.json
+
+# CC-3
+command-center/backend/data/
+*.cc2-backup
+*.cc3-backup

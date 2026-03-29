@@ -1,5 +1,5 @@
 """
-NemoClaw Command Center — FastAPI Backend (CC-1)
+NemoClaw Command Center — FastAPI Backend (CC-1 / CC-2 / CC-3)
 
 Entry point for the Command Center API server.
 Starts the state aggregator and WebSocket broadcaster on startup,
@@ -25,6 +25,12 @@ from .routers import health, state
 import asyncio as _brain_asyncio
 from .brain_service import BrainService
 from .routers.brain import router as brain_router, set_dependencies as brain_set_deps
+
+# CC-3: Communications
+from .message_store import MessageStore
+from .agent_chat_service import AgentChatService
+from .comms_models import LaneType
+from .routers import comms
 
 from .state_aggregator import aggregator
 from .websocket_manager import ws_manager
@@ -70,7 +76,6 @@ async def lifespan(app: FastAPI):
         aggregator.state.ma_systems.total,
     )
 
-    
     # CC-2: Initialize Brain service
     _brain_routing_alias = os.environ.get("CC_BRAIN_ROUTING_ALIAS", "balanced")
     _brain_project_root = os.environ.get("CC_PROJECT_ROOT", str(Path(__file__).parent.parent.parent.parent))
@@ -80,11 +85,50 @@ async def lifespan(app: FastAPI):
     )
 
     # Wire brain dependencies
-    # Detect state aggregator variable name
-
     brain_set_deps(_brain_service, aggregator)
     if _brain_service.is_available:
         logger.info(f"Brain online: {_brain_service.provider_info}")
+
+    # CC-3: Initialize MessageStore + AgentChatService
+    _data_dir = Path(__file__).parent.parent / "data"
+    _data_dir.mkdir(parents=True, exist_ok=True)
+
+    message_store = MessageStore(persist_path=str(_data_dir / "messages.json"))
+    agent_chat_service = AgentChatService()
+
+    # Pre-create DM lanes for all agents
+    for agent_info in agent_chat_service.list_agents():
+        message_store.create_lane(
+            lane_id=agent_info["lane_id"],
+            name=agent_info["name"],
+            lane_type=LaneType.DM,
+            participants=[agent_info["id"]],
+            avatar=agent_info["avatar"],
+        )
+
+    # Pre-create All Hands + System lanes
+    all_agent_ids = [a["id"] for a in agent_chat_service.list_agents()]
+    message_store.create_lane(
+        lane_id="all-hands",
+        name="All Hands",
+        lane_type=LaneType.BROADCAST,
+        participants=all_agent_ids,
+        avatar="\U0001f4e2",
+    )
+    message_store.create_lane(
+        lane_id="system",
+        name="System",
+        lane_type=LaneType.SYSTEM,
+        participants=[],
+        avatar="\U0001f514",
+    )
+
+    logger.info(
+        "CC-3: MessageStore initialized (%d lanes), AgentChatService %s (%d agents)",
+        len(message_store.get_lanes()),
+        "online" if agent_chat_service.is_available else "offline",
+        len(agent_chat_service.agents),
+    )
 
     # CC-2: Auto-insight background task
     _insight_interval = int(os.environ.get("CC_BRAIN_INSIGHT_INTERVAL_SECONDS", "300"))
@@ -116,8 +160,10 @@ async def lifespan(app: FastAPI):
 
     _brain_asyncio.ensure_future(_auto_insight_loop())
 
-    # Expose ws_manager on app.state for auto-insight broadcast
+    # Expose services on app.state
     app.state.ws_manager = ws_manager
+    app.state.message_store = message_store
+    app.state.agent_chat_service = agent_chat_service
 
     yield
 
@@ -149,16 +195,16 @@ app.add_middleware(
 app.include_router(state.router)
 app.include_router(health.router)
 app.include_router(brain_router)  # CC-2: Brain
-app.include_router(brain_router)  # CC-2: Brain
+app.include_router(comms.router)  # CC-3: Communications
 
 
-# ── WebSocket Endpoint ─────────────────────────────────────────────────
+# ── WebSocket Endpoints ────────────────────────────────────────────────
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time state updates.
+    Legacy WebSocket endpoint for real-time state updates (CC-1/CC-2).
     Authenticates via ?token= query parameter.
     """
     if not await verify_ws_token(websocket):
@@ -179,3 +225,53 @@ async def websocket_endpoint(websocket: WebSocket):
         await ws_manager.disconnect(websocket)
     except Exception:
         await ws_manager.disconnect(websocket)
+
+
+def _check_ws_token(token: str) -> bool:
+    """Validate a WS query-param token against the active token."""
+    expected = get_active_token()
+    return token == expected
+
+
+@app.websocket("/ws/state")
+async def ws_state_channel(websocket: WebSocket, token: str = ""):
+    """CC-3: State updates channel (10s scan + brain insights)."""
+    if not _check_ws_token(token):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+    await ws_manager.connect_channel("state", websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_json({"type": "pong"})
+    except Exception:
+        await ws_manager.disconnect_channel("state", websocket)
+
+
+@app.websocket("/ws/chat")
+async def ws_chat_channel(websocket: WebSocket, token: str = ""):
+    """CC-3: Chat messages channel."""
+    if not _check_ws_token(token):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+    await ws_manager.connect_channel("chat", websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        await ws_manager.disconnect_channel("chat", websocket)
+
+
+@app.websocket("/ws/alerts")
+async def ws_alerts_channel(websocket: WebSocket, token: str = ""):
+    """CC-3: Alerts channel."""
+    if not _check_ws_token(token):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+    await ws_manager.connect_channel("alerts", websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        await ws_manager.disconnect_channel("alerts", websocket)

@@ -13,7 +13,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', emoji: '⌂' },
-  { id: 'communications', label: 'Comms', emoji: '💬', disabled: true },
+  { id: 'communications', label: 'Comms', emoji: '💬', disabled: false },
   { id: 'agents', label: 'Agents', emoji: '🤖', disabled: true },
   { id: 'skills', label: 'Skills', emoji: '⚡', disabled: true },
   { id: 'operations', label: 'Ops', emoji: '📊', disabled: true },

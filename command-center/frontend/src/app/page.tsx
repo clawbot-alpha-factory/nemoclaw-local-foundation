@@ -1,6 +1,7 @@
 'use client';
 
 import BrainSidebar from '../components/BrainSidebar';
+import CommsTab from '../components/CommsTab';
 
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
@@ -30,7 +31,11 @@ export default function CommandCenter() {
           />
         )}
 
-        {activeTab !== 'home' && (
+        {activeTab === 'communications' && (
+          <CommsTab />
+        )}
+
+        {activeTab !== 'home' && activeTab !== 'communications' && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="text-sm text-nc-text-dim">

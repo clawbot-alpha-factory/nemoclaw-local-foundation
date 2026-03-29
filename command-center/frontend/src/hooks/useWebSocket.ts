@@ -7,6 +7,7 @@ import { useStore } from '../lib/store';
 import type { SystemState, WSMessage } from '@/lib/types';
 
 const WS_URL = 'ws://127.0.0.1:8100/ws';
+const WS_CHAT_URL = 'ws://127.0.0.1:8100/ws/chat';
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_DELAY = 30000;
 
@@ -24,8 +25,11 @@ export function useWebSocket(): UseWebSocketReturn {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const chatWsRef = useRef<WebSocket | null>(null);
   const reconnectDelay = useRef(RECONNECT_DELAY);
+  const chatReconnectDelay = useRef(RECONNECT_DELAY);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const chatReconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const lastVersion = useRef(0);
 
   const connect = useCallback(() => {
@@ -49,7 +53,6 @@ export function useWebSocket(): UseWebSocketReturn {
       try {
         const msg: WSMessage = JSON.parse(event.data);
 
-        // CC-2: Handle brain insight messages from auto-insight loop
         if (msg?.type === 'brain_insight' && msg?.data) {
           const store = useStore.getState();
           store.addBrainMessage({
@@ -58,11 +61,10 @@ export function useWebSocket(): UseWebSocketReturn {
             timestamp: msg.data.timestamp,
             type: 'insight',
           });
-          return;  // Don't process as state update
+          return;
         }
         if (msg.type === 'state_update' && msg.payload) {
           const incoming = msg.payload as unknown as SystemState;
-          // Monotonic version check — never apply stale state
           if (incoming.state_version >= lastVersion.current) {
             lastVersion.current = incoming.state_version;
             setState(incoming);
@@ -70,15 +72,12 @@ export function useWebSocket(): UseWebSocketReturn {
           }
         }
       } catch {
-        // Ignore malformed messages
       }
     };
 
     ws.onclose = () => {
       setStatus('disconnected');
       wsRef.current = null;
-
-      // Auto-reconnect with backoff
       reconnectTimer.current = setTimeout(() => {
         reconnectDelay.current = Math.min(
           reconnectDelay.current * 1.5,
@@ -93,6 +92,47 @@ export function useWebSocket(): UseWebSocketReturn {
     };
   }, []);
 
+  const connectChat = useCallback(() => {
+    if (chatWsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('cc-token') || ''
+      : '';
+
+    const url = token ? `${WS_CHAT_URL}?token=${token}` : WS_CHAT_URL;
+    const ws = new WebSocket(url);
+    chatWsRef.current = ws;
+
+    ws.onopen = () => {
+      chatReconnectDelay.current = RECONNECT_DELAY;
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat_message' && data.data) {
+          window.dispatchEvent(
+            new CustomEvent('cc-chat-message', { detail: data.data })
+          );
+        }
+      } catch {
+      }
+    };
+
+    ws.onclose = () => {
+      chatWsRef.current = null;
+      chatReconnectTimer.current = setTimeout(() => {
+        chatReconnectDelay.current = Math.min(
+          chatReconnectDelay.current * 1.5,
+          MAX_RECONNECT_DELAY
+        );
+        connectChat();
+      }, chatReconnectDelay.current);
+    };
+
+    ws.onerror = () => {};
+  }, []);
+
   const refresh = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send('refresh');
@@ -101,11 +141,14 @@ export function useWebSocket(): UseWebSocketReturn {
 
   useEffect(() => {
     connect();
+    connectChat();
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (chatReconnectTimer.current) clearTimeout(chatReconnectTimer.current);
       wsRef.current?.close();
+      chatWsRef.current?.close();
     };
-  }, [connect]);
+  }, [connect, connectChat]);
 
   return { state, status, lastUpdate, refresh };
 }
