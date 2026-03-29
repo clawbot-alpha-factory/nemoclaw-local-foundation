@@ -4,6 +4,7 @@ import BrainSidebar from '../components/BrainSidebar';
 import CommsTab from '../components/CommsTab';
 import AgentsTab from '../components/AgentsTab';
 import SkillsTab from '../components/SkillsTab';
+import ProjectsTab from '../components/ProjectsTab';
 import OpsTab from '../components/OpsTab';
 
 import { useState } from 'react';
@@ -48,6 +49,12 @@ export default function CommandCenter() {
             <div className="text-center">
               <div className="text-sm text-nc-text-dim">
                 {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'projects' && <ProjectsTab />}
           {activeTab === 'operations' && <OpsTab />}
           {activeTab === 'operations' && <OpsTab />}
           {activeTab === 'operations' && <OpsTab />}

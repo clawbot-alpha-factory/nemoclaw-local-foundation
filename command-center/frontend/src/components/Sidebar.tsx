@@ -21,8 +21,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'projects', label: 'Projects', emoji: '📋', disabled: false },
   { id: 'clients', label: 'Clients', emoji: '🏢', disabled: false },
   { id: 'approvals', label: 'Approvals', emoji: '✅', disabled: false },
-  { id: 'intelligence', label: 'Intel', emoji: '🧠', disabled: true },
-  { id: 'settings', label: 'Settings', emoji: '⚙', disabled: true },
+  { id: 'intelligence', label: 'Intel', emoji: '🧠', disabled: false },
+  { id: 'settings', label: 'Settings', emoji: '⚙', disabled: false },
 ];
 
 interface SidebarProps {

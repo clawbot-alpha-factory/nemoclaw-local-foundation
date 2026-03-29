@@ -34,6 +34,9 @@ from app.api.routers import comms
 from app.api.routers import agents as agents_router
 # ── CC-5 imports ──
 from app.services.skill_service import SkillService
+# ── CC-7 imports ──
+from app.services.project_service import ProjectService
+from app.api.routers import projects as projects_router
 # ── CC-6 imports ──
 from app.services.ops_service import OpsService
 from app.api.routers import ops as ops_router
@@ -182,6 +185,11 @@ async def lifespan(app: FastAPI):
     from app.services.ops_service import OpsService
     app.state.ops_service = OpsService(Path(__file__).resolve().parents[3])
     logger.info("CC-6: OpsService initialized")
+
+    # ── CC-7: Project service ──
+    from app.services.project_service import ProjectService
+    app.state.project_service = ProjectService(Path(__file__).resolve().parents[3])
+    logger.info("CC-7: ProjectService initialized")
     yield
 
     # Shutdown
@@ -215,6 +223,7 @@ app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
 app.include_router(agents_router.router)  # CC-4: Agents
 app.include_router(skills_router.router)
+app.include_router(projects_router.router)  # CC-7
 app.include_router(ops_router.router)  # CC-6
 
 
