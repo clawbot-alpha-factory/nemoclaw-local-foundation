@@ -34,6 +34,9 @@ from app.api.routers import comms
 from app.api.routers import agents as agents_router
 # ── CC-5 imports ──
 from app.services.skill_service import SkillService
+# ── CC-6 imports ──
+from app.services.ops_service import OpsService
+from app.api.routers import ops as ops_router
 from app.api.routers import skills as skills_router
 
 from app.services.state_aggregator import aggregator
@@ -174,6 +177,11 @@ async def lifespan(app: FastAPI):
     _repo_root = Path(__file__).resolve().parents[3]
     app.state.skill_service = SkillService(_repo_root)
     logger.info(f"CC-5: SkillService loaded ({len(app.state.skill_service.skills)} skills)")
+
+    # ── CC-6: Ops service ──
+    from app.services.ops_service import OpsService
+    app.state.ops_service = OpsService(Path(__file__).resolve().parents[3])
+    logger.info("CC-6: OpsService initialized")
     yield
 
     # Shutdown
@@ -206,7 +214,8 @@ app.include_router(health.router)
 app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
 app.include_router(agents_router.router)  # CC-4: Agents
-app.include_router(skills_router.router)  # CC-5: Skills
+app.include_router(skills_router.router)
+app.include_router(ops_router.router)  # CC-6
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
