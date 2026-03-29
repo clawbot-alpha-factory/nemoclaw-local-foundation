@@ -239,6 +239,9 @@ app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
 app.include_router(agents_router.router)  # CC-4: Agents
 app.include_router(skills_router.router)
+# CC-9
+from app.api.routers import approvals as approvals_router
+app.include_router(approvals_router.router)  # CC-9
 app.include_router(clients_router.router)  # CC-8
 app.include_router(projects_router.router)  # CC-7
 app.include_router(ops_router.router)  # CC-6
