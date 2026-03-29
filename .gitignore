@@ -219,3 +219,7 @@ skills/research-brief/outputs/*
 .venv312/
 command-center/frontend/node_modules/
 command-center/frontend/.next/
+.cc2-backup-*
+fix_*.py
+cc2-brain/
+package-lock.json
