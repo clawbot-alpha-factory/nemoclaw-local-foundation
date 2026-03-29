@@ -34,6 +34,9 @@ from app.api.routers import comms
 from app.api.routers import agents as agents_router
 # ── CC-5 imports ──
 from app.services.skill_service import SkillService
+# ── CC-8 imports ──
+from app.services.client_service import ClientService
+from app.api.routers import clients as clients_router
 # ── CC-7 imports ──
 from app.services.project_service import ProjectService
 from app.api.routers import projects as projects_router
@@ -190,6 +193,19 @@ async def lifespan(app: FastAPI):
     from app.services.project_service import ProjectService
     app.state.project_service = ProjectService(Path(__file__).resolve().parents[3])
     logger.info("CC-7: ProjectService initialized")
+
+    # ── CC-8: Client service ──
+    from app.services.client_service import ClientService
+    app.state.client_service = ClientService(Path(__file__).resolve().parents[3])
+    logger.info("CC-8: ClientService initialized")
+
+    # ── CC-9: Approval service ──
+    try:
+        from app.services.approval_service import ApprovalService
+        app.state.approval_service = ApprovalService(Path(__file__).resolve().parents[3])
+        logger.info("CC-9: ApprovalService initialized")
+    except ImportError:
+        pass
     yield
 
     # Shutdown
@@ -223,6 +239,7 @@ app.include_router(brain_router)  # CC-2: Brain
 app.include_router(comms.router)  # CC-3: Communications
 app.include_router(agents_router.router)  # CC-4: Agents
 app.include_router(skills_router.router)
+app.include_router(clients_router.router)  # CC-8
 app.include_router(projects_router.router)  # CC-7
 app.include_router(ops_router.router)  # CC-6
 
