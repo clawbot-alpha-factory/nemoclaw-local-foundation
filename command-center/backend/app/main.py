@@ -84,6 +84,14 @@ from app.services.audit_service import AuditService
 from app.services.approval_chain_service import ApprovalChainService
 from app.api.routers import enterprise as enterprise_router
 
+# ── Engine (E-7b) imports ──
+from app.services.build_plan_tracker import BuildPlanTracker
+from app.services.code_generation_service import CodeGenerationService
+from app.services.code_review_service import CodeReviewService
+from app.services.deploy_service import DeployService
+from app.services.phase_completion_service import PhaseCompletionService
+from app.api.routers import self_build as self_build_router
+
 # ── Engine (E-5) imports ──
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
@@ -311,6 +319,21 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-5: SkillFactoryService initialized")
 
+    # ── E-7b: Self-Build Engine (THE TIPPING POINT) ──
+    app.state.build_plan_tracker = BuildPlanTracker()
+    app.state.code_generation_service = CodeGenerationService(Path(__file__).resolve().parents[3])
+    app.state.code_review_service = CodeReviewService(Path(__file__).resolve().parents[3])
+    app.state.deploy_service = DeployService(
+        repo_root=Path(__file__).resolve().parents[3],
+        alert_service=app.state.alert_service,
+        audit_service=app.state.audit_service,
+    )
+    app.state.phase_completion_service = PhaseCompletionService(
+        repo_root=Path(__file__).resolve().parents[3],
+        build_tracker=app.state.build_plan_tracker,
+    )
+    logger.info("E-7b: Self-Build Engine initialized (THE TIPPING POINT)")
+
     yield
 
     # E-4a shutdown
@@ -368,6 +391,7 @@ app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
+app.include_router(self_build_router.router)  # E-7b: Self-Build
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
