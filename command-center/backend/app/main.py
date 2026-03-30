@@ -50,6 +50,13 @@ from app.services.execution_service import ExecutionService
 from app.services.skill_chain_runner import SkillChainRunner
 from app.api.routers import execution as execution_router
 
+# ── Engine (E-3) imports ──
+from app.services.orchestrator_service import OrchestratorService
+from app.services.project_lifecycle_service import ProjectLifecycleService
+from app.services.team_formation_service import TeamFormationService
+from app.services.multi_project_service import MultiProjectService
+from app.api.routers import orchestrator as orchestrator_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -212,6 +219,14 @@ async def lifespan(app: FastAPI):
     except ImportError:
         pass
 
+    # ── E-3: Orchestrator + Project Lifecycle ──
+    _repo_root_e3 = Path(__file__).resolve().parents[3]
+    app.state.orchestrator_service = OrchestratorService(_repo_root_e3)
+    app.state.lifecycle_service = ProjectLifecycleService(app.state.project_service)
+    app.state.team_service = TeamFormationService()
+    app.state.multi_project_service = MultiProjectService(app.state.project_service)
+    logger.info("E-3: Orchestrator + Lifecycle + Team + MultiProject initialized")
+
     # ── E-2: Execution Engine ──
     _repo_root_engine = Path(__file__).resolve().parents[3]
     app.state.execution_service = ExecutionService(_repo_root_engine)
@@ -266,6 +281,7 @@ app.include_router(ops_router.router)  # CC-6
 
 # Engine (E-2)
 app.include_router(execution_router.router)  # E-2: Execution
+app.include_router(orchestrator_router.router)  # E-3: Orchestrator
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
