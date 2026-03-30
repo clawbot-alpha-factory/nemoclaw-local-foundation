@@ -57,6 +57,13 @@ from app.services.team_formation_service import TeamFormationService
 from app.services.multi_project_service import MultiProjectService
 from app.api.routers import orchestrator as orchestrator_router
 
+# ── Engine (E-4a) imports ──
+from app.services.agent_loop_service import AgentLoopService
+from app.services.agent_memory_service import AgentMemoryService
+from app.services.scheduler_service import SchedulerService
+from app.services.checkpoint_service import CheckpointService
+from app.api.routers import engine as engine_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -234,7 +241,24 @@ async def lifespan(app: FastAPI):
     await app.state.execution_service.start()
     logger.info("E-2: ExecutionService + SkillChainRunner started")
 
+    # ── E-4a: Agent Runtime ──
+    app.state.agent_memory_service = AgentMemoryService()
+    app.state.scheduler_service = SchedulerService()
+    app.state.checkpoint_service = CheckpointService()
+    app.state.agent_loop_service = AgentLoopService(
+        execution_service=app.state.execution_service,
+        memory_service=app.state.agent_memory_service,
+        scheduler_service=app.state.scheduler_service,
+        checkpoint_service=app.state.checkpoint_service,
+    )
+    logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint initialized")
+
     yield
+
+    # E-4a shutdown
+    if hasattr(app.state, 'agent_loop_service'):
+        await app.state.agent_loop_service.stop_all()
+        logger.info("E-4a: All agent loops stopped")
 
     # E-2 shutdown
     await app.state.execution_service.stop()
@@ -282,6 +306,7 @@ app.include_router(ops_router.router)  # CC-6
 # Engine (E-2)
 app.include_router(execution_router.router)  # E-2: Execution
 app.include_router(orchestrator_router.router)  # E-3: Orchestrator
+app.include_router(engine_router.router)  # E-4a: Engine
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
