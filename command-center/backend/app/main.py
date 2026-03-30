@@ -84,6 +84,10 @@ from app.services.audit_service import AuditService
 from app.services.approval_chain_service import ApprovalChainService
 from app.api.routers import enterprise as enterprise_router
 
+# ── Engine (E-5) imports ──
+from app.services.skill_factory_service import SkillFactoryService
+from app.api.routers import skill_factory as skill_factory_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -298,6 +302,15 @@ async def lifespan(app: FastAPI):
     app.state.approval_chain_service = ApprovalChainService(audit_service=app.state.audit_service)
     logger.info("E-4c: Guardrails + Alerts + Webhooks + Config + Secrets + SLA + Audit + Approvals initialized")
 
+    # ── E-5: Skill Factory ──
+    app.state.skill_factory_service = SkillFactoryService(
+        repo_root=Path(__file__).resolve().parents[3],
+        execution_service=app.state.execution_service,
+        skill_service=app.state.skill_service,
+        audit_service=app.state.audit_service,
+    )
+    logger.info("E-5: SkillFactoryService initialized")
+
     yield
 
     # E-4a shutdown
@@ -354,6 +367,7 @@ app.include_router(orchestrator_router.router)  # E-3: Orchestrator
 app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
+app.include_router(skill_factory_router.router)  # E-5: Skill Factory
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

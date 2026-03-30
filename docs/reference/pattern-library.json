@@ -1,204 +1,533 @@
 {
   "version": "1.0",
-  "description": "Machine-readable pattern library encoding proven patterns from 17 production skills. Used by meta-skills and the skill factory to generate higher-quality first drafts.",
-  "last_updated": "2026-03-27",
+  "generated_at": "2026-03-31",
+  "total_patterns": 27,
   "patterns": [
     {
-      "id": "h2_section_extraction",
-      "regex": "rf'(?:^|\\n)##\\s[^\\n]*{re.escape(kw)}[^\\n]*\\n(.*?)(?=\\n##\\s[^#]|\\Z)'",
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "skill needs to extract content under markdown H2 headings",
-      "anti_pattern": "##? matches H1 document titles — NEVER use ##?",
-      "category": "extraction"
+      "id": "r01",
+      "name": "market-research",
+      "category": "research",
+      "keywords": [
+        "market",
+        "research",
+        "analysis",
+        "industry",
+        "trends"
+      ],
+      "input_schema": [
+        "research_topic",
+        "industry_context"
+      ],
+      "output": "report",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "attribute_label_filtering",
-      "filter_set": ["maturity", "confidence", "time horizon", "industry relevance", "adoption barrier", "description", "impact", "readiness", "use case", "key benefit", "barrier", "relevance"],
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "subsections have **Label:** value attributes that could be mistaken for subsection names",
-      "category": "extraction"
+      "id": "r02",
+      "name": "competitive-intel",
+      "category": "research",
+      "keywords": [
+        "competitor",
+        "competitive",
+        "intelligence",
+        "benchmark"
+      ],
+      "input_schema": [
+        "analysis_topic",
+        "industry"
+      ],
+      "output": "report",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "depth_driven_token_budget",
-      "budgets": {"short": 4000, "standard": 8000, "long": 12000, "overview": 12000, "detailed": 20000, "strategic": 16000},
-      "source_skill": "e12-tech-trend-scanner, d11-copywriting-specialist",
-      "applies_when": "skill has a depth or length parameter that affects output size",
-      "category": "token_management"
+      "id": "r03",
+      "name": "trend-scanning",
+      "category": "research",
+      "keywords": [
+        "trend",
+        "scan",
+        "emerging",
+        "technology",
+        "innovation"
+      ],
+      "input_schema": [
+        "topic",
+        "timeframe"
+      ],
+      "output": "report",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "min_scoring",
-      "formula": "quality_score = min(structural_score, llm_dim1, llm_dim2)",
-      "source_skill": "ALL",
-      "applies_when": "always — critic step produces quality score",
-      "anti_pattern": "weighted average lets structural failures pass",
-      "category": "scoring"
+      "id": "r04",
+      "name": "audience-research",
+      "category": "research",
+      "keywords": [
+        "audience",
+        "persona",
+        "icp",
+        "customer",
+        "segment"
+      ],
+      "input_schema": [
+        "target_market",
+        "product_context"
+      ],
+      "output": "persona",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "acceptance_threshold_alignment",
-      "rule": "acceptance_score AND transition right: must equal min_quality_score in contracts (currently 7)",
-      "source_skill": "ALL",
-      "applies_when": "always — every skill with a critic loop",
-      "anti_pattern": "threshold > realistic min() score → step_4 always runs → destroys good output",
-      "category": "critic_loop"
+      "id": "r05",
+      "name": "pricing-research",
+      "category": "research",
+      "keywords": [
+        "pricing",
+        "price",
+        "cost",
+        "value",
+        "tier"
+      ],
+      "input_schema": [
+        "product",
+        "market"
+      ],
+      "output": "pricing_model",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "single_cta_enforcement",
-      "detection": "CTA_PHRASES list + count distinct",
-      "threshold": ">2 = flag",
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "customer-facing content with call-to-action",
-      "category": "content_validation"
+      "id": "c01",
+      "name": "copywriting",
+      "category": "content",
+      "keywords": [
+        "copy",
+        "writing",
+        "content",
+        "landing",
+        "page",
+        "headline"
+      ],
+      "input_schema": [
+        "copy_brief",
+        "target_audience",
+        "copy_format"
+      ],
+      "output": "copy",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "headline_benefit_detection",
-      "markers": "numbers, time references, outcome words, curiosity markers",
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "content has headlines that should contain benefits not labels",
-      "category": "content_validation"
+      "id": "c02",
+      "name": "blog-article",
+      "category": "content",
+      "keywords": [
+        "blog",
+        "article",
+        "post",
+        "editorial",
+        "thought-leadership"
+      ],
+      "input_schema": [
+        "topic",
+        "audience",
+        "tone"
+      ],
+      "output": "article",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "persuasion_technique_counting",
-      "techniques": ["social_proof", "urgency", "benefit_stacking", "objection_handling", "specificity"],
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "marketing/persuasive content",
-      "category": "content_validation"
+      "id": "c03",
+      "name": "email-sequence",
+      "category": "content",
+      "keywords": [
+        "email",
+        "sequence",
+        "drip",
+        "nurture",
+        "outreach"
+      ],
+      "input_schema": [
+        "campaign_goal",
+        "audience",
+        "num_emails"
+      ],
+      "output": "email_sequence",
+      "tier": "standard",
+      "typical_cost": 0.12
     },
     {
-      "id": "feature_benefit_separation",
-      "detection": "FEATURE_ONLY_INDICATORS + OUTCOME_LANGUAGE regex",
-      "threshold": ">50% feature-only = flag",
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "product descriptions, landing pages, sales content",
-      "category": "content_validation"
+      "id": "c04",
+      "name": "social-media",
+      "category": "content",
+      "keywords": [
+        "social",
+        "media",
+        "post",
+        "linkedin",
+        "twitter",
+        "instagram"
+      ],
+      "input_schema": [
+        "topic",
+        "platform",
+        "tone"
+      ],
+      "output": "social_posts",
+      "tier": "lightweight",
+      "typical_cost": 0.05
     },
     {
-      "id": "format_specific_sections",
-      "formats": {"landing_page": 7, "email": 3, "ad_copy": 2, "product_description": 2, "sales_page": 5},
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "skill supports multiple output formats with different structure requirements",
-      "category": "structural_validation"
+      "id": "c05",
+      "name": "documentation",
+      "category": "content",
+      "keywords": [
+        "documentation",
+        "guide",
+        "manual",
+        "readme",
+        "runbook"
+      ],
+      "input_schema": [
+        "subject",
+        "audience",
+        "doc_type"
+      ],
+      "output": "document",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "numeric_token_preservation",
-      "detection": "13 regex patterns extracting $, %, counts from input",
-      "validation": "all input tokens must survive in output",
-      "source_skill": "i35-tone-calibrator",
-      "applies_when": "skill transforms text that contains numbers/stats",
-      "category": "grounding"
+      "id": "a01",
+      "name": "data-analysis",
+      "category": "analysis",
+      "keywords": [
+        "data",
+        "analysis",
+        "analytics",
+        "metrics",
+        "dashboard"
+      ],
+      "input_schema": [
+        "data_source",
+        "analysis_goal"
+      ],
+      "output": "analysis_report",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "banned_filler_phrases",
-      "phrases": ["cutting-edge", "best-in-class", "world-class", "leverage synergies", "paradigm shift", "revolutionary", "game-changing", "next-generation", "seamless integration", "robust solution"],
-      "source_skill": "e08-comp-intel-synth, d11-copywriting-specialist",
-      "applies_when": "professional/marketing content",
-      "category": "content_validation"
+      "id": "a02",
+      "name": "seo-audit",
+      "category": "analysis",
+      "keywords": [
+        "seo",
+        "audit",
+        "search",
+        "ranking",
+        "optimization"
+      ],
+      "input_schema": [
+        "url",
+        "keywords"
+      ],
+      "output": "audit_report",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "fabrication_flagging",
-      "detection": "precise stats without input data, fabricated testimonials, citation fabrication",
-      "source_skill": "e12-market-research-analyst, e12-tech-trend-scanner, d11-copywriting-specialist",
-      "applies_when": "skill produces claims that should be grounded in input",
-      "category": "anti_hallucination"
+      "id": "a03",
+      "name": "performance-review",
+      "category": "analysis",
+      "keywords": [
+        "performance",
+        "review",
+        "kpi",
+        "metrics",
+        "evaluation"
+      ],
+      "input_schema": [
+        "subject",
+        "period",
+        "metrics"
+      ],
+      "output": "review_report",
+      "tier": "standard",
+      "typical_cost": 0.12
     },
     {
-      "id": "action_verb_detection",
-      "verbs": ["invest", "target", "develop", "partner", "avoid", "monitor", "expand", "reduce", "launch", "test", "build", "acquire", "prioritize", "focus", "diversify", "enter", "exit", "scale", "optimize", "establish", "pursue", "explore", "evaluate", "implement", "strengthen", "position", "pilot", "adopt", "integrate", "migrate", "deploy", "assess"],
-      "source_skill": "e12-market-research-analyst, e12-tech-trend-scanner",
-      "applies_when": "recommendations or action items need to be actionable",
-      "category": "content_validation"
+      "id": "a04",
+      "name": "risk-assessment",
+      "category": "analysis",
+      "keywords": [
+        "risk",
+        "assessment",
+        "mitigation",
+        "threat",
+        "vulnerability"
+      ],
+      "input_schema": [
+        "subject",
+        "context"
+      ],
+      "output": "risk_report",
+      "tier": "complex",
+      "typical_cost": 0.3
     },
     {
-      "id": "structured_field_detection",
-      "patterns": ["**Label:** value", "(value)", "| value |"],
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "LLM output uses structured labels that need deterministic extraction",
-      "anti_pattern": "free-floating keyword detection matches regular English",
-      "category": "extraction"
+      "id": "o01",
+      "name": "process-automation",
+      "category": "operations",
+      "keywords": [
+        "process",
+        "automation",
+        "workflow",
+        "automate",
+        "streamline"
+      ],
+      "input_schema": [
+        "process_description",
+        "tools"
+      ],
+      "output": "automation_spec",
+      "tier": "complex",
+      "typical_cost": 0.25
     },
     {
-      "id": "maturity_timeline_coherence",
-      "rules": "mature+long_term=incoherent, experimental+near_term=needs pilot framing",
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "content classifies items by both maturity and timeline",
-      "category": "cross_validation"
+      "id": "o02",
+      "name": "report-generator",
+      "category": "operations",
+      "keywords": [
+        "report",
+        "generator",
+        "summary",
+        "digest",
+        "briefing"
+      ],
+      "input_schema": [
+        "report_type",
+        "data_sources",
+        "period"
+      ],
+      "output": "report",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "convergence_entity_pair_validation",
-      "detection": "2+ capitalized terms or combination patterns (X + Y, X combined with Y)",
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "content analyzes interactions between multiple entities",
-      "category": "structural_validation"
+      "id": "o03",
+      "name": "quality-check",
+      "category": "operations",
+      "keywords": [
+        "quality",
+        "check",
+        "validation",
+        "review",
+        "gate"
+      ],
+      "input_schema": [
+        "artifact",
+        "criteria"
+      ],
+      "output": "quality_report",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "known_input_differentiation",
-      "method": "word overlap at heading level, 60% = known",
-      "threshold": "30%+ must be new, or explicit coverage acknowledgment",
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "user provides known items and expects the output to go beyond them",
-      "category": "content_validation"
+      "id": "o04",
+      "name": "onboarding-flow",
+      "category": "operations",
+      "keywords": [
+        "onboarding",
+        "checklist",
+        "welcome",
+        "setup",
+        "training"
+      ],
+      "input_schema": [
+        "client_type",
+        "services"
+      ],
+      "output": "onboarding_plan",
+      "tier": "standard",
+      "typical_cost": 0.12
     },
     {
-      "id": "buzzword_substance_markers",
-      "required": "maturity label + industry term + specific technique",
-      "source_skill": "e12-tech-trend-scanner",
-      "applies_when": "trend or technology descriptions need substance not marketing fluff",
-      "category": "content_validation"
+      "id": "out01",
+      "name": "cold-outreach",
+      "category": "outreach",
+      "keywords": [
+        "cold",
+        "outreach",
+        "prospecting",
+        "lead",
+        "outbound"
+      ],
+      "input_schema": [
+        "target_persona",
+        "value_prop",
+        "channel"
+      ],
+      "output": "outreach_sequence",
+      "tier": "standard",
+      "typical_cost": 0.12
     },
     {
-      "id": "tone_consistency_check",
-      "method": "compare formality markers in opening vs closing against brand_voice",
-      "source_skill": "d11-copywriting-specialist",
-      "applies_when": "content has brand voice requirements",
-      "category": "content_validation"
+      "id": "out02",
+      "name": "linkedin-campaign",
+      "category": "outreach",
+      "keywords": [
+        "linkedin",
+        "connection",
+        "message",
+        "inmail",
+        "networking"
+      ],
+      "input_schema": [
+        "target_audience",
+        "campaign_goal"
+      ],
+      "output": "linkedin_sequence",
+      "tier": "standard",
+      "typical_cost": 0.1
     },
     {
-      "id": "testable_acceptance_criteria",
-      "rule": "condition word AND measurable element required",
-      "source_skill": "f09-product-req-writer",
-      "applies_when": "requirements documents with acceptance criteria",
-      "category": "structural_validation"
+      "id": "out03",
+      "name": "follow-up",
+      "category": "outreach",
+      "keywords": [
+        "follow",
+        "up",
+        "reminder",
+        "nudge",
+        "check-in"
+      ],
+      "input_schema": [
+        "context",
+        "relationship_stage"
+      ],
+      "output": "follow_up_messages",
+      "tier": "lightweight",
+      "typical_cost": 0.05
     },
     {
-      "id": "revenue_grounding",
-      "paths": "2+ numeric tokens OR derivation chain OR explicit insufficient-data acknowledgment",
-      "source_skill": "f09-pricing-strategist",
-      "applies_when": "pricing or revenue claims",
-      "category": "grounding"
+      "id": "cl01",
+      "name": "proposal-writer",
+      "category": "client",
+      "keywords": [
+        "proposal",
+        "pitch",
+        "bid",
+        "rfp",
+        "quotation"
+      ],
+      "input_schema": [
+        "client_needs",
+        "services",
+        "budget_range"
+      ],
+      "output": "proposal",
+      "tier": "complex",
+      "typical_cost": 0.3
     },
     {
-      "id": "three_path_market_sizing",
-      "paths": "numeric sizing, qualitative scoping, or data gap acknowledgment",
-      "source_skill": "e12-market-research-analyst",
-      "applies_when": "market analysis with sizing",
-      "category": "content_validation"
+      "id": "cl02",
+      "name": "contract-drafter",
+      "category": "client",
+      "keywords": [
+        "contract",
+        "agreement",
+        "terms",
+        "legal",
+        "sow"
+      ],
+      "input_schema": [
+        "service_type",
+        "parties",
+        "terms"
+      ],
+      "output": "contract",
+      "tier": "complex",
+      "typical_cost": 0.35
     },
     {
-      "id": "per_step_verification",
-      "rule": "each step in a guide has a verification checkpoint",
-      "source_skill": "c07-setup-guide-writer",
-      "applies_when": "setup guides, tutorials, instructional content",
-      "category": "structural_validation"
+      "id": "cl03",
+      "name": "case-study",
+      "category": "client",
+      "keywords": [
+        "case",
+        "study",
+        "success",
+        "story",
+        "testimonial"
+      ],
+      "input_schema": [
+        "client_name",
+        "challenge",
+        "solution",
+        "results"
+      ],
+      "output": "case_study",
+      "tier": "standard",
+      "typical_cost": 0.15
     },
     {
-      "id": "decision_tree_branching",
-      "detection": "real if/else, condition/action pairs",
-      "source_skill": "c07-runbook-author",
-      "applies_when": "operational runbooks, troubleshooting guides",
-      "category": "structural_validation"
+      "id": "e01",
+      "name": "architecture-spec",
+      "category": "engineering",
+      "keywords": [
+        "architecture",
+        "spec",
+        "design",
+        "system",
+        "technical"
+      ],
+      "input_schema": [
+        "system_name",
+        "requirements"
+      ],
+      "output": "architecture_doc",
+      "tier": "complex",
+      "typical_cost": 0.3
     },
     {
-      "id": "rollback_enforcement",
-      "rule": "recovery must have rollback or explicit no-rollback justification",
-      "source_skill": "c07-runbook-author",
-      "applies_when": "operational procedures with risk of failure",
-      "category": "content_validation"
+      "id": "e02",
+      "name": "api-design",
+      "category": "engineering",
+      "keywords": [
+        "api",
+        "endpoint",
+        "rest",
+        "graphql",
+        "interface"
+      ],
+      "input_schema": [
+        "service_name",
+        "operations"
+      ],
+      "output": "api_spec",
+      "tier": "complex",
+      "typical_cost": 0.25
     },
     {
-      "id": "scope_driven_generation",
-      "scopes": {"mvp": "3-7 items", "full": "5-25 items", "increment": "2-5 items"},
-      "source_skill": "f09-product-req-writer, f09-pricing-strategist",
-      "applies_when": "skill has scope/depth parameter affecting output volume",
-      "category": "generation_control"
+      "id": "e03",
+      "name": "test-generator",
+      "category": "engineering",
+      "keywords": [
+        "test",
+        "testing",
+        "unit",
+        "integration",
+        "qa"
+      ],
+      "input_schema": [
+        "code_path",
+        "test_type"
+      ],
+      "output": "test_suite",
+      "tier": "standard",
+      "typical_cost": 0.15
     }
   ]
 }
