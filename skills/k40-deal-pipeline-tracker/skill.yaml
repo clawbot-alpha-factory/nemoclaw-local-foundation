@@ -1,0 +1,123 @@
+name: k40-deal-pipeline-tracker
+version: 1.0.0
+display_name: "Deal Pipeline Tracker"
+description: >
+  Analyzes the current deal pipeline, identifies bottlenecks, stalled deals, and recommends next actions for each stage.
+author: NemoClaw Factory
+created: 2026-03-31
+language: en
+
+family: K40
+domain: K
+tag: sales
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 3
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a B2B sales pipeline analyst. Analyze deal data and produce actionable pipeline insights.
+
+inputs:
+  - name: pipeline_data
+    type: string
+    required: true
+    description: "Description of current pipeline deals and stages"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: time_period
+    type: string
+    required: false
+    description: "Analysis time period"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "this_quarter"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/k40-deal-pipeline-tracker/outputs/
+  filename_pattern: "k40-deal-pipeline-tracker_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "k40-deal-pipeline-tracker_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse input and prepare analysis context"
+    step_type: local
+    task_class: general_short
+    description: "Validate inputs, extract key parameters, prepare context for generation."
+    input_source: inputs
+    output_key: step_1_output
+    failure:
+      strategy: halt
+      retry_count: 0
+
+  - id: step_2
+    name: "Generate primary output"
+    step_type: llm
+    task_class: moderate
+    description: "Core generation step using execution_role persona."
+    input_source: step_1.output
+    output_key: generated_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_3
+    name: "Evaluate output quality"
+    step_type: critic
+    task_class: moderate
+    description: "Score output on relevance, completeness, and actionability."
+    input_source: step_2.output
+    output_key: step_3_output
+    failure:
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+
+  - id: step_5
+    name: "Validate and write artifact"
+    step_type: local
+    task_class: general_short
+    description: "Write markdown artifact and JSON envelope."
+    input_source: __final_output__
+    output_key: artifact_path
+    failure:
+      strategy: halt
+      retry_count: 0
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "sales_analyzer_output"
+  can_feed_into: []
+  accepts_input_from: []
+
+metadata:
+  generated_by: "skill-factory"
+  factory_version: "E-5"
+  quality_score: null
+  approved_by: null
