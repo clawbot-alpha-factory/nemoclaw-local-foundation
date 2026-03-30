@@ -45,6 +45,11 @@ from app.services.ops_service import OpsService
 from app.api.routers import ops as ops_router
 from app.api.routers import skills as skills_router
 
+# ── Engine (E-2) imports ──
+from app.services.execution_service import ExecutionService
+from app.services.skill_chain_runner import SkillChainRunner
+from app.api.routers import execution as execution_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -206,7 +211,18 @@ async def lifespan(app: FastAPI):
         logger.info("CC-9: ApprovalService initialized")
     except ImportError:
         pass
+
+    # ── E-2: Execution Engine ──
+    _repo_root_engine = Path(__file__).resolve().parents[3]
+    app.state.execution_service = ExecutionService(_repo_root_engine)
+    app.state.chain_runner = SkillChainRunner(app.state.execution_service)
+    await app.state.execution_service.start()
+    logger.info("E-2: ExecutionService + SkillChainRunner started")
+
     yield
+
+    # E-2 shutdown
+    await app.state.execution_service.stop()
 
     # Shutdown
     await ws_manager.stop_broadcasting()
@@ -247,6 +263,9 @@ app.include_router(settings_router.router)  # CC-10
 app.include_router(clients_router.router)  # CC-8
 app.include_router(projects_router.router)  # CC-7
 app.include_router(ops_router.router)  # CC-6
+
+# Engine (E-2)
+app.include_router(execution_router.router)  # E-2: Execution
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
