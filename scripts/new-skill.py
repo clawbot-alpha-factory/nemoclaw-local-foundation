@@ -388,7 +388,7 @@ def gen_readme(args, names, llm, critic):
          '## What It Does', '',
          f'TODO: Describe what {args.name} does.', '',
          '## Usage', '', '```bash',
-         '~/nemoclaw-local-foundation/.venv312/bin/python \\',
+         '~/nemoclaw-local-foundation/.venv313/bin/python \\',
          '  ~/nemoclaw-local-foundation/skills/skill-runner.py \\',
          f'  --skill {args.id} \\',
          '  --input input_text "your input here"', '```', '',
@@ -406,7 +406,7 @@ def gen_readme(args, names, llm, critic):
         L += ['## Critic Loop', '',
               'Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.', '']
     L += ['## Resume', '', '```bash',
-          '~/nemoclaw-local-foundation/.venv312/bin/python \\',
+          '~/nemoclaw-local-foundation/.venv313/bin/python \\',
           '  ~/nemoclaw-local-foundation/skills/skill-runner.py \\',
           f'  --skill {args.id} --thread-id THREAD_ID --resume', '```', '',
           '## Docs', '',

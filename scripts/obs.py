@@ -119,11 +119,11 @@ def check_system_health():
         checks.append(("Docker Desktop", False, "not running"))
 
     # venv312
-    venv = os.path.expanduser("~/nemoclaw-local-foundation/.venv312/bin/python")
+    venv = os.path.expanduser("~/nemoclaw-local-foundation/.venv313/bin/python")
     if os.path.exists(venv):
-        checks.append((".venv312 Python 3.12", True, "present"))
+        checks.append((".venv313 Python 3.12", True, "present"))
     else:
-        checks.append((".venv312 Python 3.12", False, "missing — run setup"))
+        checks.append((".venv313 Python 3.12", False, "missing — run setup"))
 
     # Gateway
     r2 = subprocess.run("openshell gateway info 2>/dev/null",

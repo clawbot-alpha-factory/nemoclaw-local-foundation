@@ -59,24 +59,24 @@ This is the single authoritative record of locked decisions. If a document elsew
 
 ## Locked Decision 3 — Python Runtime
 
-**Decision:** Python 3.12.13 via .venv312
+**Decision:** Python 3.12.13 via .venv313
 
 **Locked in:** Phase 7
 
-**Location:** `~/nemoclaw-local-foundation/.venv312/bin/python`
+**Location:** `~/nemoclaw-local-foundation/.venv313/bin/python`
 
 **What this means:**
 
-- All skill execution uses .venv312/bin/python
+- All skill execution uses .venv313/bin/python
 - System Python 3.14 must not be used for LangGraph workloads (Pydantic V1 incompatibility)
-- .venv312/ is gitignored — recreated on each new machine
+- .venv313/ is gitignored — recreated on each new machine
 - Scripts that don't import LangGraph (validate.py, obs.py, budget-enforcer.py, budget-status.py, tools.py) run on system python3
 
 **Setup:**
 
 ```bash
-/opt/homebrew/bin/python3.12 -m venv .venv312
-.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+/opt/homebrew/bin/python3.12 -m venv .venv313
+.venv313/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
 ```
 
 ---
@@ -247,7 +247,7 @@ These controls are weaker than OS-level enforcement. This is an accepted tradeof
 |---|---|---|---|
 | 1 | Architecture path | LangGraph + Direct API | Phase 6 |
 | 2 | State persistence | LangGraph SqliteSaver | Phase 7 |
-| 3 | Python runtime | 3.12.13 via .venv312 | Phase 7 |
+| 3 | Python runtime | 3.12.13 via .venv313 | Phase 7 |
 | 4 | Model routing | 9 aliases, 10 task classes, 3 providers | Phase 8 |
 | 5 | Budget enforcement | $30/provider, 90% warn, 100% stop | Phase 7 (updated MA-4) |
 | 6 | Skill execution | skill.yaml + run.py + skill-runner.py v4.0 | Phase 9 (updated Tier 1) |

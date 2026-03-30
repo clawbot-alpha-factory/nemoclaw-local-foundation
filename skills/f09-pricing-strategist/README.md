@@ -20,7 +20,7 @@ Takes a product/service description, target market, cost structure, and competit
 ## Usage
 
 ```bash
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill f09-pricing-strategist \
   --input product_description 'AI-powered document analysis SaaS for legal teams. Extracts clauses, flags risks, summarizes contracts.' \
   --input target_market 'Mid-market law firms (50-200 attorneys), corporate legal departments. Market: ~15000 firms in US. Budget: $500-$2000/month for legal tech tools.' \

@@ -25,8 +25,8 @@ echo -e "\n${YELLOW}Starting backend...${NC}"
 cd "$BACKEND_DIR"
 
 # Check for venv
-if [ -d "$HOME/.venv312" ]; then
-    source "$HOME/.venv312/bin/activate"
+if [ -d "$HOME/.venv313" ]; then
+    source "$HOME/.venv313/bin/activate"
 elif [ -d ".venv" ]; then
     source ".venv/bin/activate"
 fi

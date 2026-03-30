@@ -112,7 +112,7 @@ chmod +x command-center/start.sh
 **Backend:**
 ```bash
 cd command-center/backend
-source ~/.venv312/bin/activate
+source ~/.venv313/bin/activate
 pip install -r requirements.txt --break-system-packages
 python run.py --reload
 ```

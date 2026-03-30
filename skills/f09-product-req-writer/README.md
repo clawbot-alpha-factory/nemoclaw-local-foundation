@@ -25,7 +25,7 @@ Takes a product idea, target audience, and business context. Produces a structur
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill f09-product-req-writer \
   --input product_idea 'A skill marketplace where NemoClaw users can browse, install, and rate community-built skills. Skills are versioned packages with YAML configs and Python run files. Users can filter by domain, rating, and compatibility.' \
@@ -75,7 +75,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill f09-product-req-writer --thread-id THREAD_ID --resume
 ```

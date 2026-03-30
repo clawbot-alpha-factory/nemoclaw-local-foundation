@@ -19,7 +19,7 @@ from pathlib import Path
 REPO_BASE = Path.home() / "nemoclaw-local-foundation"
 SKILLS_DIR = REPO_BASE / "skills"
 RUNNER = SKILLS_DIR / "skill-runner.py"
-PYTHON = REPO_BASE / ".venv312" / "bin" / "python3"
+PYTHON = REPO_BASE / ".venv313" / "bin" / "python3"
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
 
 SKIP_DIRS = {"__pycache__", "graph-validation"}

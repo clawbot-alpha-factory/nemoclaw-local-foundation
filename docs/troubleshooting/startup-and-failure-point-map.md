@@ -62,17 +62,17 @@ python3 --version
 # If still wrong, check: /opt/homebrew/bin/python3.12 --version
 ```
 
-### F3 — .venv312 Missing or Corrupt
+### F3 — .venv313 Missing or Corrupt
 
-**Symptom:** `.venv312/bin/python --version` fails or shows wrong version. Skill runs fail with import errors.
+**Symptom:** `.venv313/bin/python --version` fails or shows wrong version. Skill runs fail with import errors.
 
 **Cause:** Venv deleted, corrupted by OS update, or created with wrong Python.
 
 **Fix:**
 ```bash
-rm -rf .venv312
-/opt/homebrew/bin/python3.12 -m venv .venv312
-.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+rm -rf .venv313
+/opt/homebrew/bin/python3.12 -m venv .venv313
+.venv313/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
 ```
 
 ### F4 — Node.js Missing
@@ -225,7 +225,7 @@ mkdir -p skills/research-brief/outputs
 
 **Fix:** Run any skill once to create it:
 ```bash
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill research-brief \
   --input topic "checkpoint test" \
   --input depth brief
@@ -248,16 +248,16 @@ mkdir -p ~/.nemoclaw/checkpoints
 
 **Symptom:** skill-runner.py crashes with `ModuleNotFoundError: No module named 'langgraph'`.
 
-**Cause:** Running with system python3 instead of .venv312, or venv packages not installed.
+**Cause:** Running with system python3 instead of .venv313, or venv packages not installed.
 
 **Fix:** Use the correct Python:
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python skills/skill-runner.py --skill ...
+~/nemoclaw-local-foundation/.venv313/bin/python skills/skill-runner.py --skill ...
 ```
 
 If packages are missing, reinstall:
 ```bash
-.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+.venv313/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
 ```
 
 ---
@@ -290,7 +290,7 @@ test -f ~/.nemoclaw/logs/validation-runs.jsonl && echo "OK" || echo "MISSING"
 
 **Fix:**
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/graph-validation/validate_graph.py
 ```
 
@@ -360,7 +360,7 @@ grep NGC_API_KEY ~/nemoclaw-local-foundation/config/.env | cut -d= -f2 | docker 
 |---|---|---|---|---|
 | F1 | Docker not running | Environment | Blocking | `open -a Docker` |
 | F2 | Python version wrong | Environment | Blocking | `source ~/.zshrc` |
-| F3 | .venv312 missing | Environment | Blocking | Recreate venv |
+| F3 | .venv313 missing | Environment | Blocking | Recreate venv |
 | F4 | Node.js missing | Environment | Warning | `brew install node` |
 | F5 | Env vars not loaded | API Keys | Blocking | Source config/.env |
 | F6 | API key invalid | API Keys | Blocking | Regenerate from provider |
@@ -375,7 +375,7 @@ grep NGC_API_KEY ~/nemoclaw-local-foundation/config/.env | cut -d= -f2 | docker 
 | F15 | Output dir not writable | Skills | Blocking | mkdir outputs |
 | F16 | Checkpoint DB missing | Skills | Warning | Run any skill once |
 | F17 | Skill hangs on API | Skills | Recoverable | Ctrl+C, retry |
-| F18 | LangGraph import error | Skills | Blocking | Use .venv312 python |
+| F18 | LangGraph import error | Skills | Blocking | Use .venv313 python |
 | F19 | obs.py fails | Observability | Warning | Check data sources |
 | F20 | Graph validation fails | Observability | Warning | Check LangGraph version |
 | F21–F25 | Sandbox failures | Sandbox (ref) | Non-blocking | See sandbox section |

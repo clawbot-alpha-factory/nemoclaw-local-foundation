@@ -22,7 +22,7 @@ Procedures are classified in step_1 (startup, verification, recovery, maintenanc
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill c07-runbook-author \
   --input system_description 'NemoClaw local foundation: LangGraph + Direct API, 9-alias routing, budget enforcement, SqliteSaver checkpointing, Docker Desktop sandbox' \
@@ -66,7 +66,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill c07-runbook-author --thread-id THREAD_ID --resume
 ```

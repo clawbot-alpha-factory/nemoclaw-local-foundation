@@ -36,7 +36,7 @@ Run `python3 scripts/validate.py` in these situations:
 python3 scripts/validate.py
 ```
 
-Note: `validate.py` runs on system python3, not `.venv312/bin/python`. It does not import LangGraph or langchain directly.
+Note: `validate.py` runs on system python3, not `.venv313/bin/python`. It does not import LangGraph or langchain directly.
 
 **Expected output when healthy:**
 

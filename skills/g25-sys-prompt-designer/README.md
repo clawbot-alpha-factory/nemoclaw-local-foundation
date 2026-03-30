@@ -54,7 +54,7 @@ Must provide either `skill_yaml` or `llm_steps`.
 
 ```bash
 # From skill.yaml (auto-extract LLM steps)
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill g25-sys-prompt-designer \
   --input skill_purpose 'Competitive intelligence reports with SWOT analysis' \

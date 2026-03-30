@@ -55,7 +55,7 @@ Acceptance: 8/10 · Max improvements: 2
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill g26-skill-spec-writer \
   --input skill_concept 'Takes raw competitor data and produces structured competitive intelligence reports with SWOT analysis, positioning maps, and strategic recommendations' \

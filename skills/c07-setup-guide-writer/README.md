@@ -22,7 +22,7 @@ Audience level (developer, devops, non-technical) controls vocabulary complexity
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill c07-setup-guide-writer \
   --input system_description "NemoClaw local foundation: LangGraph + Direct API on MacBook M1 with Docker Desktop, Python 3.12 venv, 3-provider routing, budget enforcement" \
@@ -57,7 +57,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill c07-setup-guide-writer --thread-id THREAD_ID --resume
 ```

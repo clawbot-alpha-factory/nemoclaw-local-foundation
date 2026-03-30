@@ -24,7 +24,7 @@ Takes a research topic, industry context, specific questions, and known data, th
 ## Usage
 
 ```bash
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill e12-market-research-analyst \
   --input research_topic 'AI-powered legal tech market for mid-market law firms in the US' \
   --input industry_context 'Legal tech is growing. Major players include Kira Systems, Luminance, and ContractPodAi focused on enterprise. Mid-market (50-200 attorney firms) underserved. Regulatory environment requires data security compliance.' \

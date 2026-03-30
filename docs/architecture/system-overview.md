@@ -53,7 +53,7 @@ The foundation layer. Everything runs on a MacBook Apple Silicon M1 with 16GB RA
 
 **Key components:**
 
-- Python 3.12.13 virtual environment at `.venv312/` — isolated from system Python 3.14
+- Python 3.12.13 virtual environment at `.venv313/` — isolated from system Python 3.14
 - Docker Desktop 29+ — required for NemoClaw sandbox (retained, not required for inference)
 - `config/.env` — all API keys and credentials, gitignored
 - `config/.env.example` — placeholder template, committed
@@ -349,13 +349,13 @@ python3 scripts/budget-status.py
 python3 scripts/tools.py
 
 # Run a skill
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic" \
   --input depth standard
 
 # Resume a paused skill
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill research-brief \
   --thread-id THREAD_ID --resume
 
@@ -363,7 +363,7 @@ python3 scripts/tools.py
 bash scripts/fix-sandbox-permissions.sh
 
 # Graph validation
-.venv312/bin/python skills/graph-validation/validate_graph.py
+.venv313/bin/python skills/graph-validation/validate_graph.py
 ```
 
 ---

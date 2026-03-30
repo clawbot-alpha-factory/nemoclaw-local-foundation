@@ -13,7 +13,7 @@ TODO: Describe what Tone Calibrator does.
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill i35-tone-calibrator \
   --input input_text "your input here"
@@ -36,7 +36,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill i35-tone-calibrator --thread-id THREAD_ID --resume
 ```

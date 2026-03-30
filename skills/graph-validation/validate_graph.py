@@ -11,7 +11,7 @@ Tests five LangGraph patterns:
   5. Parallel nodes
 
 No real API calls. No budget enforcer. Pure graph structure validation.
-Run with: .venv312/bin/python skills/graph-validation/validate_graph.py
+Run with: .venv313/bin/python skills/graph-validation/validate_graph.py
 """
 
 import os

@@ -77,22 +77,22 @@ ASANA_ACCESS_TOKEN=your_asana_token
 ## Step 4 — Create Python 3.12 Virtual Environment
 
 ```bash
-/opt/homebrew/bin/python3.12 -m venv .venv312
-.venv312/bin/pip install --upgrade pip
-.venv312/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
+/opt/homebrew/bin/python3.12 -m venv .venv313
+.venv313/bin/pip install --upgrade pip
+.venv313/bin/pip install langgraph langgraph-checkpoint-sqlite langchain-openai langchain-anthropic pyyaml
 ```
 
 Verify:
 
 ```bash
-.venv312/bin/python --version
+.venv313/bin/python --version
 # Expected: Python 3.12.x
 
-.venv312/bin/python -c "import langgraph, langchain_openai, langchain_anthropic, yaml; print('OK')"
+.venv313/bin/python -c "import langgraph, langchain_openai, langchain_anthropic, yaml; print('OK')"
 # Expected: OK — no Pydantic warnings
 ```
 
-**.venv312/ is gitignored** — recreate on each new machine using this step.
+**.venv313/ is gitignored** — recreate on each new machine using this step.
 
 ---
 
@@ -157,7 +157,7 @@ If any checks fail, see `docs/architecture/validation-system.md` for per-check f
 ## Step 9 — Run a Skill (Verification)
 
 ```bash
-.venv312/bin/python skills/skill-runner.py \
+.venv313/bin/python skills/skill-runner.py \
   --skill research-brief \
   --input topic "setup test" \
   --input depth brief
@@ -181,15 +181,15 @@ python3 scripts/tools.py         # External tool status
 
 | Context | Python to Use | Why |
 |---|---|---|
-| Skill execution (skill-runner.py) | .venv312/bin/python | Imports LangGraph, langchain |
-| Graph validation (validate_graph.py) | .venv312/bin/python | Imports LangGraph |
+| Skill execution (skill-runner.py) | .venv313/bin/python | Imports LangGraph, langchain |
+| Graph validation (validate_graph.py) | .venv313/bin/python | Imports LangGraph |
 | validate.py | python3 (system) | No LangGraph imports |
 | obs.py | python3 (system) | No LangGraph imports |
 | budget-enforcer.py | python3 (system) | No LangGraph imports |
 | budget-status.py | python3 (system) | No LangGraph imports |
 | tools.py | python3 (system) | No LangGraph imports |
 
-**Rule:** Only scripts that import LangGraph or langchain require .venv312. All other scripts use system python3.
+**Rule:** Only scripts that import LangGraph or langchain require .venv313. All other scripts use system python3.
 
 ---
 
@@ -197,7 +197,7 @@ python3 scripts/tools.py         # External tool status
 
 | Item | Location | Committed | Notes |
 |---|---|---|---|
-| .venv312/ | Repo root | No (gitignored) | Recreate per machine via Step 4 |
+| .venv313/ | Repo root | No (gitignored) | Recreate per machine via Step 4 |
 | config/.env | config/ | No (gitignored) | Never commit API keys |
 | config/.env.example | config/ | Yes | Template with placeholder values |
 | skills/*/outputs/ | Per skill | No (gitignored) | Artifacts are local only |
@@ -222,7 +222,7 @@ python3 scripts/tools.py         # External tool status
 **After upgrading any dependency:**
 
 1. Run `python3 scripts/validate.py` — confirm 31/31
-2. Run `.venv312/bin/python skills/graph-validation/validate_graph.py` — confirm 5/5 patterns
+2. Run `.venv313/bin/python skills/graph-validation/validate_graph.py` — confirm 5/5 patterns
 3. Run a test skill to confirm end-to-end inference works
 
 ---
@@ -232,7 +232,7 @@ python3 scripts/tools.py         # External tool status
 | Symptom | Cause | Fix |
 |---|---|---|
 | `python3 --version` shows 3.9.6 | New terminal without sourcing zshrc | `source ~/.zshrc` |
-| `.venv312/bin/python --version` shows wrong version | Venv created with wrong Python | Delete .venv312/, recreate with `/opt/homebrew/bin/python3.12 -m venv .venv312` |
+| `.venv313/bin/python --version` shows wrong version | Venv created with wrong Python | Delete .venv313/, recreate with `/opt/homebrew/bin/python3.12 -m venv .venv313` |
 | `import langgraph` fails | Packages not installed in venv | Run Step 4 pip install command |
 | validate.py shows < 31 passing | Env vars not loaded | `set -a && source config/.env && set +a` |
 | Docker checks fail | Docker Desktop not running | `open -a Docker`, wait 60s |
@@ -251,6 +251,6 @@ After completing all steps, confirm:
 - [ ] `python3 scripts/obs.py` → No critical errors
 - [ ] `python3 scripts/budget-status.py` → 3 providers showing, none over budget
 - [ ] Skill test run completed with artifact output
-- [ ] `.venv312/bin/python --version` → Python 3.12.13
+- [ ] `.venv313/bin/python --version` → Python 3.12.13
 
 If all boxes are checked, the environment is ready.

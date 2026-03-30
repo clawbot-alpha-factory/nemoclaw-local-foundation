@@ -566,7 +566,7 @@ def main():
 
   1. Install backend dependencies:
      cd command-center/backend
-     source ~/.venv312/bin/activate
+     source ~/.venv313/bin/activate
      pip install -r requirements.txt --break-system-packages
 
   2. Install frontend dependencies:
@@ -581,7 +581,7 @@ def main():
 
   5. Start backend (Terminal 1):
      cd command-center/backend
-     source ~/.venv312/bin/activate
+     source ~/.venv313/bin/activate
      python run.py --reload
 
   6. Start frontend (Terminal 2):

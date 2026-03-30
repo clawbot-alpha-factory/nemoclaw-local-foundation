@@ -22,7 +22,7 @@ Takes a feature specification, target language, and integration context. Produce
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill b05-feature-impl-writer \
   --input feature_spec 'Build a budget-status CLI tool that reads provider-spend.json, displays per-provider spend with visual bar charts, supports --provider flag to filter, and exits with code 1 if any provider exceeds 90 percent' \
@@ -74,7 +74,7 @@ Other languages use Python-like fallback detection.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill b05-feature-impl-writer --thread-id THREAD_ID --resume
 ```

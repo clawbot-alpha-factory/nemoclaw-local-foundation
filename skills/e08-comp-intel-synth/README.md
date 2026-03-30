@@ -46,7 +46,7 @@ external knowledge, no web access, no fabrication.
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill e08-comp-intel-synth \
   --input competitor_data 'Competitor A: $50M ARR, 200 employees, Series C...' \

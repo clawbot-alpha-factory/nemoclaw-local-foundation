@@ -32,7 +32,7 @@ from pathlib import Path
 
 REPO = Path.home() / "nemoclaw-local-foundation"
 SKILLS_DIR = REPO / "skills"
-PYTHON = str(REPO / ".venv312" / "bin" / "python3")
+PYTHON = str(REPO / ".venv313" / "bin" / "python3")
 RUNNER = str(SKILLS_DIR / "skill-runner.py")
 WORKFLOWS_DIR = REPO / "workflows"
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"

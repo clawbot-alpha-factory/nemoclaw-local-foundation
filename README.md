@@ -17,7 +17,7 @@ A LangGraph-based AI skill execution and multi-agent orchestration system. Built
 
 ## Architecture
 
-**Runtime**: MacBook M1 16GB, macOS Sequoia, Python 3.12.13 (`.venv312`)
+**Runtime**: MacBook M1 16GB, macOS Sequoia, Python 3.12.13 (`.venv313`)
 
 **Core Stack**:
 - LangGraph StateGraph with SqliteSaver checkpointing
@@ -32,7 +32,7 @@ A LangGraph-based AI skill execution and multi-agent orchestration system. Built
 
 ```bash
 # Activate environment
-source .venv312/bin/activate
+source .venv313/bin/activate
 
 # Run a skill
 python3 scripts/skill-runner.py skills/<family>/<skill-id>/skill.yaml --input "Your prompt here"

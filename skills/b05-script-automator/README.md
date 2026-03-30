@@ -28,7 +28,7 @@ Scripts are classified in step_1 (data_pipeline, deployment, maintenance, monito
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill b05-script-automator \
   --input task_description 'Clean up old skill output artifacts older than 30 days from all skill output directories. Delete .md and .json files only. Log what was deleted. Must support dry-run to preview without deleting.' \
@@ -79,7 +79,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill b05-script-automator --thread-id THREAD_ID --resume
 ```

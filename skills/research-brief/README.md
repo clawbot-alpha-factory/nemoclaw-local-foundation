@@ -11,14 +11,14 @@ Takes a topic as input and produces a structured research brief with Background,
 
 ## Usage
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic here" \
   --input depth standard
 ```
 
-**Important:** Use `.venv312/bin/python`, not system python3.
+**Important:** Use `.venv313/bin/python`, not system python3.
 
 ## Inputs
 
@@ -49,7 +49,7 @@ Estimated cost per run: ~$0.017
 
 If a run is interrupted, resume from the last checkpoint:
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --thread-id THREAD_ID \

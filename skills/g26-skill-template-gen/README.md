@@ -47,7 +47,7 @@ Acceptance: 8/10 · Max improvements: 2
 
 ```bash
 # Using skill.yaml content directly
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill g26-skill-template-gen \
   --input skill_yaml "$(cat ~/nemoclaw-local-foundation/skills/i35-tone-calibrator/skill.yaml)" \

@@ -24,7 +24,7 @@ cd ~/nemoclaw-local-foundation
 ### 1.3 Activate the Python 3.12 virtual environment
 
 ```bash
-source .venv312/bin/activate
+source .venv313/bin/activate
 ```
 
 Verify:
@@ -35,7 +35,7 @@ python --version
 
 **Expected:** `Python 3.12.13`
 
-If the output shows any other version (especially 3.14.x), stop. The venv is not activated correctly. Re-run the `source` command and confirm the prompt prefix shows `(.venv312)`.
+If the output shows any other version (especially 3.14.x), stop. The venv is not activated correctly. Re-run the `source` command and confirm the prompt prefix shows `(.venv313)`.
 
 ### 1.4 Verify environment variables load
 
@@ -134,11 +134,11 @@ Use this section when the quick checks in Section 2 pass but something still fee
 ```bash
 # Confirm venv python path
 which python
-# Expected: ~/nemoclaw-local-foundation/.venv312/bin/python
+# Expected: ~/nemoclaw-local-foundation/.venv313/bin/python
 
 # Confirm pip is venv-local
 which pip
-# Expected: ~/nemoclaw-local-foundation/.venv312/bin/pip
+# Expected: ~/nemoclaw-local-foundation/.venv313/bin/pip
 
 # Confirm key packages
 python -c "import langchain; print('langchain', langchain.__version__)"
@@ -373,7 +373,7 @@ Before resuming any workflow or running any skill, confirm ALL of the following:
 ### 7.2 Resume a paused skill run
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic" \
@@ -386,7 +386,7 @@ Before resuming any workflow or running any skill, confirm ALL of the following:
 ### 7.3 Start a fresh skill run (safe default)
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic" \
@@ -418,7 +418,7 @@ Copy this to a sticky note or keep it open in a tab.
 === NemoClaw Cold Start (after reboot) ===
 
 cd ~/nemoclaw-local-foundation
-source .venv312/bin/activate
+source .venv313/bin/activate
 set -a && source config/.env && set +a
 python --version                        # Must be 3.12.13
 python3 scripts/validate.py             # Must be 31/31
@@ -439,7 +439,7 @@ bash scripts/fix-sandbox-permissions.sh
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
-| `python --version` shows 3.14.x | Venv not activated | `source .venv312/bin/activate` |
+| `python --version` shows 3.14.x | Venv not activated | `source .venv313/bin/activate` |
 | `validate.py` shows < 31 | Env vars not loaded or API key expired | Re-source `.env`, check key validity |
 | Permission denied on `openclaw.json` | Sandbox restart reset ownership | `bash scripts/fix-sandbox-permissions.sh` |
 | `docker: command not found` | Colima/Docker not started | `colima start` or launch Docker Desktop |
@@ -472,7 +472,7 @@ Use this procedure to validate the runbook itself after writing or updating it.
 
 6. **Run a live skill to confirm inference works:**
    ```bash
-   ~/nemoclaw-local-foundation/.venv312/bin/python \
+   ~/nemoclaw-local-foundation/.venv313/bin/python \
      ~/nemoclaw-local-foundation/skills/skill-runner.py \
      --skill research-brief \
      --input topic "restart test" \

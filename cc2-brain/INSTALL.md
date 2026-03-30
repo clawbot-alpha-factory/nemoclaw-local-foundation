@@ -90,7 +90,7 @@ python3 cc2-brain/apply_cc2.py
 
 # 3. Install backend deps
 cd command-center/backend
-source ~/.venv312/bin/activate
+source ~/.venv313/bin/activate
 pip install -r requirements.txt --break-system-packages
 
 # 4. Install frontend deps

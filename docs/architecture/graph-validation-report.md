@@ -124,7 +124,7 @@ All 5 patterns are validated and available. The research-brief skill uses linear
 ## How to Re-Run
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/graph-validation/validate_graph.py
 ```
 

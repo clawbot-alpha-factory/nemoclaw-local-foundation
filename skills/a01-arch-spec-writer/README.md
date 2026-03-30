@@ -23,7 +23,7 @@ Takes a subsystem concept, boundaries, integration context, and constraints. Pro
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill a01-arch-spec-writer \
   --input subsystem_name 'Budget Enforcement System' \
@@ -62,7 +62,7 @@ Generate → evaluate → improve loop. Threshold: 8/10. Max improvements: 2.
 ## Resume
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill a01-arch-spec-writer --thread-id THREAD_ID --resume
 ```

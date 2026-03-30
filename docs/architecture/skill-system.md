@@ -243,14 +243,14 @@ routing:
 ### Standard run
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic here" \
   --input depth standard
 ```
 
-**Important:** Use `.venv312/bin/python`, not system python3. skill-runner.py imports LangGraph and langchain, which require Python 3.12.
+**Important:** Use `.venv313/bin/python`, not system python3. skill-runner.py imports LangGraph and langchain, which require Python 3.12.
 
 ### What happens during execution
 
@@ -284,7 +284,7 @@ If a skill run is interrupted (crash, Ctrl+C, reboot), it can be resumed from th
 ### Resume command
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --thread-id skill-research-brief-20260324-121719-ad57cb1c \

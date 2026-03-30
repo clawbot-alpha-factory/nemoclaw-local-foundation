@@ -62,7 +62,7 @@ All fields optional. Unknown keys rejected. Step 1 validates the schema.
 ## Usage
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill g25-output-format-enforcer \
   --input input_text 'Here is the JSON you requested: ```json {"name": "test", "value": 42.5} ``` Hope this helps!' \

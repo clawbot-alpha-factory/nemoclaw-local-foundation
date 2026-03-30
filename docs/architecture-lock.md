@@ -6,7 +6,7 @@ Locked architectural decisions for the NemoClaw Local Foundation. These decision
 
 | # | Decision | Locked Value | Rationale | Locked Date |
 |---|---|---|---|---|
-| L-001 | Python version | 3.12.13 via `.venv312` | Stability + LangGraph compatibility | Phase 1 |
+| L-001 | Python version | 3.12.13 via `.venv313` | Stability + LangGraph compatibility | Phase 1 |
 | L-002 | State management | LangGraph StateGraph + SqliteSaver | Checkpointing + graph-based execution | Phase 6 |
 | L-003 | LLM integration | Direct API via LangChain wrappers | No sandbox overhead, clean provider abstraction | Phase 6 |
 | L-004 | Model routing | 9-alias system via `routing-config.yaml` | Per-use-case model selection without hardcoding | Phase 6 |

@@ -177,12 +177,12 @@ bash scripts/fix-sandbox-permissions.sh
 
 **Purpose:** LangGraph skill execution engine v4.0. Reads a skill.yaml + run.py definition, builds a LangGraph StateGraph, executes steps with budget-enforced routing, checkpoints state, and writes output artifacts.
 
-**Runtime:** `.venv312/bin/python` (requires LangGraph, langchain-openai, langchain-anthropic)
+**Runtime:** `.venv313/bin/python` (requires LangGraph, langchain-openai, langchain-anthropic)
 
 **Usage — new run:**
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --input topic "your topic" \
@@ -192,7 +192,7 @@ bash scripts/fix-sandbox-permissions.sh
 **Usage — resume interrupted run:**
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/skill-runner.py \
   --skill research-brief \
   --thread-id skill-research-brief-20260324-121719-ad57cb1c \
@@ -218,12 +218,12 @@ bash scripts/fix-sandbox-permissions.sh
 
 **Purpose:** Phase 9 test harness that validates 5 LangGraph graph patterns: conditional branching, error branches, retry paths, fallback paths, and parallel nodes.
 
-**Runtime:** `.venv312/bin/python` (requires LangGraph)
+**Runtime:** `.venv313/bin/python` (requires LangGraph)
 
 **Usage:**
 
 ```bash
-~/nemoclaw-local-foundation/.venv312/bin/python \
+~/nemoclaw-local-foundation/.venv313/bin/python \
   ~/nemoclaw-local-foundation/skills/graph-validation/validate_graph.py
 ```
 
@@ -245,8 +245,8 @@ bash scripts/fix-sandbox-permissions.sh
 | budget-status.py | System python3 | No LangGraph imports |
 | tools.py | System python3 | No LangGraph imports |
 | fix-sandbox-permissions.sh | Bash | Shell script |
-| skill-runner.py | .venv312/bin/python | Imports LangGraph, langchain |
-| validate_graph.py | .venv312/bin/python | Imports LangGraph |
+| skill-runner.py | .venv313/bin/python | Imports LangGraph, langchain |
+| validate_graph.py | .venv313/bin/python | Imports LangGraph |
 
 
 ---
