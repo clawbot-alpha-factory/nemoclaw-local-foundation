@@ -64,6 +64,15 @@ from app.services.scheduler_service import SchedulerService
 from app.services.checkpoint_service import CheckpointService
 from app.api.routers import engine as engine_router
 
+# ── Engine (E-4b) imports ──
+from app.services.agent_protocol_service import AgentProtocolService
+from app.services.workspace_service import WorkspaceService
+from app.services.debate_service import DebateService
+from app.services.context_service import ContextService
+from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.feedback_loop_service import FeedbackLoopService
+from app.api.routers import protocol as protocol_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -253,6 +262,20 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint initialized")
 
+    # ── E-4b: Agent Collaboration ──
+    app.state.protocol_service = AgentProtocolService()
+    app.state.workspace_service = WorkspaceService()
+    app.state.debate_service = DebateService()
+    app.state.context_service = ContextService(
+        execution_service=app.state.execution_service,
+        workspace_service=app.state.workspace_service,
+    )
+    app.state.knowledge_base_service = KnowledgeBaseService()
+    app.state.feedback_loop_service = FeedbackLoopService(
+        protocol_service=app.state.protocol_service,
+    )
+    logger.info("E-4b: Protocol + Workspace + Debate + Context + KB + Feedback initialized")
+
     yield
 
     # E-4a shutdown
@@ -307,6 +330,7 @@ app.include_router(ops_router.router)  # CC-6
 app.include_router(execution_router.router)  # E-2: Execution
 app.include_router(orchestrator_router.router)  # E-3: Orchestrator
 app.include_router(engine_router.router)  # E-4a: Engine
+app.include_router(protocol_router.router)  # E-4b: Protocol
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
