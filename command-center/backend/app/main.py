@@ -73,6 +73,17 @@ from app.services.knowledge_base_service import KnowledgeBaseService
 from app.services.feedback_loop_service import FeedbackLoopService
 from app.api.routers import protocol as protocol_router
 
+# ── Engine (E-4c) imports ──
+from app.services.guardrail_service import GuardrailService
+from app.services.alert_service import AlertService
+from app.services.webhook_service import WebhookService
+from app.services.config_service import ConfigService
+from app.services.secret_manager import SecretManager
+from app.services.sla_service import SLAService
+from app.services.audit_service import AuditService
+from app.services.approval_chain_service import ApprovalChainService
+from app.api.routers import enterprise as enterprise_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -276,6 +287,17 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-4b: Protocol + Workspace + Debate + Context + KB + Feedback initialized")
 
+    # ── E-4c: Enterprise Operations ──
+    app.state.config_service = ConfigService()
+    app.state.guardrail_service = GuardrailService(config_service=app.state.config_service)
+    app.state.alert_service = AlertService()
+    app.state.webhook_service = WebhookService(execution_service=app.state.execution_service)
+    app.state.secret_manager = SecretManager()
+    app.state.sla_service = SLAService(alert_service=app.state.alert_service)
+    app.state.audit_service = AuditService()
+    app.state.approval_chain_service = ApprovalChainService(audit_service=app.state.audit_service)
+    logger.info("E-4c: Guardrails + Alerts + Webhooks + Config + Secrets + SLA + Audit + Approvals initialized")
+
     yield
 
     # E-4a shutdown
@@ -331,6 +353,7 @@ app.include_router(execution_router.router)  # E-2: Execution
 app.include_router(orchestrator_router.router)  # E-3: Orchestrator
 app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
+app.include_router(enterprise_router.router)  # E-4c: Enterprise
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
