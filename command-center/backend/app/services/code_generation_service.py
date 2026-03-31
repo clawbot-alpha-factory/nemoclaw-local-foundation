@@ -193,12 +193,14 @@ EXISTING CODEBASE PATTERNS:
 
 REQUIREMENTS:
 - Follow existing code patterns exactly (imports, logging, class structure)
-- Use type hints throughout
+- Use type hints on ALL public methods and function signatures (e.g., def method(self, param: str) -> dict[str, Any]:)
 - Add docstrings to all classes and public methods
-- Include error handling
-- Log important operations
-- Keep under 600 lines
+- Wrap ALL external calls (HTTP, file I/O, subprocess) in try/except with specific error types
+- Every method that can fail must return an error dict, never raise unhandled
+- Log important operations with logger.info/warning/error
+- Keep under 3000 lines
 - Use relative imports: from app.services.X import Y
+- Include from __future__ import annotations at the top
 
 Return ONLY the Python code. No markdown, no explanation."""
 
@@ -244,9 +246,15 @@ REQUIREMENTS:
   1. Import test (module importable)
   2. Instantiation test (class creates without error)
   3. Core functionality test (main method returns expected structure)
-  4. Edge case test (empty input, invalid input)
+  4. Edge case tests:
+     a. Empty/None input handling
+     b. Invalid input (wrong type, malformed data)
+     c. Network error simulation (mock requests to raise ConnectionError)
+     d. Timeout handling
+  5. Return type validation (assert isinstance(result, dict))
 - Use assertions that verify CORRECTNESS, not just "no error"
 - Example: assert "status" in result, assert result["count"] >= 0
+- Mock all external dependencies (HTTP calls, file I/O)
 
 Return ONLY the Python test code. No markdown."""
 
