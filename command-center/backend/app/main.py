@@ -110,6 +110,12 @@ from app.services.ab_test_service import ABTestService
 from app.services.attribution_service import AttributionService
 from app.services.event_bus_service import EventBusService
 from app.api.routers import revenue as revenue_router
+
+# ── Engine (E-11) imports ──
+from app.services.onboarding_service import OnboardingService
+from app.services.deliverable_service import DeliverableService
+from app.services.churn_service import ChurnService
+from app.api.routers import lifecycle as lifecycle_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
 # ── Engine (E-5) imports ──
@@ -386,6 +392,21 @@ async def lifespan(app: FastAPI):
     app.state.attribution_service = AttributionService(global_state=app.state.global_state)
     logger.info("E-10: Revenue Engine initialized (pipeline + catalog + A/B + attribution + events)")
 
+    # ── E-11: Client Lifecycle ──
+    app.state.onboarding_service = OnboardingService(
+        global_state=app.state.global_state,
+        event_bus=app.state.event_bus,
+    )
+    app.state.deliverable_service = DeliverableService(
+        global_state=app.state.global_state,
+        event_bus=app.state.event_bus,
+    )
+    app.state.churn_service = ChurnService(
+        global_state=app.state.global_state,
+        event_bus=app.state.event_bus,
+    )
+    logger.info("E-11: Client Lifecycle initialized (onboarding + deliverables + churn)")
+
     yield
 
     # E-4a shutdown
@@ -447,6 +468,7 @@ app.include_router(self_build_router.router)  # E-7b: Self-Build
 app.include_router(bridges_router.router)  # E-8: Bridges
 app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
 app.include_router(revenue_router.router)  # E-10: Revenue
+app.include_router(lifecycle_router.router)  # E-11: Lifecycle
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
