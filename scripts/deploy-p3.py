@@ -1,4 +1,28 @@
+#!/usr/bin/env python3
 """
+NemoClaw P-3 Deployment: Webhook Dispatch
+
+Replaces: webhook_service.py (full rewrite)
+Patches:  enterprise.py (add 2 endpoints, make receive_webhook async)
+Patches:  main.py (pass activity_log_service to WebhookService)
+
+Run from repo root:
+    cd ~/nemoclaw-local-foundation
+    python3 scripts/deploy-p3.py
+"""
+
+from pathlib import Path
+import sys
+
+BACKEND = Path.home() / "nemoclaw-local-foundation" / "command-center" / "backend"
+
+# ═══════════════════════════════════════════════════════════════════
+# FILE 1: webhook_service.py (FULL REPLACE)
+# ═══════════════════════════════════════════════════════════════════
+
+SERVICE_PATH = BACKEND / "app" / "services" / "webhook_service.py"
+
+SERVICE_CODE = r'''"""
 NemoClaw Execution Engine — WebhookService (P-3)
 
 Queue-backed webhook dispatch with retry, JSONL persistence,
@@ -392,3 +416,198 @@ class WebhookService:
             by_status[e.status] = by_status.get(e.status, 0) + 1
             by_source[e.source] = by_source.get(e.source, 0) + 1
         return {"total": len(self._events), "by_status": by_status, "by_source": by_source}
+'''
+
+# ═══════════════════════════════════════════════════════════════════
+# FILE 2: Patch enterprise.py
+# ═══════════════════════════════════════════════════════════════════
+
+ENTERPRISE_PATH = BACKEND / "app" / "api" / "routers" / "enterprise.py"
+
+# Patch 1: Add Query + Optional imports
+ENT_IMPORT_OLD = "from fastapi import APIRouter, HTTPException, Request"
+ENT_IMPORT_NEW = "from fastapi import APIRouter, HTTPException, Query, Request"
+
+ENT_TYPING_OLD = "from typing import Any"
+ENT_TYPING_NEW = "from typing import Any, Optional"
+
+# Patch 2: Replace webhook section
+ENT_HOOK_OLD = """# ── Webhooks ──
+@router.post("/api/webhooks/{source}")
+async def receive_webhook(source: str, body: WebhookPayload, request: Request) -> dict[str, Any]:
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return svc.process(source, body.event_type, body.data)"""
+
+ENT_HOOK_NEW = '''# ── Webhooks (P-3: queue-backed dispatch) ──
+@router.get("/api/webhooks/history")
+async def webhook_history(
+    request: Request,
+    source: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    after: Optional[str] = Query(None),
+    before: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Query webhook event history with filters and pagination."""
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return svc.get_history(source=source, status=status, after=after, before=before, limit=limit, offset=offset)
+
+@router.get("/api/webhooks/dead-letter")
+async def webhook_dead_letter(request: Request, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Get webhook events that exhausted retries."""
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return svc.get_dead_letter(limit=limit)
+
+@router.post("/api/webhooks/{source}")
+async def receive_webhook(source: str, body: WebhookPayload, request: Request) -> dict[str, Any]:
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return await svc.process(source, body.event_type, body.data)'''
+
+# ═══════════════════════════════════════════════════════════════════
+# FILE 3: Patch main.py
+# ═══════════════════════════════════════════════════════════════════
+
+MAIN_PATH = BACKEND / "app" / "main.py"
+
+MAIN_OLD = '    app.state.webhook_service = WebhookService(execution_service=app.state.execution_service)'
+
+MAIN_NEW = '''    app.state.webhook_service = WebhookService(
+        execution_service=app.state.execution_service,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+    )'''
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DEPLOY
+# ═══════════════════════════════════════════════════════════════════
+
+def deploy():
+    errors = []
+
+    # 1. Replace service
+    print("1/3 Replacing webhook_service.py...")
+    SERVICE_PATH.write_text(SERVICE_CODE.strip() + "\n")
+    try:
+        compile(SERVICE_PATH.read_text(), str(SERVICE_PATH), "exec")
+        print("  ✅ Compiles")
+    except SyntaxError as e:
+        errors.append(f"Service: {e}")
+        print(f"  ❌ {e}")
+
+    # 2. Patch enterprise router
+    print("2/3 Patching enterprise.py...")
+    content = ENTERPRISE_PATH.read_text()
+    patched = 0
+
+    if "Query" not in content.split("from fastapi")[1].split("\n")[0]:
+        content = content.replace(ENT_IMPORT_OLD, ENT_IMPORT_NEW)
+        patched += 1
+    else:
+        print("  ⚠️ Query import exists")
+        patched += 1
+
+    if "Optional" not in content:
+        content = content.replace(ENT_TYPING_OLD, ENT_TYPING_NEW)
+        patched += 1
+    else:
+        print("  ⚠️ Optional import exists")
+        patched += 1
+
+    if "webhook_history" not in content:
+        if ENT_HOOK_OLD in content:
+            content = content.replace(ENT_HOOK_OLD, ENT_HOOK_NEW)
+            patched += 1
+        else:
+            errors.append("Webhook endpoint patch target not found")
+            print("  ❌ Webhook patch target missing")
+    else:
+        print("  ⚠️ Webhook endpoints already patched")
+        patched += 1
+
+    ENTERPRISE_PATH.write_text(content)
+    try:
+        compile(ENTERPRISE_PATH.read_text(), str(ENTERPRISE_PATH), "exec")
+        print(f"  ✅ Compiles ({patched}/3 patches)")
+    except SyntaxError as e:
+        errors.append(f"Enterprise: {e}")
+        print(f"  ❌ {e}")
+
+    # 3. Patch main.py
+    print("3/3 Patching main.py...")
+    content = MAIN_PATH.read_text()
+
+    if "activity_log_service" not in content.split("webhook_service = WebhookService")[1].split("\n")[0]:
+        if MAIN_OLD in content:
+            content = content.replace(MAIN_OLD, MAIN_NEW)
+        else:
+            errors.append("main.py webhook init target not found")
+            print("  ❌ Target not found")
+    else:
+        print("  ⚠️ Already patched")
+
+    MAIN_PATH.write_text(content)
+    try:
+        compile(MAIN_PATH.read_text(), str(MAIN_PATH), "exec")
+        print("  ✅ Compiles")
+    except SyntaxError as e:
+        errors.append(f"main.py: {e}")
+        print(f"  ❌ {e}")
+
+    # Summary
+    print()
+    if errors:
+        print(f"⛔ {len(errors)} ERRORS:")
+        for e in errors:
+            print(f"  - {e}")
+        sys.exit(1)
+    else:
+        print("✅ P-3 deployed successfully")
+        print()
+        print("Restart backend, then validate:")
+        print()
+        print('  TOKEN=$(cat ~/.nemoclaw/cc-token)')
+        print()
+        print('  # Send webhook (known handler)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print('    -d \'{"event_type":"email_reply","data":{"from":"test@example.com","subject":"Re: Hello"}}\' \\')
+        print('    http://127.0.0.1:8100/api/webhooks/instantly | python3 -m json.tool')
+        print()
+        print('  # Send webhook (unknown source)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print('    -d \'{"event_type":"test","data":{}}\' \\')
+        print('    http://127.0.0.1:8100/api/webhooks/unknown_source | python3 -m json.tool')
+        print()
+        print('  # Duplicate (send same payload again — should return "duplicate")')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print('    -d \'{"event_type":"email_reply","data":{"from":"test@example.com","subject":"Re: Hello"}}\' \\')
+        print('    http://127.0.0.1:8100/api/webhooks/instantly | python3 -m json.tool')
+        print()
+        print('  # History')
+        print('  curl -s -H "Authorization: Bearer $TOKEN" \\')
+        print('    http://127.0.0.1:8100/api/webhooks/history | python3 -m json.tool')
+        print()
+        print('  # History filtered by source')
+        print('  curl -s -H "Authorization: Bearer $TOKEN" \\')
+        print('    "http://127.0.0.1:8100/api/webhooks/history?source=instantly" | python3 -m json.tool')
+        print()
+        print('  # Dead-letter (should be empty)')
+        print('  curl -s -H "Authorization: Bearer $TOKEN" \\')
+        print('    http://127.0.0.1:8100/api/webhooks/dead-letter | python3 -m json.tool')
+        print()
+        print('  # Activity log should have webhook entries')
+        print('  curl -s -H "Authorization: Bearer $TOKEN" \\')
+        print('    "http://127.0.0.1:8100/api/activity/?category=bridge" | python3 -m json.tool')
+        print()
+        print('  bash scripts/full_regression.sh')
+        print()
+        print('  git add -A && git status')
+        print('  git commit -m "feat(engine): P-3 webhook dispatch — queue-backed, HMAC, dedup, retry, dead-letter, JSONL persistence"')
+        print('  git push origin main')
+
+
+if __name__ == "__main__":
+    deploy()

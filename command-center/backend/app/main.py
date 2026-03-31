@@ -355,7 +355,10 @@ async def lifespan(app: FastAPI):
     app.state.config_service = ConfigService()
     app.state.guardrail_service = GuardrailService(config_service=app.state.config_service)
     app.state.alert_service = AlertService()
-    app.state.webhook_service = WebhookService(execution_service=app.state.execution_service)
+    app.state.webhook_service = WebhookService(
+        execution_service=app.state.execution_service,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+    )
     app.state.secret_manager = SecretManager()
     app.state.sla_service = SLAService(alert_service=app.state.alert_service)
     app.state.audit_service = AuditService()

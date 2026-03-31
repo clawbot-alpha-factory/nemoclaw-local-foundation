@@ -7,8 +7,8 @@ NEW FILE: command-center/backend/app/api/routers/enterprise.py
 """
 from __future__ import annotations
 import logging
-from typing import Any
-from fastapi import APIRouter, HTTPException, Request
+from typing import Any, Optional
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 logger = logging.getLogger("cc.api.enterprise")
@@ -69,11 +69,31 @@ async def get_alerts(request: Request, severity: str = "") -> dict[str, Any]:
     alerts = _svc(request, "alert_service", "AlertService").get_alerts(severity=severity)
     return {"alerts": alerts, "total": len(alerts)}
 
-# ── Webhooks ──
+# ── Webhooks (P-3: queue-backed dispatch) ──
+@router.get("/api/webhooks/history")
+async def webhook_history(
+    request: Request,
+    source: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    after: Optional[str] = Query(None),
+    before: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Query webhook event history with filters and pagination."""
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return svc.get_history(source=source, status=status, after=after, before=before, limit=limit, offset=offset)
+
+@router.get("/api/webhooks/dead-letter")
+async def webhook_dead_letter(request: Request, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Get webhook events that exhausted retries."""
+    svc = _svc(request, "webhook_service", "WebhookService")
+    return svc.get_dead_letter(limit=limit)
+
 @router.post("/api/webhooks/{source}")
 async def receive_webhook(source: str, body: WebhookPayload, request: Request) -> dict[str, Any]:
     svc = _svc(request, "webhook_service", "WebhookService")
-    return svc.process(source, body.event_type, body.data)
+    return await svc.process(source, body.event_type, body.data)
 
 # ── SLA ──
 @router.get("/api/sla/projects")
