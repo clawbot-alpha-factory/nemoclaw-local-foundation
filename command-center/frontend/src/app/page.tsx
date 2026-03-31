@@ -5,10 +5,10 @@ import CommsTab from '../components/CommsTab';
 import AgentsTab from '../components/AgentsTab';
 import SkillsTab from '../components/SkillsTab';
 import ApprovalsTab from '../components/ApprovalsTab';
-import SettingsTab from '../components/ApprovalsTab';
 import ClientsTab from '../components/ClientsTab';
 import ProjectsTab from '../components/ProjectsTab';
 import OpsTab from '../components/OpsTab';
+import ExecutionTab from '../components/ExecutionTab';
 
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
@@ -37,64 +37,27 @@ export default function CommandCenter() {
             onRefresh={refresh}
           />
         )}
+        {activeTab === 'communications' && <CommsTab />}
+        {activeTab === 'agents' && <AgentsTab />}
+        {activeTab === 'skills' && <SkillsTab />}
+        {activeTab === 'operations' && <OpsTab />}
+        {activeTab === 'execution' && <ExecutionTab />}
+        {activeTab === 'approvals' && <ApprovalsTab />}
+        {activeTab === 'clients' && <ClientsTab />}
+        {activeTab === 'projects' && <ProjectsTab />}
 
-        {activeTab === 'communications' && (
-          <CommsTab />
-        )}
-
-        {activeTab === 'agents' && (
-          <AgentsTab />
-        )}
-          {activeTab === 'skills' && <SkillsTab />}
-
-        {activeTab !== 'home' && activeTab !== 'communications' && activeTab !== 'agents' && (
+        {!['home', 'communications', 'agents', 'skills', 'operations',
+           'execution', 'approvals', 'clients', 'projects'].includes(activeTab) && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="text-sm text-nc-text-dim">
-                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'approvals' && <ApprovalsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-          {activeTab === 'clients' && <ClientsTab />}
-          {activeTab === 'clients' && <ClientsTab />}
-          {activeTab === 'clients' && <ClientsTab />}
-          {activeTab === 'clients' && <ClientsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
-          {activeTab === 'operations' && <OpsTab />}
-          {activeTab === 'operations' && <OpsTab />}
-          {activeTab === 'operations' && <OpsTab />}
-          {activeTab === 'operations' && <OpsTab />}
-          {activeTab === 'operations' && <OpsTab />}
-          {activeTab === 'operations' && <OpsTab />} — Coming in CC-{getPhase(activeTab)}
+                {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} — Coming Soon
               </div>
             </div>
           </div>
         )}
       </main>
-        <BrainSidebar />
+      <BrainSidebar />
     </div>
   );
-}
-
-function getPhase(tab: TabId): string {
-  const phases: Record<TabId, string> = {
-    home: '1', communications: '3', agents: '4', skills: '5',
-    operations: '6', finance: '6', projects: '7', clients: '8',
-    approvals: '9', intelligence: '9', settings: '10', playground: '10',
-  };
-  return phases[tab] || '?';
 }

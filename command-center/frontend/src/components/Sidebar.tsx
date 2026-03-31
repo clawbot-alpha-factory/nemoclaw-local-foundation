@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agents', label: 'Agents', emoji: '🤖', disabled: false },
   { id: 'skills', label: 'Skills', emoji: '⚡', disabled: false },
   { id: 'operations', label: 'Ops', emoji: '📊', disabled: false },
+  { id: 'execution', label: 'Engine', emoji: '🚀', disabled: false },
   { id: 'finance', label: 'Finance', emoji: '💰', disabled: false },
   { id: 'projects', label: 'Projects', emoji: '📋', disabled: false },
   { id: 'clients', label: 'Clients', emoji: '🏢', disabled: false },
