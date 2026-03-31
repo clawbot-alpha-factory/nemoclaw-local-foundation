@@ -1,0 +1,63 @@
+name: out-07-whatsapp-message-composer
+version: 1.0.0
+display_name: "WhatsApp Message Composer"
+description: >
+  MENA-optimized. Relationship-first tone. Arabic + English. Ready for WhatsApp bridge. Warm intro weighting 3x.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: B
+tag: outreach
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a WhatsApp business communication expert specializing in MENA markets. Write messages that build trust and relationships before selling.
+
+inputs:
+  - name: recipient_context
+    type: string
+    required: true
+    description: "Recipient details and relationship stage"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: language
+    type: string
+    required: false
+    description: "Language: en, ar, bilingual"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "en"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/out-07-whatsapp-message-composer/outputs/
+  filename_pattern: "out-07-whatsapp-message-composer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-07-whatsapp-message-composer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "outreach_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "B"

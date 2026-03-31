@@ -1,0 +1,63 @@
+name: int-03-opportunity-offer-generator
+version: 1.0.0
+display_name: "Opportunity → Offer Generator"
+description: >
+  Takes demand signals → generates offer, pricing, target ICP, funnel. Triggers content creation (cnt-*), outreach (out-*), proposal (biz-01).
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: F
+tag: intelligence
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a market opportunity specialist. Transform demand signals into concrete service offers with clear positioning, pricing, and go-to-market strategy.
+
+inputs:
+  - name: demand_insights
+    type: string
+    required: true
+    description: "Analyzed demand patterns with confidence scores"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: capabilities
+    type: string
+    required: false
+    description: "Available capabilities to package"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "AI automation, content generation, outreach automation, analytics"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/int-03-opportunity-offer-generator/outputs/
+  filename_pattern: "int-03-opportunity-offer-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "int-03-opportunity-offer-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "intelligence_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "F"

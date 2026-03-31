@@ -1,0 +1,63 @@
+name: scl-07-cross-channel-scheduler
+version: 1.0.0
+display_name: "Cross-Channel Scheduler"
+description: >
+  Takes content queue → schedules across all channels at optimal times. Bridge-ready for Buffer/Hootsuite APIs.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a social media scheduling specialist. Optimize posting times per platform and coordinate cross-channel distribution.
+
+inputs:
+  - name: content_queue
+    type: string
+    required: true
+    description: "Content pieces ready for scheduling"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: timezone
+    type: string
+    required: false
+    description: "Target timezone"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "Asia/Amman"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-07-cross-channel-scheduler/outputs/
+  filename_pattern: "scl-07-cross-channel-scheduler_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-07-cross-channel-scheduler_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "scale_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

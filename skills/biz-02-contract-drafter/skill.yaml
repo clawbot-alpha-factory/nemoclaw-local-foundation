@@ -1,0 +1,63 @@
+name: biz-02-contract-drafter
+version: 1.0.0
+display_name: "Contract Drafter"
+description: >
+  SOW/MSA from proposal. Customizable clauses. MENA-aware legal terms.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a contract drafting specialist. Create clear, professional service agreements with appropriate legal protections for both parties.
+
+inputs:
+  - name: proposal_summary
+    type: string
+    required: true
+    description: "Approved proposal details: scope, pricing, timeline"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: jurisdiction
+    type: string
+    required: false
+    description: "Legal jurisdiction"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "Jordan/MENA"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/biz-02-contract-drafter/outputs/
+  filename_pattern: "biz-02-contract-drafter_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-02-contract-drafter_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "business_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

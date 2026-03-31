@@ -1,0 +1,75 @@
+name: biz-06-upsell-opportunity-detector
+version: 1.0.0
+display_name: "Upsell Opportunity Detector"
+description: >
+  Analyzes client usage + needs → identifies expansion revenue. Outputs specific upsell proposal. Enforced action output.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are an expansion revenue specialist. Identify upsell opportunities based on client behavior and unmet needs.
+
+inputs:
+  - name: client_usage_data
+    type: string
+    required: true
+    description: "Client usage patterns, current services, satisfaction"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: service_catalog
+    type: string
+    required: false
+    description: "Available services for upsell"
+    validation:
+      min_length: 5
+      max_length: 10000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/biz-06-upsell-opportunity-detector/outputs/
+  filename_pattern: "biz-06-upsell-opportunity-detector_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-06-upsell-opportunity-detector_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "business_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

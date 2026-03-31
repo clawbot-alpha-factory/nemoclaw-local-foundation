@@ -1,0 +1,63 @@
+name: biz-03-invoice-generator
+version: 1.0.0
+display_name: "Invoice Generator"
+description: >
+  From contract → invoice with payment link (Lemon Squeezy bridge ready). Professional formatting.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are an invoicing specialist. Generate clear, professional invoices with payment links and proper business details.
+
+inputs:
+  - name: contract_details
+    type: string
+    required: true
+    description: "Contract details: client, services, amounts, payment terms"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: payment_method
+    type: string
+    required: false
+    description: "Payment provider for link generation"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "lemon_squeezy"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/biz-03-invoice-generator/outputs/
+  filename_pattern: "biz-03-invoice-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-03-invoice-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "business_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

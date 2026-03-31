@@ -1,0 +1,63 @@
+name: scl-10-micro-saas-generator
+version: 1.0.0
+display_name: "Micro SaaS Generator"
+description: >
+  Detects repeated problem from demand signals. Generates tool idea, landing page, MVP spec, deployment plan. Turns service revenue into product revenue. Bridge-ready for no-code APIs.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: scale
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a micro-SaaS product architect. Identify repeatable problems and design minimal viable products that can be built and launched in days, not months.
+
+inputs:
+  - name: problem_pattern
+    type: string
+    required: true
+    description: "Repeated problem detected from demand signals with volume data"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: build_constraint
+    type: string
+    required: false
+    description: "Build approach: no_code_first, api_integration, full_build"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "no_code_first"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-10-micro-saas-generator/outputs/
+  filename_pattern: "scl-10-micro-saas-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-10-micro-saas-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "scale_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

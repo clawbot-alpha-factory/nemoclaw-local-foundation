@@ -1,0 +1,76 @@
+name: cnt-07-content-performance-analyzer
+version: 1.0.0
+display_name: "Content Performance Analyzer"
+description: >
+  Tracks which content drives leads, engagement, revenue. Enforced output: insight + recommended_action + trigger_skill.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: C
+tag: content
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a content analytics expert. Connect content performance to business outcomes and recommend specific optimizations.
+
+inputs:
+  - name: content_metrics
+    type: string
+    required: true
+    description: "Per-content metrics: views, engagement, leads, revenue"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: period
+    type: string
+    required: false
+    description: "Analysis period"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "last_7_days"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/cnt-07-content-performance-analyzer/outputs/
+  filename_pattern: "cnt-07-content-performance-analyzer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-07-content-performance-analyzer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

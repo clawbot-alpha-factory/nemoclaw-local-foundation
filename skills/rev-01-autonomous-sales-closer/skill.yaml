@@ -1,0 +1,63 @@
+name: rev-01-autonomous-sales-closer
+version: 1.0.0
+display_name: "Autonomous Sales Closer"
+description: >
+  Multi-step deal progression: qualify, pitch, handle objections, propose, close. Chains 5+ skills per deal. Thread-aware conversation memory. Triggers out-02 Email Executor, WhatsApp bridge, calendar hooks.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are an elite B2B sales closer. You manage entire deal cycles from first touch to signed contract. You are persistent, empathetic, and strategic.
+
+inputs:
+  - name: lead_data
+    type: string
+    required: true
+    description: "Lead information: name, company, role, pain points, engagement history"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: offer_context
+    type: string
+    required: false
+    description: "What we're selling"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "NemoClaw AI automation services"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-01-autonomous-sales-closer/outputs/
+  filename_pattern: "rev-01-autonomous-sales-closer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-01-autonomous-sales-closer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "revenue_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

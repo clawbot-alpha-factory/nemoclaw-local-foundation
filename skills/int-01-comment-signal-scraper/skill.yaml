@@ -1,0 +1,63 @@
+name: int-01-comment-signal-scraper
+version: 1.0.0
+display_name: "Comment & Signal Scraper"
+description: >
+  Scrapes IG/TikTok/YouTube/Twitter comments from competitors and influencers. Extracts raw demand signals. Apify/Puppeteer bridge-ready.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: F
+tag: intelligence
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a social listening specialist. Extract raw demand signals from public comments and discussions across social platforms.
+
+inputs:
+  - name: targets
+    type: string
+    required: true
+    description: "Accounts/posts to scrape: URLs, usernames, hashtags"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: platforms
+    type: string
+    required: false
+    description: "Platforms to scan"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "instagram,tiktok,youtube,twitter"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/int-01-comment-signal-scraper/outputs/
+  filename_pattern: "int-01-comment-signal-scraper_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "int-01-comment-signal-scraper_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "intelligence_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "F"

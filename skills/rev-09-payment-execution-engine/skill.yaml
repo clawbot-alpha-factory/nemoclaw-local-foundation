@@ -1,0 +1,63 @@
+name: rev-09-payment-execution-engine
+version: 1.0.0
+display_name: "Payment Execution Engine"
+description: >
+  Sends payment links (Lemon Squeezy/Stripe), tracks payment status, triggers onboarding when paid, handles retries for failed payments.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a payment operations specialist. Generate payment links, track status, and ensure seamless payment-to-onboarding transitions.
+
+inputs:
+  - name: invoice_data
+    type: string
+    required: true
+    description: "Invoice details: client, amount, services, terms"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: payment_provider
+    type: string
+    required: false
+    description: "Payment provider"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "lemon_squeezy"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-09-payment-execution-engine/outputs/
+  filename_pattern: "rev-09-payment-execution-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-09-payment-execution-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

@@ -1,0 +1,75 @@
+name: int-04-reality-check-engine
+version: 1.0.0
+display_name: "Reality Check Engine"
+description: >
+  Challenges assumptions. Cross-checks demand vs actual conversions. Prevents false positives and vanity metric traps. Can output trigger_skill: null to STOP revenue cycle.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: F
+tag: intelligence
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a critical analyst and devil's advocate. Challenge every assumption with data. Your job is to prevent the system from chasing false opportunities.
+
+inputs:
+  - name: opportunity_data
+    type: string
+    required: true
+    description: "Opportunity details with demand signals, engagement data, conversion data"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: historical_results
+    type: string
+    required: false
+    description: "Past similar opportunities and their outcomes"
+    validation:
+      min_length: 5
+      max_length: 10000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/int-04-reality-check-engine/outputs/
+  filename_pattern: "int-04-reality-check-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "int-04-reality-check-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "intelligence_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "F"

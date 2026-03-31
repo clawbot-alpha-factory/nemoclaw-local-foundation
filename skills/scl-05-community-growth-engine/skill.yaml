@@ -1,0 +1,63 @@
+name: scl-05-community-growth-engine
+version: 1.0.0
+display_name: "Community Growth Engine"
+description: >
+  Content strategy + engagement rules + member acquisition sequence + retention triggers. Full community lifecycle.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a community growth specialist. Design systems that attract, engage, and retain community members as a revenue channel.
+
+inputs:
+  - name: community_vision
+    type: string
+    required: true
+    description: "Community purpose, target members, platform"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: platform
+    type: string
+    required: false
+    description: "Community platform"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "discord"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-05-community-growth-engine/outputs/
+  filename_pattern: "scl-05-community-growth-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-05-community-growth-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "scale_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

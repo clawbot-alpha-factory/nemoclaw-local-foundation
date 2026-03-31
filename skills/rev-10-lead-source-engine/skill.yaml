@@ -1,0 +1,63 @@
+name: rev-10-lead-source-engine
+version: 1.0.0
+display_name: "Lead Source Engine"
+description: >
+  Pulls leads from Apollo, LinkedIn, website inbound, referrals. Feeds directly into rev-02 Lead Qualification Engine. Closes top-of-funnel gap.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a lead generation strategist. Identify and aggregate leads from all available sources, prioritize by quality, and feed into the qualification pipeline.
+
+inputs:
+  - name: target_icp
+    type: string
+    required: true
+    description: "Target ICP for lead sourcing"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: sources
+    type: string
+    required: false
+    description: "Lead sources to activate"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "apollo,linkedin,inbound,referral"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-10-lead-source-engine/outputs/
+  filename_pattern: "rev-10-lead-source-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-10-lead-source-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

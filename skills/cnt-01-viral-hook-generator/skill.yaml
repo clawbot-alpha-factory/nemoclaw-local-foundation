@@ -1,0 +1,63 @@
+name: cnt-01-viral-hook-generator
+version: 1.0.0
+display_name: "Viral Hook Generator"
+description: >
+  Pattern-based hooks for reels/TikTok/shorts. 10 hooks per topic. Uses proven viral frameworks: curiosity gap, contrarian, story open.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: C
+tag: content
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a viral content strategist. Generate scroll-stopping hooks using proven psychological frameworks that drive engagement.
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: "Content topic or key message"
+    validation:
+      min_length: 5
+      max_length: 2000
+  - name: platform
+    type: string
+    required: false
+    description: "Target platform"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "instagram_reels"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-01-viral-hook-generator/outputs/
+  filename_pattern: "cnt-01-viral-hook-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-01-viral-hook-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

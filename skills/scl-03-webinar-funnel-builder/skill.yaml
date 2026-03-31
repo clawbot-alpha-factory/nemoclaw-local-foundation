@@ -1,0 +1,62 @@
+name: scl-03-webinar-funnel-builder
+version: 1.0.0
+display_name: "Webinar Funnel Builder"
+description: >
+  Full funnel: landing page copy → registration sequence → reminder emails → webinar script → follow-up sequence → offer.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a webinar marketing expert. Build complete webinar funnels that convert registrants into paying customers.
+
+inputs:
+  - name: webinar_topic
+    type: string
+    required: true
+    description: "Webinar topic and value proposition"
+    validation:
+      min_length: 10
+      max_length: 2000
+  - name: target_audience
+    type: string
+    required: true
+    description: "Who should attend"
+    validation:
+      min_length: 10
+      max_length: 2000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-03-webinar-funnel-builder/outputs/
+  filename_pattern: "scl-03-webinar-funnel-builder_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-03-webinar-funnel-builder_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "scale_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

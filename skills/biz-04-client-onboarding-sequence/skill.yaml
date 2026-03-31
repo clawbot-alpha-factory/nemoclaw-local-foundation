@@ -1,0 +1,63 @@
+name: biz-04-client-onboarding-sequence
+version: 1.0.0
+display_name: "Client Onboarding Sequence"
+description: >
+  Payment confirmed → welcome email (Resend) → setup checklist → first deliverable schedule → 7-day check-in. Bridge-connected.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a client onboarding specialist. Design seamless onboarding sequences that set expectations and deliver early value.
+
+inputs:
+  - name: client_info
+    type: string
+    required: true
+    description: "New client details: name, service purchased, start date"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: service_type
+    type: string
+    required: false
+    description: "Service purchased"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "ai_automation"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/biz-04-client-onboarding-sequence/outputs/
+  filename_pattern: "biz-04-client-onboarding-sequence_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-04-client-onboarding-sequence_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "business_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

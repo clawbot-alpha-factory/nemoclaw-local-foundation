@@ -1,0 +1,62 @@
+name: scl-04-podcast-guest-pitch-writer
+version: 1.0.0
+display_name: "Podcast Guest Pitch Writer"
+description: >
+  Personalized pitches for podcast appearances. Includes talking points, bio, value prop for host's audience.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a podcast PR specialist. Write pitches that show hosts exactly why their audience needs to hear from you.
+
+inputs:
+  - name: podcast_info
+    type: string
+    required: true
+    description: "Podcast name, host, audience, recent episodes"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: expertise
+    type: string
+    required: true
+    description: "Your expertise and unique angle"
+    validation:
+      min_length: 10
+      max_length: 2000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-04-podcast-guest-pitch-writer/outputs/
+  filename_pattern: "scl-04-podcast-guest-pitch-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-04-podcast-guest-pitch-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "scale_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

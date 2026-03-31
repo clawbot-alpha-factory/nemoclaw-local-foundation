@@ -1,0 +1,63 @@
+name: scl-08-revenue-dashboard-generator
+version: 1.0.0
+display_name: "Revenue Dashboard Generator"
+description: >
+  Auto-generates weekly revenue report: pipeline value, conversion rates, channel ROI, forecast, action items.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a revenue reporting specialist. Create clear, actionable dashboards that executives can use to make decisions in 5 minutes.
+
+inputs:
+  - name: revenue_data
+    type: string
+    required: true
+    description: "Revenue metrics: pipeline, conversions, spend, revenue"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: report_type
+    type: string
+    required: false
+    description: "Report frequency"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "weekly"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-08-revenue-dashboard-generator/outputs/
+  filename_pattern: "scl-08-revenue-dashboard-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-08-revenue-dashboard-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "scale_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

@@ -1,0 +1,63 @@
+name: cnt-05-youtube-script-writer
+version: 1.0.0
+display_name: "YouTube Script Writer"
+description: >
+  Full script: hook → intro → 3-5 sections → CTA → end screen. SEO-optimized title + description + tags.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: C
+tag: content
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a YouTube content strategist. Write scripts that retain viewers from first second to final CTA with clear structure and SEO optimization.
+
+inputs:
+  - name: video_topic
+    type: string
+    required: true
+    description: "Video topic and target keyword"
+    validation:
+      min_length: 10
+      max_length: 2000
+  - name: video_length
+    type: string
+    required: false
+    description: "Target video length"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "10min"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-05-youtube-script-writer/outputs/
+  filename_pattern: "cnt-05-youtube-script-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-05-youtube-script-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "content_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

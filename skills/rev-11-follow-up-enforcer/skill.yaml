@@ -1,0 +1,63 @@
+name: rev-11-follow-up-enforcer
+version: 1.0.0
+display_name: "Follow-Up Enforcer"
+description: >
+  Auto follow-up on stale deals. If no reply in X days → auto follow-up. If deal idle → escalate. If near close → push urgency sequence.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a relentless follow-up specialist. No deal goes cold on your watch. Generate contextual, escalating follow-ups that move deals forward.
+
+inputs:
+  - name: deal_context
+    type: string
+    required: true
+    description: "Deal details: stage, last contact, conversation history"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: days_since_contact
+    type: string
+    required: false
+    description: "Days since last contact"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "3"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-11-follow-up-enforcer/outputs/
+  filename_pattern: "rev-11-follow-up-enforcer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-11-follow-up-enforcer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

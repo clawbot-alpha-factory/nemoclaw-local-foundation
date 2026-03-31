@@ -1,0 +1,128 @@
+# NemoClaw E-9 Skill Catalog
+skills:
+
+  - id: "rev-16-speed-to-revenue-optimizer"
+    name: "Speed-to-Revenue Optimizer"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-16-speed-to-revenue-optimizer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-17-demand-signal-miner"
+    name: "Demand Signal Miner"
+    status: built
+    type: executor
+    directory: "skills/rev-17-demand-signal-miner"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-18-instant-offer-launcher"
+    name: "Instant Offer Launcher"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-18-instant-offer-launcher"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-19-system-learning-engine"
+    name: "System Learning Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-19-system-learning-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-01-affiliate-program-engine"
+    name: "Affiliate Program Engine"
+    status: built
+    type: generator
+    directory: "skills/scl-01-affiliate-program-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-02-partnership-proposal-writer"
+    name: "Partnership Proposal Writer"
+    status: built
+    type: generator
+    directory: "skills/scl-02-partnership-proposal-writer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-03-webinar-funnel-builder"
+    name: "Webinar Funnel Builder"
+    status: built
+    type: orchestrator
+    directory: "skills/scl-03-webinar-funnel-builder"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-04-podcast-guest-pitch-writer"
+    name: "Podcast Guest Pitch Writer"
+    status: built
+    type: generator
+    directory: "skills/scl-04-podcast-guest-pitch-writer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-05-community-growth-engine"
+    name: "Community Growth Engine"
+    status: built
+    type: orchestrator
+    directory: "skills/scl-05-community-growth-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-06-growth-experiment-designer"
+    name: "Growth Experiment Designer"
+    status: built
+    type: generator
+    directory: "skills/scl-06-growth-experiment-designer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-07-cross-channel-scheduler"
+    name: "Cross-Channel Scheduler"
+    status: built
+    type: orchestrator
+    directory: "skills/scl-07-cross-channel-scheduler"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-08-revenue-dashboard-generator"
+    name: "Revenue Dashboard Generator"
+    status: built
+    type: generator
+    directory: "skills/scl-08-revenue-dashboard-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-09-niche-domination-engine"
+    name: "Niche Domination Engine"
+    status: built
+    type: orchestrator
+    directory: "skills/scl-09-niche-domination-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "scl-10-micro-saas-generator"
+    name: "Micro SaaS Generator"
+    status: built
+    type: orchestrator
+    directory: "skills/scl-10-micro-saas-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9

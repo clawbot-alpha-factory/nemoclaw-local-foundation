@@ -1,0 +1,76 @@
+name: rev-05-funnel-conversion-analyzer
+version: 1.0.0
+display_name: "Funnel Conversion Analyzer"
+description: >
+  Identifies where leads drop off. Outputs bottleneck report + fix recommendations per stage. Enforced action output.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a funnel optimization expert. Identify conversion bottlenecks and produce specific, actionable fixes.
+
+inputs:
+  - name: funnel_data
+    type: string
+    required: true
+    description: "Stage-by-stage conversion data"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: funnel_type
+    type: string
+    required: false
+    description: "Funnel type: sales, content, onboarding"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "sales"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/rev-05-funnel-conversion-analyzer/outputs/
+  filename_pattern: "rev-05-funnel-conversion-analyzer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-05-funnel-conversion-analyzer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

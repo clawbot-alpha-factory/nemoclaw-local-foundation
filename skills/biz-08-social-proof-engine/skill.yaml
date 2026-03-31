@@ -1,0 +1,63 @@
+name: biz-08-social-proof-engine
+version: 1.0.0
+display_name: "Social Proof Engine"
+description: >
+  Auto-generates case studies, testimonials from real outputs, before/after results. Injects into landing pages, outreach, proposals. Conversion multiplier across entire system.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: business
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a social proof specialist. Transform raw client results into compelling proof assets that accelerate trust and conversion at every touchpoint.
+
+inputs:
+  - name: client_results
+    type: string
+    required: true
+    description: "Raw client outcomes: metrics, feedback, deliverables completed"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: output_formats
+    type: string
+    required: false
+    description: "Proof formats to generate"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "case_study,testimonial,before_after,quote_card"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/biz-08-social-proof-engine/outputs/
+  filename_pattern: "biz-08-social-proof-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-08-social-proof-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "business_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

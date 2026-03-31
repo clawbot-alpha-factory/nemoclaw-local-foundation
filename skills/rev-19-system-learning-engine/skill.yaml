@@ -1,0 +1,76 @@
+name: rev-19-system-learning-engine
+version: 1.0.0
+display_name: "System Learning Engine"
+description: >
+  Tracks which skills lead to revenue, which sequences close deals, which content drives pipeline. Adjusts orchestrator priorities, sequence selection, offer focus. Turns static automation into adaptive intelligence. Persists to ~/.nemoclaw/system-learnings.json.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: revenue
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a machine learning operations analyst. Identify causal patterns between system actions and revenue outcomes. Recommend priority changes based on what actually works.
+
+inputs:
+  - name: system_performance_data
+    type: string
+    required: true
+    description: "Full system metrics: skill executions, outcomes, revenue events, conversion data"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: learning_period
+    type: string
+    required: false
+    description: "Analysis period"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "last_7_days"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/rev-19-system-learning-engine/outputs/
+  filename_pattern: "rev-19-system-learning-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-19-system-learning-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "revenue_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

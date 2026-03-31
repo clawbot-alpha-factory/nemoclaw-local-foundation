@@ -1,0 +1,76 @@
+name: cnt-10-viral-pattern-analyzer
+version: 1.0.0
+display_name: "Viral Pattern Analyzer"
+description: >
+  Scrapes top-performing posts. Extracts hook structures, sentence patterns, topic clusters, format types. Removes guesswork from content. Feeds cnt-01 hooks, cnt-02/03 scripts. Enforced action output.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: content
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a viral content scientist. Reverse-engineer why content goes viral by analyzing patterns across thousands of top-performing posts.
+
+inputs:
+  - name: platform_data
+    type: string
+    required: true
+    description: "Top-performing posts with engagement metrics"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: niche
+    type: string
+    required: false
+    description: "Content niche"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "B2B SaaS"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/cnt-10-viral-pattern-analyzer/outputs/
+  filename_pattern: "cnt-10-viral-pattern-analyzer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-10-viral-pattern-analyzer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "content_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

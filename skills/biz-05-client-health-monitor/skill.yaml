@@ -1,0 +1,76 @@
+name: biz-05-client-health-monitor
+version: 1.0.0
+display_name: "Client Health Monitor"
+description: >
+  Scores client satisfaction 0-100. Tracks deliverable completion, response times, sentiment. Triggers proactive outreach on decline.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a client success analyst. Monitor health indicators and flag at-risk clients before they churn.
+
+inputs:
+  - name: client_data
+    type: string
+    required: true
+    description: "Client engagement data: deliverables, communications, feedback"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: threshold
+    type: string
+    required: false
+    description: "Health score threshold for intervention"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "70"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/biz-05-client-health-monitor/outputs/
+  filename_pattern: "biz-05-client-health-monitor_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-05-client-health-monitor_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "business_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

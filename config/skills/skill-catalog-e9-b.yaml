@@ -1,0 +1,137 @@
+# NemoClaw E-9 Skill Catalog
+skills:
+
+  - id: "cnt-08-cross-channel-distributor"
+    name: "Cross-Channel Distributor"
+    status: built
+    type: orchestrator
+    directory: "skills/cnt-08-cross-channel-distributor"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-09-social-posting-executor"
+    name: "Social Posting Executor"
+    status: built
+    type: executor
+    directory: "skills/cnt-09-social-posting-executor"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-10-viral-pattern-analyzer"
+    name: "Viral Pattern Analyzer"
+    status: built
+    type: analyzer
+    directory: "skills/cnt-10-viral-pattern-analyzer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "int-01-comment-signal-scraper"
+    name: "Comment & Signal Scraper"
+    status: built
+    type: executor
+    directory: "skills/int-01-comment-signal-scraper"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "int-02-demand-pattern-analyzer"
+    name: "Demand Pattern Analyzer"
+    status: built
+    type: analyzer
+    directory: "skills/int-02-demand-pattern-analyzer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "int-03-opportunity-offer-generator"
+    name: "Opportunity → Offer Generator"
+    status: built
+    type: orchestrator
+    directory: "skills/int-03-opportunity-offer-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "int-04-reality-check-engine"
+    name: "Reality Check Engine"
+    status: built
+    type: analyzer
+    directory: "skills/int-04-reality-check-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-01-multi-touch-sequence-builder"
+    name: "Multi-Touch Sequence Builder"
+    status: built
+    type: generator
+    directory: "skills/out-01-multi-touch-sequence-builder"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-02-email-executor"
+    name: "Email Executor"
+    status: built
+    type: executor
+    directory: "skills/out-02-email-executor"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-03-linkedin-action-planner"
+    name: "LinkedIn Action Planner"
+    status: built
+    type: generator
+    directory: "skills/out-03-linkedin-action-planner"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-04-follow-up-intelligence"
+    name: "Follow-Up Intelligence"
+    status: built
+    type: analyzer
+    directory: "skills/out-04-follow-up-intelligence"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-05-outreach-personalization-engine"
+    name: "Outreach Personalization Engine"
+    status: built
+    type: transformer
+    directory: "skills/out-05-outreach-personalization-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-06-campaign-performance-optimizer"
+    name: "Campaign Performance Optimizer"
+    status: built
+    type: analyzer
+    directory: "skills/out-06-campaign-performance-optimizer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-07-whatsapp-message-composer"
+    name: "WhatsApp Message Composer"
+    status: built
+    type: generator
+    directory: "skills/out-07-whatsapp-message-composer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "out-08-comment-conversion-engine"
+    name: "Comment Conversion Engine"
+    status: built
+    type: executor
+    directory: "skills/out-08-comment-conversion-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9

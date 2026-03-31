@@ -1,0 +1,137 @@
+# NemoClaw E-9 Skill Catalog
+skills:
+
+  - id: "biz-01-proposal-generator"
+    name: "Proposal Generator"
+    status: built
+    type: generator
+    directory: "skills/biz-01-proposal-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-02-contract-drafter"
+    name: "Contract Drafter"
+    status: built
+    type: generator
+    directory: "skills/biz-02-contract-drafter"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-03-invoice-generator"
+    name: "Invoice Generator"
+    status: built
+    type: generator
+    directory: "skills/biz-03-invoice-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-04-client-onboarding-sequence"
+    name: "Client Onboarding Sequence"
+    status: built
+    type: orchestrator
+    directory: "skills/biz-04-client-onboarding-sequence"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-05-client-health-monitor"
+    name: "Client Health Monitor"
+    status: built
+    type: analyzer
+    directory: "skills/biz-05-client-health-monitor"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-06-upsell-opportunity-detector"
+    name: "Upsell Opportunity Detector"
+    status: built
+    type: analyzer
+    directory: "skills/biz-06-upsell-opportunity-detector"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-07-competitive-intelligence-monitor"
+    name: "Competitive Intelligence Monitor"
+    status: built
+    type: analyzer
+    directory: "skills/biz-07-competitive-intelligence-monitor"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "biz-08-social-proof-engine"
+    name: "Social Proof Engine"
+    status: built
+    type: generator
+    directory: "skills/biz-08-social-proof-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-01-viral-hook-generator"
+    name: "Viral Hook Generator"
+    status: built
+    type: generator
+    directory: "skills/cnt-01-viral-hook-generator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-02-instagram-reel-script-writer"
+    name: "Instagram Reel Script Writer"
+    status: built
+    type: generator
+    directory: "skills/cnt-02-instagram-reel-script-writer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-03-tiktok-content-engine"
+    name: "TikTok Content Engine"
+    status: built
+    type: generator
+    directory: "skills/cnt-03-tiktok-content-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-04-content-repurposer"
+    name: "Content Repurposer"
+    status: built
+    type: transformer
+    directory: "skills/cnt-04-content-repurposer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-05-youtube-script-writer"
+    name: "YouTube Script Writer"
+    status: built
+    type: generator
+    directory: "skills/cnt-05-youtube-script-writer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-06-content-calendar-builder"
+    name: "Content Calendar Builder"
+    status: built
+    type: generator
+    directory: "skills/cnt-06-content-calendar-builder"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "cnt-07-content-performance-analyzer"
+    name: "Content Performance Analyzer"
+    status: built
+    type: analyzer
+    directory: "skills/cnt-07-content-performance-analyzer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9

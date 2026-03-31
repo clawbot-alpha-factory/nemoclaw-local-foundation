@@ -1,0 +1,63 @@
+name: scl-02-partnership-proposal-writer
+version: 1.0.0
+display_name: "Partnership Proposal Writer"
+description: >
+  Co-marketing, integration, white-label proposals. Personalized per partner.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: E
+tag: scale
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a partnership development specialist. Create compelling partnership proposals that demonstrate clear mutual value.
+
+inputs:
+  - name: partner_info
+    type: string
+    required: true
+    description: "Potential partner details and synergies"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: partnership_type
+    type: string
+    required: false
+    description: "Type: co_marketing, integration, white_label, referral"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "co_marketing"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/scl-02-partnership-proposal-writer/outputs/
+  filename_pattern: "scl-02-partnership-proposal-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "scl-02-partnership-proposal-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "scale_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "E"

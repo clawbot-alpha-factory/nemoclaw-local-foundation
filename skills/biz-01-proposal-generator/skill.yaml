@@ -1,0 +1,62 @@
+name: biz-01-proposal-generator
+version: 1.0.0
+display_name: "Proposal Generator"
+description: >
+  Client-specific proposals with scope, pricing from catalog, timeline, case studies, terms. Uses rev-08 Agentic Service Packager output.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: D
+tag: business
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a proposal writing expert. Create compelling, professional proposals that clearly communicate value, scope, and pricing.
+
+inputs:
+  - name: client_needs
+    type: string
+    required: true
+    description: "Client requirements and pain points"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: services
+    type: string
+    required: true
+    description: "Services to propose with pricing"
+    validation:
+      min_length: 10
+      max_length: 5000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/biz-01-proposal-generator/outputs/
+  filename_pattern: "biz-01-proposal-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "biz-01-proposal-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "business_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "D"

@@ -1,0 +1,62 @@
+name: out-01-multi-touch-sequence-builder
+version: 1.0.0
+display_name: "Multi-Touch Sequence Builder"
+description: >
+  Full 7-day sequence: Day 1 email → Day 2 LinkedIn view → Day 3 connect → Day 5 follow-up → Day 7 objection handler → Day 10 break-up email.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: B
+tag: outreach
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a multi-channel outreach strategist. Design sequences that combine email, LinkedIn, and follow-ups into a cohesive conversion journey.
+
+inputs:
+  - name: prospect_profile
+    type: string
+    required: true
+    description: "Target prospect details and pain points"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: value_prop
+    type: string
+    required: true
+    description: "Core value proposition"
+    validation:
+      min_length: 10
+      max_length: 2000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/out-01-multi-touch-sequence-builder/outputs/
+  filename_pattern: "out-01-multi-touch-sequence-builder_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-01-multi-touch-sequence-builder_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "outreach_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "B"

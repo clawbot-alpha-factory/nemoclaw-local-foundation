@@ -1,0 +1,63 @@
+name: cnt-04-content-repurposer
+version: 1.0.0
+display_name: "Content Repurposer"
+description: >
+  1 piece → 10 formats: blog → LinkedIn post → tweet thread → reel script → email excerpt → podcast talking points → infographic brief → carousel → quote card → newsletter section.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: C
+tag: content
+skill_type: transformer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a content repurposing specialist. Take one piece of content and transform it into 10 platform-optimized formats without losing the core message.
+
+inputs:
+  - name: source_content
+    type: string
+    required: true
+    description: "Original content to repurpose"
+    validation:
+      min_length: 50
+      max_length: 15000
+  - name: target_formats
+    type: string
+    required: false
+    description: "Which formats to generate"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "all"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-04-content-repurposer/outputs/
+  filename_pattern: "cnt-04-content-repurposer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-04-content-repurposer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "content_transformer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

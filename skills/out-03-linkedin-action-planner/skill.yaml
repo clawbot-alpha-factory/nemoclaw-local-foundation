@@ -1,0 +1,63 @@
+name: out-03-linkedin-action-planner
+version: 1.0.0
+display_name: "LinkedIn Action Planner"
+description: >
+  Generates connection requests, InMail messages, comment strategies. Ready for LinkedIn bridge.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: B
+tag: outreach
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a LinkedIn outreach specialist. Create personalized connection requests and messages that start real conversations.
+
+inputs:
+  - name: prospect_linkedin
+    type: string
+    required: true
+    description: "Prospect LinkedIn info: name, headline, recent activity"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: approach
+    type: string
+    required: false
+    description: "Approach: warm_connection, inmail, comment_first"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "warm_connection"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/out-03-linkedin-action-planner/outputs/
+  filename_pattern: "out-03-linkedin-action-planner_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-03-linkedin-action-planner_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "outreach_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "B"

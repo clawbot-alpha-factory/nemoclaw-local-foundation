@@ -1,0 +1,75 @@
+name: rev-15-playbook-memory-engine
+version: 1.0.0
+display_name: "Playbook Memory Engine"
+description: >
+  Stores winning campaigns, failed experiments, best offers, top channels per niche. System stops starting from zero. Persists to ~/.nemoclaw/playbooks.json.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a strategic memory analyst. Extract patterns from past successes and failures to build reusable playbooks that compound over time.
+
+inputs:
+  - name: campaign_results
+    type: string
+    required: true
+    description: "Recent campaign/experiment results with outcomes"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: existing_playbooks
+    type: string
+    required: false
+    description: "Current playbook entries for context"
+    validation:
+      min_length: 5
+      max_length: 10000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/rev-15-playbook-memory-engine/outputs/
+  filename_pattern: "rev-15-playbook-memory-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-15-playbook-memory-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

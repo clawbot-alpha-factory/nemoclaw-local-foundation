@@ -1,0 +1,63 @@
+name: rev-18-instant-offer-launcher
+version: 1.0.0
+display_name: "Instant Offer Launcher"
+description: >
+  Full loop: demand signal → generate offer → create landing page → deploy payment link → start outreach → activate content loop → engage sales closer. Zero human intervention from detection to revenue.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: revenue
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a rapid offer deployment specialist. Take validated demand signals and launch complete revenue systems in minutes, not days.
+
+inputs:
+  - name: demand_signal
+    type: string
+    required: true
+    description: "Validated demand signal with urgency score and target ICP"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: speed_mode
+    type: string
+    required: false
+    description: "Launch speed: fast (24h), standard (72h), thorough (1wk)"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "fast"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-18-instant-offer-launcher/outputs/
+  filename_pattern: "rev-18-instant-offer-launcher_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-18-instant-offer-launcher_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: premium
+
+composable:
+  output_type: "revenue_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

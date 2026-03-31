@@ -1,0 +1,137 @@
+# NemoClaw E-9 Skill Catalog
+skills:
+
+  - id: "rev-01-autonomous-sales-closer"
+    name: "Autonomous Sales Closer"
+    status: built
+    type: executor
+    directory: "skills/rev-01-autonomous-sales-closer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-02-lead-qualification-engine"
+    name: "Lead Qualification Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-02-lead-qualification-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-03-revenue-attribution-analyzer"
+    name: "Revenue Attribution Analyzer"
+    status: built
+    type: analyzer
+    directory: "skills/rev-03-revenue-attribution-analyzer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-04-offer-optimization-engine"
+    name: "Offer Optimization Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-04-offer-optimization-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-05-funnel-conversion-analyzer"
+    name: "Funnel Conversion Analyzer"
+    status: built
+    type: analyzer
+    directory: "skills/rev-05-funnel-conversion-analyzer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-06-revenue-orchestrator"
+    name: "Revenue Orchestrator"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-06-revenue-orchestrator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-07-deal-progression-tracker"
+    name: "Deal Progression Tracker"
+    status: built
+    type: tracker
+    directory: "skills/rev-07-deal-progression-tracker"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-08-agentic-service-packager"
+    name: "Agentic Service Packager"
+    status: built
+    type: generator
+    directory: "skills/rev-08-agentic-service-packager"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-09-payment-execution-engine"
+    name: "Payment Execution Engine"
+    status: built
+    type: executor
+    directory: "skills/rev-09-payment-execution-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-10-lead-source-engine"
+    name: "Lead Source Engine"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-10-lead-source-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-11-follow-up-enforcer"
+    name: "Follow-Up Enforcer"
+    status: built
+    type: executor
+    directory: "skills/rev-11-follow-up-enforcer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-12-risk-capital-allocator"
+    name: "Risk & Capital Allocator"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-12-risk-capital-allocator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-13-live-experiment-runner"
+    name: "Live Experiment Runner"
+    status: built
+    type: executor
+    directory: "skills/rev-13-live-experiment-runner"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-14-revenue-loop-enforcer"
+    name: "Revenue Loop Enforcer"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-14-revenue-loop-enforcer"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9
+
+  - id: "rev-15-playbook-memory-engine"
+    name: "Playbook Memory Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-15-playbook-memory-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9

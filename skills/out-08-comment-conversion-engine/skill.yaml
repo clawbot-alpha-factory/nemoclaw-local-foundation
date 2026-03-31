@@ -1,0 +1,63 @@
+name: out-08-comment-conversion-engine
+version: 1.0.0
+display_name: "Comment Conversion Engine"
+description: >
+  Monitors comments via Apify. Detects questions, pain, interest signals. Auto-replies publicly (value-first), DMs when appropriate, routes hot leads to Sales Closer. Free inbound lead capture at scale.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: outreach
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a social engagement specialist. Turn public comments into private conversations and pipeline opportunities. Always lead with value, never spam.
+
+inputs:
+  - name: monitored_accounts
+    type: string
+    required: true
+    description: "Accounts/posts to monitor for comments"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: response_tone
+    type: string
+    required: false
+    description: "Response tone: helpful_expert, casual, authoritative"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "helpful_expert"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/out-08-comment-conversion-engine/outputs/
+  filename_pattern: "out-08-comment-conversion-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-08-comment-conversion-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "outreach_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

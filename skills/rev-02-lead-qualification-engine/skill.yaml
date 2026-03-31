@@ -1,0 +1,76 @@
+name: rev-02-lead-qualification-engine
+version: 1.0.0
+display_name: "Lead Qualification Engine"
+description: >
+  Scores leads on ICP fit, intent signals, engagement, timing. Outputs priority tier (hot/warm/cold/disqualify). Feeds into sales closer.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a lead qualification specialist. Score leads precisely using ICP criteria, behavioral signals, and buying intent indicators.
+
+inputs:
+  - name: lead_data
+    type: string
+    required: true
+    description: "Lead details to qualify"
+    validation:
+      min_length: 10
+      max_length: 10000
+  - name: icp_criteria
+    type: string
+    required: false
+    description: "ICP definition"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "B2B SaaS, 10-500 employees, MENA or global, needs automation"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/rev-02-lead-qualification-engine/outputs/
+  filename_pattern: "rev-02-lead-qualification-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-02-lead-qualification-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

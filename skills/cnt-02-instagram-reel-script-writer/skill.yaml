@@ -1,0 +1,63 @@
+name: cnt-02-instagram-reel-script-writer
+version: 1.0.0
+display_name: "Instagram Reel Script Writer"
+description: >
+  Full reel: hook (3s) → context (10s) → value (20s) → CTA (5s). Caption + hashtags + posting time.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: C
+tag: content
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are an Instagram Reels content creator. Write scripts that capture attention in 3 seconds and deliver value in under 60 seconds.
+
+inputs:
+  - name: topic
+    type: string
+    required: true
+    description: "Reel topic"
+    validation:
+      min_length: 5
+      max_length: 2000
+  - name: cta_goal
+    type: string
+    required: false
+    description: "Call to action goal"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "follow_and_dm"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-02-instagram-reel-script-writer/outputs/
+  filename_pattern: "cnt-02-instagram-reel-script-writer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-02-instagram-reel-script-writer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

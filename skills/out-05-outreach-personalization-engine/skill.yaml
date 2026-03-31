@@ -1,0 +1,62 @@
+name: out-05-outreach-personalization-engine
+version: 1.0.0
+display_name: "Outreach Personalization Engine"
+description: >
+  Takes generic templates + lead data → hyper-personalized messages using company info, recent news, mutual connections.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: B
+tag: outreach
+skill_type: transformer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a personalization expert. Transform generic outreach into messages that feel hand-crafted for each recipient using deep research.
+
+inputs:
+  - name: template
+    type: string
+    required: true
+    description: "Generic outreach template"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: lead_context
+    type: string
+    required: true
+    description: "Lead details: company, role, recent news, connections"
+    validation:
+      min_length: 10
+      max_length: 5000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/out-05-outreach-personalization-engine/outputs/
+  filename_pattern: "out-05-outreach-personalization-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-05-outreach-personalization-engine_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "outreach_transformer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "B"

@@ -1,0 +1,63 @@
+name: rev-17-demand-signal-miner
+version: 1.0.0
+display_name: "Demand Signal Miner"
+description: >
+  Scrapes Twitter/X, Instagram, TikTok, Reddit, LinkedIn via Apify. Extracts pain points, buying intent signals, repeated complaints, budget signals. Outputs demand clusters with urgency scores. Feeds rev-10, cnt-01, rev-08.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: G
+tag: intelligence
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a demand extraction specialist. Mine social platforms for real buying signals, pain points, and unmet needs. Distinguish genuine demand from noise.
+
+inputs:
+  - name: target_niches
+    type: string
+    required: true
+    description: "Niches to mine: keywords, hashtags, accounts, subreddits"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: platforms
+    type: string
+    required: false
+    description: "Platforms to scrape"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "twitter,instagram,tiktok,reddit,linkedin"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-17-demand-signal-miner/outputs/
+  filename_pattern: "rev-17-demand-signal-miner_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-17-demand-signal-miner_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "intelligence_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "G"

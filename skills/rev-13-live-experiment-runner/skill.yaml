@@ -1,0 +1,63 @@
+name: rev-13-live-experiment-runner
+version: 1.0.0
+display_name: "Live Experiment Runner"
+description: >
+  Runs A/B tests live: subject lines, offers, hooks. Routes traffic 50/50, collects results in real-time, declares winners with confidence scores.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: A
+tag: revenue
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are an experimentation specialist. Design, execute, and analyze A/B tests with statistical rigor. Declare winners only with sufficient confidence.
+
+inputs:
+  - name: experiment_spec
+    type: string
+    required: true
+    description: "What to test: variants, success metric, sample size"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: confidence_threshold
+    type: string
+    required: false
+    description: "Statistical confidence required to declare winner"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "0.90"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/rev-13-live-experiment-runner/outputs/
+  filename_pattern: "rev-13-live-experiment-runner_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-13-live-experiment-runner_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "revenue_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "A"

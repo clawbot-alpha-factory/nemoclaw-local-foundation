@@ -1,0 +1,76 @@
+name: out-06-campaign-performance-optimizer
+version: 1.0.0
+display_name: "Campaign Performance Optimizer"
+description: >
+  Analyzes open rates, reply rates, conversion per variant. Kills losers, scales winners. Enforced action output with trigger_skill.
+author: NemoClaw Factory E-9
+created: 2026-03-31
+language: en
+
+tier: B
+tag: outreach
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a campaign optimization specialist. Analyze performance data and make decisive recommendations: kill, scale, or iterate.
+
+inputs:
+  - name: campaign_data
+    type: string
+    required: true
+    description: "Campaign metrics: sends, opens, replies, conversions per variant"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: min_sample_size
+    type: string
+    required: false
+    description: "Minimum sample before declaring winner"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "50"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+  - name: insight
+    type: string
+    description: "Key insight from analysis"
+  - name: recommended_action
+    type: string
+    description: "Specific action to take"
+  - name: trigger_skill
+    type: string
+    description: "Skill ID to trigger (or null to stop)"
+  - name: confidence
+    type: float
+    description: "Confidence score 0-1"
+
+artifacts:
+  storage_location: skills/out-06-campaign-performance-optimizer/outputs/
+  filename_pattern: "out-06-campaign-performance-optimizer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "out-06-campaign-performance-optimizer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "outreach_analyzer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "B"
