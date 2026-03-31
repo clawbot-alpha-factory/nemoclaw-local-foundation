@@ -8,7 +8,7 @@ NEW FILE: command-center/backend/app/api/routers/autonomous.py
 from __future__ import annotations
 import logging
 from typing import Any
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 logger = logging.getLogger("cc.api.autonomous")
 router = APIRouter(prefix="/api/autonomous", tags=["autonomous"])
@@ -71,6 +71,67 @@ async def get_decision_log(request: Request, limit: int = 50) -> dict[str, Any]:
     """Get decision→action→result chain log."""
     return {"log": _svc(request, "autonomous_loop").get_decision_log(limit)}
 
+
+
+
+# ── Metrics Time-Range Aggregation (P-6) ──
+
+@router.get("/metrics/range")
+async def metrics_range(
+    request: Request,
+    after: str = "",
+    before: str = "",
+) -> dict[str, Any]:
+    """Query metric snapshots within a date range."""
+    if not after or not before:
+        raise HTTPException(400, "Both 'after' and 'before' query params required (ISO date)")
+    svc = _svc(request, "metrics_service")
+    try:
+        snapshots = svc.query_range(after, before)
+        return {"after": after, "before": before, "count": len(snapshots), "snapshots": snapshots}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@router.get("/metrics/aggregate")
+async def metrics_aggregate(
+    request: Request,
+    preset: str = "",
+    after: str = "",
+    before: str = "",
+) -> dict[str, Any]:
+    """Aggregate metrics over a time range or preset period."""
+    svc = _svc(request, "metrics_service")
+    try:
+        if preset:
+            # Preset returns comparison (includes aggregation for both periods)
+            return svc.get_period_preset(preset)
+        elif after and before:
+            return svc.aggregate(after, before)
+        else:
+            raise HTTPException(400, "Provide 'preset' (24h/7d/30d/90d) or 'after' + 'before' params")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@router.get("/metrics/compare")
+async def metrics_compare(
+    request: Request,
+    preset: str = "",
+    a_after: str = "",
+    a_before: str = "",
+    b_after: str = "",
+    b_before: str = "",
+) -> dict[str, Any]:
+    """Compare metrics between two time periods."""
+    svc = _svc(request, "metrics_service")
+    try:
+        if preset:
+            return svc.get_period_preset(preset)
+        elif a_after and a_before and b_after and b_before:
+            return svc.compare_periods(a_after, a_before, b_after, b_before)
+        else:
+            raise HTTPException(400, "Provide 'preset' or all four params: a_after, a_before, b_after, b_before")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 @router.get("/prompt-optimization")
 async def get_prompt_optimization(request: Request) -> dict[str, Any]:

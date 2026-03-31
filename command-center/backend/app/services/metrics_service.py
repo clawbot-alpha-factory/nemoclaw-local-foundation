@@ -176,3 +176,193 @@ class MetricsService:
     def get_trends(self, days: int = 7) -> list[dict[str, Any]]:
         """Get metric trends over N days."""
         return self._snapshots[-days:]
+
+    # ── Time-Range Aggregation (P-6) ────────────────────────────────
+
+    MAX_RANGE_DAYS = 365
+
+    def query_range(self, after: str, before: str) -> list[dict[str, Any]]:
+        """Return snapshots within date range. Inclusive after, exclusive before, UTC.
+
+        Snapshots sorted ascending by date.
+        """
+        results = []
+        for snap in self._snapshots:
+            date = snap.get("date", "")
+            if not date:
+                continue
+            if date >= after and date < before:
+                results.append(snap)
+        results.sort(key=lambda s: s.get("date", ""))
+        return results
+
+    def aggregate(self, after: str, before: str) -> dict[str, Any]:
+        """Compute avg/min/max/sum/count/first/last/trend/change_pct per numeric metric.
+
+        Only aggregates fields that are int or float. Skips strings, dicts, lists.
+        Division-by-zero guarded: change_pct = None when first is 0.
+        Empty ranges return zeroed aggregation with count=0.
+        """
+        # Validate range
+        self._validate_range(after, before)
+
+        snapshots = self.query_range(after, before)
+        count = len(snapshots)
+
+        if count == 0:
+            return {
+                "after": after,
+                "before": before,
+                "count": 0,
+                "metrics": {},
+                "note": "No snapshots in range",
+            }
+
+        # Collect numeric fields
+        numeric_keys: set[str] = set()
+        for snap in snapshots:
+            for k, v in snap.items():
+                if isinstance(v, (int, float)) and k != "date":
+                    numeric_keys.add(k)
+
+        metrics: dict[str, Any] = {}
+        for key in sorted(numeric_keys):
+            values = []
+            for snap in snapshots:
+                v = snap.get(key)
+                if isinstance(v, (int, float)):
+                    values.append(float(v))
+
+            if not values:
+                continue
+
+            first_val = values[0]
+            last_val = values[-1]
+            avg_val = sum(values) / len(values)
+
+            # Trend: compare first vs last
+            if last_val > first_val:
+                trend = "up"
+            elif last_val < first_val:
+                trend = "down"
+            else:
+                trend = "flat"
+
+            # Change pct: guard division by zero
+            if first_val != 0:
+                change_pct = round((last_val - first_val) / abs(first_val) * 100, 2)
+            else:
+                change_pct = None
+
+            metrics[key] = {
+                "avg": round(avg_val, 4),
+                "min": round(min(values), 4),
+                "max": round(max(values), 4),
+                "sum": round(sum(values), 4),
+                "count": len(values),
+                "first": first_val,
+                "last": last_val,
+                "trend": trend,
+                "change_pct": change_pct,
+            }
+
+        return {
+            "after": after,
+            "before": before,
+            "count": count,
+            "metrics": metrics,
+        }
+
+    def compare_periods(
+        self,
+        a_after: str, a_before: str,
+        b_after: str, b_before: str,
+    ) -> dict[str, Any]:
+        """Compare two date ranges. Returns delta + pct_change per metric.
+
+        Includes count mismatch warning if sample sizes differ >50%.
+        """
+        agg_a = self.aggregate(a_after, a_before)
+        agg_b = self.aggregate(b_after, b_before)
+
+        comparison: dict[str, Any] = {}
+        all_keys = set(agg_a.get("metrics", {}).keys()) | set(agg_b.get("metrics", {}).keys())
+
+        for key in sorted(all_keys):
+            a_avg = agg_a.get("metrics", {}).get(key, {}).get("avg", 0)
+            b_avg = agg_b.get("metrics", {}).get(key, {}).get("avg", 0)
+            delta = round(b_avg - a_avg, 4)
+
+            if a_avg != 0:
+                change_pct = round(delta / abs(a_avg) * 100, 2)
+            else:
+                change_pct = None
+
+            if b_avg > a_avg:
+                direction = "up"
+            elif b_avg < a_avg:
+                direction = "down"
+            else:
+                direction = "flat"
+
+            comparison[key] = {
+                "a_avg": a_avg,
+                "b_avg": b_avg,
+                "delta": delta,
+                "change_pct": change_pct,
+                "direction": direction,
+            }
+
+        # Count mismatch warning
+        a_count = agg_a.get("count", 0)
+        b_count = agg_b.get("count", 0)
+        warning = ""
+        if a_count > 0 and b_count > 0:
+            ratio = min(a_count, b_count) / max(a_count, b_count)
+            if ratio < 0.5:
+                warning = f"Unequal sample sizes: period_a={a_count}, period_b={b_count}"
+
+        return {
+            "period_a": {"after": a_after, "before": a_before, "count": a_count, "aggregation": agg_a.get("metrics", {})},
+            "period_b": {"after": b_after, "before": b_before, "count": b_count, "aggregation": agg_b.get("metrics", {})},
+            "comparison": comparison,
+            "warning": warning,
+        }
+
+    def get_period_preset(self, preset: str) -> dict[str, Any]:
+        """Get aggregation or comparison for a preset period.
+
+        Presets use full days excluding today.
+        "7d" = last 7 complete days (yesterday back 7), compared to previous 7.
+        """
+        valid_presets = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
+        if preset not in valid_presets:
+            raise ValueError(f"Invalid preset '{preset}'. Must be one of: {', '.join(valid_presets)}")
+
+        days = valid_presets[preset]
+        today = datetime.now(timezone.utc).date()
+
+        # Period B (recent): yesterday back N days
+        b_before = today.isoformat()  # exclusive: today not included
+        b_after = (today - timedelta(days=days)).isoformat()
+
+        # Period A (previous): the N days before period B
+        a_before = b_after
+        a_after = (today - timedelta(days=days * 2)).isoformat()
+
+        return self.compare_periods(a_after, a_before, b_after, b_before)
+
+    def _validate_range(self, after: str, before: str) -> None:
+        """Validate date range. Max 365 days."""
+        try:
+            a = datetime.fromisoformat(after).date() if "T" not in after else datetime.fromisoformat(after.replace("Z", "+00:00")).date()
+            b = datetime.fromisoformat(before).date() if "T" not in before else datetime.fromisoformat(before.replace("Z", "+00:00")).date()
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid date format: {e}")
+
+        span = (b - a).days
+        if span > self.MAX_RANGE_DAYS:
+            raise ValueError(f"Range spans {span} days — max is {self.MAX_RANGE_DAYS}")
+        if span < 0:
+            raise ValueError("'after' must be before 'before'")
+
