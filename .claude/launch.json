@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "/Users/core88/nemoclaw-local-foundation/.venv313/bin/python3",
+      "runtimeArgs": ["command-center/backend/run.py", "--host", "127.0.0.1", "--port", "8100", "--reload"],
+      "port": 8100
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "/opt/homebrew/bin/npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "command-center/frontend"],
+      "port": 3000
+    }
+  ]
+}
