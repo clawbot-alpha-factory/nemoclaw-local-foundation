@@ -284,6 +284,11 @@ async def lifespan(app: FastAPI):
     app.state.project_service = ProjectService(Path(__file__).resolve().parents[3])
     logger.info("CC-7: ProjectService initialized")
 
+    # ── P-1: Project Scoped Memory ──
+    from app.services.project_memory_service import ProjectMemoryService
+    app.state.project_memory_service = ProjectMemoryService()
+    logger.info("P-1: ProjectMemoryService initialized")
+
     # ── CC-8: Client service ──
     from app.services.client_service import ClientService
     app.state.client_service = ClientService(Path(__file__).resolve().parents[3])

@@ -43,6 +43,15 @@ class MilestoneCreate(BaseModel):
     status: Optional[str] = "pending"
 
 
+class MemoryWrite(BaseModel):
+    agent_id: str
+    key: str
+    value: str
+    memory_type: Optional[str] = "operational"
+    importance: Optional[float] = Field(default=1.0, ge=0.0, le=1.0)
+    source: Optional[str] = ""
+
+
 # --- Service dependency ---
 
 def _svc(request: Request):
@@ -197,3 +206,73 @@ async def add_milestone(
     if not milestone:
         raise HTTPException(status_code=500, detail="Failed to add milestone")
     return milestone
+
+
+# --- Memory endpoints (P-1) ---
+
+def _mem_svc(request: Request):
+    """Get ProjectMemoryService from app state."""
+    svc = getattr(request.app.state, "project_memory_service", None)
+    if not svc:
+        raise HTTPException(status_code=503, detail="ProjectMemoryService not initialized")
+    return svc
+
+
+@router.get("/{project_id}/memory")
+async def read_project_memory(
+    project_id: str,
+    type: Optional[str] = Query(None, description="operational or chat"),
+    agent: Optional[str] = Query(None, description="Filter by agent_id"),
+    limit: int = Query(50, ge=1, le=500),
+    _=Depends(require_auth),
+    svc=Depends(_svc),
+    mem=Depends(_mem_svc),
+):
+    """Read project-scoped memory entries with optional filters."""
+    existing = svc.get_project(project_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    try:
+        entries = mem.read(project_id, memory_type=type, agent_id=agent, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    stats = mem.get_stats(project_id)
+    return {
+        "project_id": project_id,
+        "total": stats["total"],
+        "returned": len(entries),
+        "entries": entries,
+    }
+
+
+@router.post("/{project_id}/memory", status_code=201)
+async def write_project_memory(
+    project_id: str,
+    body: MemoryWrite,
+    _=Depends(require_auth),
+    svc=Depends(_svc),
+    mem=Depends(_mem_svc),
+):
+    """Write a memory entry to a project. Key is auto-namespaced as {agent_id}.{key}."""
+    existing = svc.get_project(project_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
+
+    try:
+        entry = await mem.write(
+            project_id=project_id,
+            agent_id=body.agent_id,
+            key=body.key,
+            value=body.value,
+            memory_type=body.memory_type or "operational",
+            importance=body.importance if body.importance is not None else 1.0,
+            source=body.source or "",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Disk write failed: {e}")
+
+    return entry
