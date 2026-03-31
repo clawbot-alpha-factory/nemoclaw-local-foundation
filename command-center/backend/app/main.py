@@ -16,6 +16,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
 
 from app.auth import get_active_token, verify_ws_token
 from app.config import ensure_directories, settings
@@ -541,6 +544,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── P-7: Security Headers Middleware ──
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to every HTTP response."""
+
+    HEADERS = {
+        "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Content-Security-Policy": (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self' ws: wss:"
+        ),
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    }
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: StarletteResponse = await call_next(request)
+        for header, value in self.HEADERS.items():
+            response.headers[header] = value
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 app.include_router(state.router)
