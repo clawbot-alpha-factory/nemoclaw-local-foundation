@@ -125,6 +125,9 @@ from app.services.autonomous_loop_service import AutonomousLoopService
 from app.services.autonomous_scheduler_service import AutonomousSchedulerService
 from app.services.insight_action_bridge import InsightActionBridge
 from app.services.prompt_optimization_service import PromptOptimizationService
+from app.services.task_queue_service import TaskQueueService
+from app.services.rate_limiter_service import RateLimiterService
+from app.api.routers import infrastructure as infra_router
 from app.api.routers import autonomous as autonomous_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
@@ -438,6 +441,12 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-12: Full Autonomous Operation initialized (metrics + data lifecycle + self-improvement)")
 
+    # ── OpenClaw Adoptions: Queue + Rate Limiter ──
+    app.state.task_queue = TaskQueueService(max_workers=3)
+    await app.state.task_queue.start()
+    app.state.rate_limiter = RateLimiterService()
+    logger.info("Infra: TaskQueue (3 workers) + RateLimiter (6 limiters) initialized")
+
     # ── E-12 FINAL: True Autonomous Operation ──
     app.state.insight_bridge = InsightActionBridge(
         priority_engine=app.state.priority_engine,
@@ -451,6 +460,7 @@ async def lifespan(app: FastAPI):
         global_state=app.state.global_state,
         failure_recovery=app.state.failure_recovery,
         guardrail=app.state.guardrail_service,
+        task_queue=app.state.task_queue,
     )
     app.state.autonomous_scheduler = AutonomousSchedulerService(
         failure_recovery=app.state.failure_recovery,
@@ -542,6 +552,7 @@ app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
 app.include_router(revenue_router.router)  # E-10: Revenue
 app.include_router(lifecycle_router.router)  # E-11: Lifecycle
 app.include_router(autonomous_router.router)  # E-12: Autonomous
+app.include_router(infra_router.router)  # Infra: Queue + Rate Limits
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

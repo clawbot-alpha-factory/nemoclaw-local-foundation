@@ -64,13 +64,14 @@ class AutonomousLoopService:
     """
 
     def __init__(self, priority_engine=None, chain_wiring=None, skill_agent_mapping=None,
-                 global_state=None, failure_recovery=None, guardrail=None):
+                 global_state=None, failure_recovery=None, guardrail=None, task_queue=None):
         self.priority_engine = priority_engine
         self.chain_wiring = chain_wiring
         self.skill_agent_mapping = skill_agent_mapping
         self.global_state = global_state
         self.failure_recovery = failure_recovery
         self.guardrail = guardrail
+        self.task_queue = task_queue
 
         self._running = False
         self._task: asyncio.Task | None = None
