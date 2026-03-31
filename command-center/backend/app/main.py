@@ -131,6 +131,9 @@ from app.api.routers import infrastructure as infra_router
 from app.api.routers import autonomous as autonomous_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
+# ── P-2: Activity Event Log ──
+from app.api.routers import activity as activity_router
+
 # ── Engine (E-5) imports ──
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
@@ -288,6 +291,11 @@ async def lifespan(app: FastAPI):
     from app.services.project_memory_service import ProjectMemoryService
     app.state.project_memory_service = ProjectMemoryService()
     logger.info("P-1: ProjectMemoryService initialized")
+
+    # ── P-2: Activity Event Log ──
+    from app.services.activity_log_service import ActivityLogService
+    app.state.activity_log_service = ActivityLogService()
+    logger.info("P-2: ActivityLogService initialized")
 
     # ── CC-8: Client service ──
     from app.services.client_service import ClientService
@@ -558,6 +566,7 @@ app.include_router(revenue_router.router)  # E-10: Revenue
 app.include_router(lifecycle_router.router)  # E-11: Lifecycle
 app.include_router(autonomous_router.router)  # E-12: Autonomous
 app.include_router(infra_router.router)  # Infra: Queue + Rate Limits
+app.include_router(activity_router.router)  # P-2: Activity Event Log
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
