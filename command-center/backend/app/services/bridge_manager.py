@@ -15,6 +15,7 @@ NEW FILE: command-center/backend/app/services/bridge_manager.py
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -126,7 +127,8 @@ class BridgeManager:
     """
 
     MAX_RETRIES = 3
-    BACKOFF_BASE = 2.0  # seconds
+    BACKOFF_BASE = 2
+    IDEMPOTENCY_CACHE_SIZE = 1000.0  # seconds
 
     def __init__(self, guardrail_service=None, audit_service=None):
         self.guardrail_service = guardrail_service
@@ -136,6 +138,8 @@ class BridgeManager:
         self._call_history: list[BridgeCall] = []
         self._persist_path = Path.home() / ".nemoclaw" / "bridge-calls.json"
         self._persist_path.parent.mkdir(parents=True, exist_ok=True)
+        self._idempotency_cache: dict[str, dict[str, Any]] = {}  # P-12
+        self._idempotency_order: list[str] = []  # P-12: LRU eviction order
 
         self._init_configs()
         self._init_bridges()
@@ -232,15 +236,33 @@ class BridgeManager:
             except Exception as e:
                 logger.warning("Failed to load LemonSqueezy bridge: %s", e)
 
+    @staticmethod
+    def compute_idempotency_key(bridge: str, action: str, params: dict[str, Any]) -> str:
+        """Generate a deterministic idempotency key from bridge + action + params."""
+        raw = json.dumps({"b": bridge, "a": action, "p": params}, sort_keys=True)
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
     async def execute(
         self,
         bridge: str,
         action: str,
         params: dict[str, Any] | None = None,
         skip_approval: bool = False,
+        idempotency_key: str = "",
     ) -> dict[str, Any]:
-        """Execute a bridge action with rate limiting, retry, and cost tracking."""
+        """Execute a bridge action with rate limiting, retry, cost tracking, and idempotency.
+
+        If idempotency_key is provided and was already executed successfully,
+        returns cached result without re-executing.
+        """
         params = params or {}
+
+        # P-12: Idempotency check
+        if idempotency_key and idempotency_key in self._idempotency_cache:
+            cached = self._idempotency_cache[idempotency_key]
+            logger.info("Idempotency hit: key=%s bridge=%s action=%s", idempotency_key[:8], bridge, action)
+            return {**cached, "idempotent": True, "cached": True}
+
         call = BridgeCall(bridge=bridge, action=action, params=params)
 
         # Check bridge exists and is enabled
@@ -301,7 +323,17 @@ class BridgeManager:
                     )
 
                 self._record_call(call)
-                return {"success": True, "result": result, "cost": call.cost, "attempts": call.attempts}
+                exec_result = {"success": True, "result": result, "cost": call.cost, "attempts": call.attempts}
+
+                # P-12: Cache successful result for idempotency
+                if idempotency_key:
+                    self._idempotency_cache[idempotency_key] = exec_result
+                    self._idempotency_order.append(idempotency_key)
+                    while len(self._idempotency_order) > self.IDEMPOTENCY_CACHE_SIZE:
+                        evict_key = self._idempotency_order.pop(0)
+                        self._idempotency_cache.pop(evict_key, None)
+
+                return exec_result
 
             except Exception as e:
                 call.error = str(e)
