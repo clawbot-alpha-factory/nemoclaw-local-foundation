@@ -55,13 +55,18 @@ if not ANTHROPIC_KEY or not OPENAI_KEY:
     sys.exit(1)
 
 
-# ── LLM Callers ────────────────────────────────────────────────────────
+# ── LLM Callers (resolved from config/routing/routing-config.yaml, L-003) ──
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lib.routing import resolve_alias, get_api_key
+
+
 def call_opus(prompt: str, system: str = "", max_tokens: int = 16000) -> str:
-    """Call Claude Opus 4.6 for complex tasks."""
+    """Call premium-tier model for complex tasks (resolved from routing config)."""
+    _p, _m, _ = resolve_alias("premium")
     import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+    client = anthropic.Anthropic(api_key=get_api_key("anthropic"))
     msg = client.messages.create(
-        model="claude-opus-4-6",
+        model=_m,
         max_tokens=max_tokens,
         system=system or "You are a senior full-stack engineer. Output ONLY code. No markdown fences. No explanations.",
         messages=[{"role": "user", "content": prompt}],
@@ -70,15 +75,16 @@ def call_opus(prompt: str, system: str = "", max_tokens: int = 16000) -> str:
 
 
 def call_mini(prompt: str, system: str = "", max_tokens: int = 8000) -> str:
-    """Call GPT-4o-mini for simple/boilerplate tasks."""
+    """Call cheap-tier model for simple/boilerplate tasks (resolved from routing config)."""
+    _p, _m, _ = resolve_alias("general_short")
     import openai
-    client = openai.OpenAI(api_key=OPENAI_KEY)
+    client = openai.OpenAI(api_key=get_api_key("openai"))
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     resp = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=_m,
         max_tokens=max_tokens,
         messages=messages,
     )

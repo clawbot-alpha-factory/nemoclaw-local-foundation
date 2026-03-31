@@ -205,8 +205,11 @@ REQUIREMENTS:
 Return ONLY the Python code. No markdown, no explanation."""
 
         try:
+            import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias, get_api_key
+            _p, _m, _ = resolve_alias("premium")
             from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=32000)
+            llm = ChatAnthropic(model=_m, max_tokens=32000, api_key=get_api_key(_p))
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             code = resp.content.strip()
             # Strip markdown fences if present
@@ -259,8 +262,11 @@ REQUIREMENTS:
 Return ONLY the Python test code. No markdown."""
 
         try:
+            import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias, get_api_key
+            _p, _m, _ = resolve_alias("premium")
             from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=16000)
+            llm = ChatAnthropic(model=_m, max_tokens=16000, api_key=get_api_key(_p))
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             code = resp.content.strip()
             if code.startswith("```python"):

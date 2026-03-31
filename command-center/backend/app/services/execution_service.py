@@ -40,34 +40,35 @@ from app.domain.engine_models import (
 logger = logging.getLogger("cc.execution")
 
 
-# ── Default LLM Tier Routing ──────────────────────────────────────────
+# ── LLM Tier Routing (resolved from config/routing/routing-config.yaml) ───
 
-# Maps tier → environment variable overrides passed to skill subprocess
-# Skills read CC_LLM_PROVIDER / CC_LLM_MODEL to override their defaults
-TIER_ROUTING = {
-    LLMTier.LIGHTWEIGHT: {
-        "CC_LLM_PROVIDER": "openai",
-        "CC_LLM_MODEL": "gpt-4o-mini",
-    },
-    LLMTier.STANDARD: {
-        "CC_LLM_PROVIDER": "openai",
-        "CC_LLM_MODEL": "gpt-4o",
-    },
-    LLMTier.COMPLEX: {
-        "CC_LLM_PROVIDER": "anthropic",
-        "CC_LLM_MODEL": "claude-opus-4-6",
-    },
-    LLMTier.CRITICAL: {
-        "CC_LLM_PROVIDER": "anthropic",
-        "CC_LLM_MODEL": "claude-opus-4-6",
-    },
-}
+def _resolve_tier_routing():
+    """Build tier routing map from routing config instead of hardcoding (L-003)."""
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+        from lib.routing import resolve_alias
+        tier_to_task = {
+            LLMTier.LIGHTWEIGHT: "general_short",
+            LLMTier.STANDARD: "moderate",
+            LLMTier.COMPLEX: "complex_reasoning",
+            LLMTier.CRITICAL: "premium",
+        }
+        routing = {}
+        for tier, task_class in tier_to_task.items():
+            provider, model, _ = resolve_alias(task_class)
+            routing[tier] = {"CC_LLM_PROVIDER": provider, "CC_LLM_MODEL": model}
 
-# Fallback chain: if primary fails, try these in order
-FALLBACK_CHAIN = [
-    {"CC_LLM_PROVIDER": "openai", "CC_LLM_MODEL": "gpt-4o-mini"},
-    {"CC_LLM_PROVIDER": "anthropic", "CC_LLM_MODEL": "claude-haiku-4-5-20251001"},
-]
+        fallback_aliases = ["general_short", "moderate"]
+        fallback = []
+        for alias in fallback_aliases:
+            p, m, _ = resolve_alias(alias)
+            fallback.append({"CC_LLM_PROVIDER": p, "CC_LLM_MODEL": m})
+        return routing, fallback
+    except Exception:
+        return {}, []
+
+TIER_ROUTING, FALLBACK_CHAIN = _resolve_tier_routing()
 
 
 class ExecutionService:

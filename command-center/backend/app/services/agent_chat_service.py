@@ -26,8 +26,18 @@ from app.domain.comms_models import Message, SenderType
 
 logger = logging.getLogger("cc.agent_chat")
 
-# Cost control: GPT-4o-mini for all agent responses
-DEFAULT_MODEL = "gpt-4o-mini"
+# Cost control: resolved from routing config (L-003)
+def _resolve_chat_model():
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
+        return model
+    except Exception:
+        return ""
+
+DEFAULT_MODEL = _resolve_chat_model()
 DEFAULT_MAX_TOKENS = 800
 CONTEXT_MESSAGES_LIMIT = 15
 

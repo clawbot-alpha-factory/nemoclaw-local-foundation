@@ -291,12 +291,17 @@ class PromptOptimizationService:
             if not api_key:
                 return {"error": "No OpenAI key for suggestion generation"}
 
+            # Resolve model from routing config (L-003)
+            import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias
+            _opt_p, _opt_m, _ = resolve_alias("general_short")
+
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                     json={
-                        "model": "gpt-4o-mini",
+                        "model": _opt_m,
                         "max_tokens": 500,
                         "messages": [
                             {"role": "system", "content": "You are a prompt engineering expert. Given a prompt and its quality score, suggest an improved version. Return ONLY the improved prompt text, nothing else."},

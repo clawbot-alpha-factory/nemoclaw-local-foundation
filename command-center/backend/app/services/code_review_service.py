@@ -274,8 +274,11 @@ REJECTION CRITERIA:
 - Logic errors"""
 
         try:
+            import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias, get_api_key
+            _p, _m, _ = resolve_alias("code")
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4o", max_tokens=16000)
+            llm = ChatOpenAI(model=_m, max_tokens=16000, api_key=get_api_key(_p))
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             text = resp.content.strip()
 
@@ -352,8 +355,11 @@ Respond with ONLY a JSON object:
 }}"""
 
         try:
+            import sys; sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias, get_api_key
+            _p, _m, _ = resolve_alias("code")
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4o", max_tokens=16000)
+            llm = ChatOpenAI(model=_m, max_tokens=16000, api_key=get_api_key(_p))
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             text = resp.content.strip()
 

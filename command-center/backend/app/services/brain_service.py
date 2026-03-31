@@ -67,10 +67,14 @@ class BrainService:
                         if isinstance(aliases, dict) and key in aliases:
                             aliases = aliases[key]
 
+                    # Also check 'providers' key (routing-config.yaml v4.0 format)
+                    if isinstance(aliases, dict) and "providers" in aliases:
+                        aliases = aliases["providers"]
+
                     if isinstance(aliases, dict) and self.routing_alias in aliases:
                         alias_cfg = aliases[self.routing_alias]
                         self._provider = alias_cfg.get("provider", "openai")
-                        self._model = alias_cfg.get("model", "gpt-4o-mini")
+                        self._model = alias_cfg.get("model", "")
                         logger.info(
                             f"Brain routing: {self.routing_alias} → "
                             f"{self._provider}/{self._model} (from {path.name})"
@@ -79,9 +83,15 @@ class BrainService:
                 except Exception as e:
                     logger.warning(f"Failed to parse routing config {path}: {e}")
 
-        # Fallback
-        self._provider = "openai"
-        self._model = "gpt-4o-mini"
+        # Fallback: resolve from routing config via lib.routing
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+            from lib.routing import resolve_alias
+            self._provider, self._model, _ = resolve_alias("general_short")
+        except Exception:
+            self._provider = "openai"
+            self._model = ""
         logger.info(f"Brain routing: fallback → {self._provider}/{self._model}")
 
     def _load_api_key(self):

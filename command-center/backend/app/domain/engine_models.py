@@ -58,7 +58,7 @@ class ChainStatus(str, Enum):
 class LLMModelConfig(BaseModel):
     """Single model in a routing tier."""
     provider: str = "openai"           # openai, anthropic, nvidia
-    model: str = "gpt-4o-mini"
+    model: str = ""  # Resolved from config/routing/routing-config.yaml (L-003)
     cost_per_call: float = 0.001
     timeout_seconds: int = 15
     max_retries: int = 2
