@@ -21,28 +21,20 @@ from typing import TypedDict
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
 CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
 
-MODEL_COSTS = {"claude-sonnet-4-6": 0.06, "claude-haiku-4-5-20251001": 0.008, "gpt-4o-mini": 0.001, "gpt-4o": 0.01}
 
 class SkillState(TypedDict):
     inputs: dict; context: dict; step_1_output: str; generated_output: str
     quality_score: float; critic_feedback: str; retry_count: int; final_output: str
     artifact_path: str; envelope_path: str; error: str; cost: float
 
-def get_routing_config():
-    p = os.environ.get("CC_LLM_PROVIDER", ""); m = os.environ.get("CC_LLM_MODEL", "")
-    if p and m: return p, m
-    R = {"premium": ("anthropic", "claude-sonnet-4-6"), "moderate": ("anthropic", "claude-haiku-4-5-20251001"), "cheap": ("openai", "gpt-4o-mini")}
-    return R.get("moderate", R["moderate"])
 
 def call_llm(messages, max_tokens=4000):
-    provider, model = get_routing_config()
-    if provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=model, max_tokens=max_tokens).invoke(messages).content, None
-    from langchain_openai import ChatOpenAI
-    return ChatOpenAI(model=model, max_tokens=max_tokens).invoke(messages).content, None
+    from lib.routing import call_llm as _routed_call
+    return _routed_call(messages, task_class="moderate", max_tokens=max_tokens)
 
-def estimate_cost(model): return MODEL_COSTS.get(model, 0.01)
+def estimate_cost(task_class="moderate"):
+    from lib.routing import estimate_cost as _est
+    return _est(task_class)
 
 def load_spec(args):
     spec = {"inputs": {}, "context": {"workflow_id": args.thread_id or f"skill-biz-05-client-health-monitor-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{os.urandom(4).hex()}", "budget_state": {"remaining": 20.0}, "step_history": []}}
@@ -95,8 +87,9 @@ CRITICAL: End your response with a JSON block:
   "demand_volume": "high/medium/low"
 }
 ```""")]
-    provider, model = get_routing_config()
-    cost = estimate_cost(model)
+    from lib.routing import resolve_from_env_or_config as _resolve
+    provider, model, _cost = _resolve("moderate")
+    cost = estimate_cost()
     content, error = call_llm(messages)
     if error or not content: return {**state, "error": str(error or "Empty response")}
     state["context"]["budget_state"]["remaining"] -= cost
@@ -115,7 +108,9 @@ def step_3_critic(state):
     if score < 7.0:
         try:
             from langchain_anthropic import ChatAnthropic
-            resp = ChatAnthropic(model="claude-haiku-4-5-20251001", max_tokens=300).invoke([("system","Score 1-10 as JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Client Health Monitor\n\nOutput:\n{output[:2000]}")])
+            from lib.routing import resolve_alias as _ra
+            _cp, _cm, _cc = _ra("structured_short")
+            resp = ChatAnthropic(model=_cm, max_tokens=300).invoke([("system","Score 1-10 as JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Client Health Monitor\n\nOutput:\n{output[:2000]}")])
             text = resp.content.strip()
             if "{" in text:
                 data = json.loads(text[text.index("{"):text.rindex("}")+2])
@@ -141,7 +136,7 @@ def step_5_artifact(state):
     env_path = OUTPUTS_DIR / f"biz-05-client-health-monitor_{wf_id}_{ts}_envelope.json"
     envelope = {"skill_id": "biz-05-client-health-monitor", "workflow_id": wf_id, "timestamp": datetime.now(timezone.utc).isoformat(),
         "outputs": {"result": output, "result_summary": output[:300], "key_points": key_points, "skill_type": "analyzer",
-            "metadata": {"quality_score": state.get("quality_score", 0), "retries": state.get("retry_count", 0), "cost": state.get("cost", 0), "model": get_routing_config()[1]}},
+            "metadata": {"quality_score": state.get("quality_score", 0), "retries": state.get("retry_count", 0), "cost": state.get("cost", 0), "model": __import__("lib.routing", fromlist=["resolve_from_env_or_config"]).resolve_from_env_or_config("moderate")[1]}},
         "artifact_path": str(md_path), "quality_score": state.get("quality_score", 0), "cost": state.get("cost", 0)}
     env_path.write_text(json.dumps(envelope, indent=2, default=str))
     return {**state, "artifact_path": str(md_path), "envelope_path": str(env_path)}

@@ -35,12 +35,6 @@ import sqlite3
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
 CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
 
-MODEL_COSTS = {
-    "claude-sonnet-4-6": 0.06,
-    "claude-haiku-4-5-20251001": 0.008,
-    "gpt-4o-mini": 0.001,
-    "gpt-4o": 0.01,
-}
 
 class SkillState(TypedDict):
     inputs: dict
@@ -58,27 +52,10 @@ class SkillState(TypedDict):
 
 # ── LLM Helpers ────────────────────────────────────────────────────────
 
-def get_routing_config():
-    provider = os.environ.get("CC_LLM_PROVIDER", "")
-    model = os.environ.get("CC_LLM_MODEL", "")
-    if provider and model:
-        return provider, model
-    ROUTING = {
-        "premium": ("anthropic", "claude-sonnet-4-6"),
-        "moderate": ("anthropic", "claude-haiku-4-5-20251001"),
-        "cheap": ("openai", "gpt-4o-mini"),
-    }
-    return ROUTING.get("moderate", ROUTING["moderate"])
-
 
 def call_llm(messages, max_tokens=4000):
-    provider, model = get_routing_config()
-    if provider == "anthropic":
-        return call_anthropic(messages, model=model, max_tokens=max_tokens)
-    elif provider == "openai":
-        return call_openai(messages, model=model, max_tokens=max_tokens)
-    return call_anthropic(messages, max_tokens=max_tokens)
-
+    from lib.routing import call_llm as _routed_call
+    return _routed_call(messages, task_class="moderate", max_tokens=max_tokens)
 
 def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=4000):
     from langchain_anthropic import ChatAnthropic
@@ -102,7 +79,9 @@ def call_cheap_critic(output_text, task_description):
     ]
     try:
         from langchain_anthropic import ChatAnthropic
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001", max_tokens=300)
+        from lib.routing import resolve_alias as _ra
+        _cp, _cm, _cc = _ra("structured_short")
+        llm = ChatAnthropic(model=_cm, max_tokens=300)
         resp = llm.invoke(messages)
         # Parse JSON from response
         text = resp.content.strip()
@@ -115,8 +94,9 @@ def call_cheap_critic(output_text, task_description):
     return 5.0, "Critic unavailable"
 
 
-def estimate_cost(model: str) -> float:
-    return MODEL_COSTS.get(model, 0.01)
+def estimate_cost(task_class="moderate"):
+    from lib.routing import estimate_cost as _est
+    return _est(task_class)
 
 
 # ── Skill Spec ─────────────────────────────────────────────────────────
@@ -190,8 +170,9 @@ Produce a structured analysis report with these sections:
 (Supporting data points and methodology notes)"""),
     ]
     
-    provider, model = get_routing_config()
-    cost = estimate_cost(model)
+    from lib.routing import resolve_from_env_or_config as _resolve
+    provider, model, _cost = _resolve("moderate")
+    cost = estimate_cost()
     print(f"    [budget] alias=moderate model={model} cost=${cost} remaining=${state['context']['budget_state']['remaining']:.3f}")
     
     content, error = call_llm(messages)
@@ -282,7 +263,7 @@ def step_5_artifact(state):
                 "quality_score": state.get("quality_score", 0),
                 "retries": state.get("retry_count", 0),
                 "cost": state.get("cost", 0),
-                "model": get_routing_config()[1],
+                "model": __import__("lib.routing", fromlist=["resolve_from_env_or_config"]).resolve_from_env_or_config("moderate")[1],
             },
         },
         "artifact_path": str(md_path),
