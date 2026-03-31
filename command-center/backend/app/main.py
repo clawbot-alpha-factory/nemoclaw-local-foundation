@@ -124,6 +124,7 @@ from app.services.self_improvement_service import SelfImprovementService
 from app.services.autonomous_loop_service import AutonomousLoopService
 from app.services.autonomous_scheduler_service import AutonomousSchedulerService
 from app.services.insight_action_bridge import InsightActionBridge
+from app.services.prompt_optimization_service import PromptOptimizationService
 from app.api.routers import autonomous as autonomous_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
@@ -471,6 +472,11 @@ async def lifespan(app: FastAPI):
 
     # Start scheduler
     await app.state.autonomous_scheduler.start_all()
+    app.state.prompt_optimization = PromptOptimizationService(
+        global_state=app.state.global_state,
+    )
+    logger.info("E-12+: Prompt Optimization Service initialized")
+
     logger.info("E-12 FINAL: Autonomous Loop + Scheduler + InsightBridge initialized — SYSTEM IS AUTONOMOUS")
 
     yield

@@ -70,3 +70,16 @@ async def get_scheduler(request: Request) -> dict[str, Any]:
 async def get_decision_log(request: Request, limit: int = 50) -> dict[str, Any]:
     """Get decision→action→result chain log."""
     return {"log": _svc(request, "autonomous_loop").get_decision_log(limit)}
+
+
+@router.get("/prompt-optimization")
+async def get_prompt_optimization(request: Request) -> dict[str, Any]:
+    """Get prompt optimization stats and variants."""
+    svc = _svc(request, "prompt_optimization")
+    return {"stats": svc.get_stats(), "optimizations": svc.get_all_optimizations()}
+
+@router.post("/prompt-optimization/{skill_id}/suggest")
+async def suggest_prompt_variant(skill_id: str, request: Request) -> dict[str, Any]:
+    """Generate a new prompt variant suggestion via LLM."""
+    svc = _svc(request, "prompt_optimization")
+    return await svc.generate_variant_suggestion(skill_id)
