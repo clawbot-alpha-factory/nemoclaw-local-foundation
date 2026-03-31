@@ -1,0 +1,31 @@
+name: rev-25-experiment-decision-engine
+version: 1.0.0
+display_name: "Experiment Decision Engine"
+description: >
+  Kill/scale decisions based on conversion thresholds. If conversion < threshold → kill. If ROI > threshold → scale. Completes autonomous loop.
+author: NemoClaw E-10
+tier: A+
+tag: revenue
+skill_type: analyzer
+execution_role: >
+  You are an experiment evaluation specialist. Make decisive kill/scale recommendations based on statistical evidence and ROI thresholds.
+inputs:
+  - name: experiment_data
+    type: string
+    required: true
+    description: "Experiment results: variants, impressions, conversions, costs, revenue"
+outputs:
+  - name: result
+    type: string
+  - name: envelope_file
+    type: file_path
+  - name: insight
+    type: string
+  - name: recommended_action
+    type: string
+  - name: trigger_skill
+    type: string
+  - name: confidence
+    type: float
+routing:
+  default_alias: moderate

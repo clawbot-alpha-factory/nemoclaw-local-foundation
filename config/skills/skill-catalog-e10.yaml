@@ -1,0 +1,47 @@
+# NemoClaw E-10 Skill Catalog
+skills:
+
+  - id: "ops-02-event-bus"
+    name: "Event Bus Controller"
+    status: built
+    type: executor
+    directory: "skills/ops-02-event-bus"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e10
+
+  - id: "rev-23-resource-allocator"
+    name: "Resource Constraint Allocator"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-23-resource-allocator"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e10
+
+  - id: "int-06-intent-scoring-engine"
+    name: "Intent Scoring Engine"
+    status: built
+    type: analyzer
+    directory: "skills/int-06-intent-scoring-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e10
+
+  - id: "rev-24-auto-deployment-engine"
+    name: "Auto Deployment Engine"
+    status: built
+    type: executor
+    directory: "skills/rev-24-auto-deployment-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e10
+
+  - id: "rev-25-experiment-decision-engine"
+    name: "Experiment Decision Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-25-experiment-decision-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e10

@@ -1,0 +1,28 @@
+name: rev-23-resource-allocator
+version: 1.0.0
+display_name: "Resource Constraint Allocator"
+description: >
+  Hard enforcement of daily outreach caps, per-channel budget, risk thresholds. Prevents spam, domain burn, budget waste.
+author: NemoClaw E-10
+tier: A+
+tag: revenue
+skill_type: orchestrator
+execution_role: >
+  You are a resource constraint enforcer. Set and enforce hard limits on outreach volume, spend, and risk exposure per channel.
+inputs:
+  - name: current_usage
+    type: string
+    required: true
+    description: "Current usage: emails sent, budget spent, outreach volume per channel"
+  - name: limits
+    type: string
+    required: false
+    description: "Hard limits"
+    default: "emails:100,budget:20,outreach:50"
+outputs:
+  - name: result
+    type: string
+  - name: envelope_file
+    type: file_path
+routing:
+  default_alias: moderate

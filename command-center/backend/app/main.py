@@ -102,6 +102,14 @@ from app.services.skill_chain_wiring import SkillChainWiringService
 from app.services.global_state_service import GlobalStateService
 from app.services.priority_engine import PriorityEngine
 from app.services.failure_recovery_service import FailureRecoveryService
+
+# ── Engine (E-10) imports ──
+from app.services.pipeline_service import PipelineService
+from app.services.catalog_service import CatalogService
+from app.services.ab_test_service import ABTestService
+from app.services.attribution_service import AttributionService
+from app.services.event_bus_service import EventBusService
+from app.api.routers import revenue as revenue_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
 # ── Engine (E-5) imports ──
@@ -367,6 +375,17 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-9: Skill Agent Mapping + Chain Wiring initialized")
 
+    # ── E-10: Revenue Engine ──
+    app.state.event_bus = EventBusService()
+    app.state.pipeline_service = PipelineService(
+        global_state=app.state.global_state,
+        event_bus=app.state.event_bus,
+    )
+    app.state.catalog_service = CatalogService()
+    app.state.ab_test_service = ABTestService(global_state=app.state.global_state)
+    app.state.attribution_service = AttributionService(global_state=app.state.global_state)
+    logger.info("E-10: Revenue Engine initialized (pipeline + catalog + A/B + attribution + events)")
+
     yield
 
     # E-4a shutdown
@@ -427,6 +446,7 @@ app.include_router(skill_factory_router.router)  # E-5: Skill Factory
 app.include_router(self_build_router.router)  # E-7b: Self-Build
 app.include_router(bridges_router.router)  # E-8: Bridges
 app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
+app.include_router(revenue_router.router)  # E-10: Revenue
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

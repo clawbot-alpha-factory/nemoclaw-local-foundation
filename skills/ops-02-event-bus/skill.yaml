@@ -1,0 +1,23 @@
+name: ops-02-event-bus
+version: 1.0.0
+display_name: "Event Bus Controller"
+description: >
+  Routes real-time events: email opens, payments, scraper signals, deal advances. Feeds orchestrator + priority engine.
+author: NemoClaw E-10
+tier: A+
+tag: operations
+skill_type: executor
+execution_role: >
+  You are an event routing specialist. Analyze incoming events and determine the optimal agent and skill to handle each one.
+inputs:
+  - name: event_data
+    type: string
+    required: true
+    description: "Event details: type, source, payload"
+outputs:
+  - name: result
+    type: string
+  - name: envelope_file
+    type: file_path
+routing:
+  default_alias: moderate

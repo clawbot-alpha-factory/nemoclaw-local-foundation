@@ -1,0 +1,31 @@
+name: int-06-intent-scoring-engine
+version: 1.0.0
+display_name: "Intent Scoring Engine"
+description: >
+  Turns raw signals into scored buying intent. Pain level, buying intent, urgency, recommended offer type. Feeds into lead qualification.
+author: NemoClaw E-10
+tier: F
+tag: intelligence
+skill_type: analyzer
+execution_role: >
+  You are a buying intent analyst. Score raw demand signals on pain level (0-10), buying intent (0-10), urgency, and recommended offer type.
+inputs:
+  - name: raw_signals
+    type: string
+    required: true
+    description: "Raw demand signals with context"
+outputs:
+  - name: result
+    type: string
+  - name: envelope_file
+    type: file_path
+  - name: insight
+    type: string
+  - name: recommended_action
+    type: string
+  - name: trigger_skill
+    type: string
+  - name: confidence
+    type: float
+routing:
+  default_alias: premium
