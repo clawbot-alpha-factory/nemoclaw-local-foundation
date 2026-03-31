@@ -116,6 +116,15 @@ from app.services.onboarding_service import OnboardingService
 from app.services.deliverable_service import DeliverableService
 from app.services.churn_service import ChurnService
 from app.api.routers import lifecycle as lifecycle_router
+
+# ── Engine (E-12) imports ──
+from app.services.metrics_service import MetricsService
+from app.services.data_lifecycle_service import DataLifecycleService
+from app.services.self_improvement_service import SelfImprovementService
+from app.services.autonomous_loop_service import AutonomousLoopService
+from app.services.autonomous_scheduler_service import AutonomousSchedulerService
+from app.services.insight_action_bridge import InsightActionBridge
+from app.api.routers import autonomous as autonomous_router
 from app.api.routers import skill_wiring as skill_wiring_router
 
 # ── Engine (E-5) imports ──
@@ -407,6 +416,63 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-11: Client Lifecycle initialized (onboarding + deliverables + churn)")
 
+    # ── E-12: Full Autonomous Operation ──
+    app.state.metrics_service = MetricsService(
+        pipeline=app.state.pipeline_service,
+        attribution=app.state.attribution_service,
+        global_state=app.state.global_state,
+        ab_test=app.state.ab_test_service,
+        churn=app.state.churn_service,
+        bridge_manager=app.state.bridge_manager,
+        guardrail=app.state.guardrail_service,
+        skill_agent_mapping=app.state.skill_agent_mapping,
+    )
+    app.state.data_lifecycle = DataLifecycleService()
+    app.state.self_improvement = SelfImprovementService(
+        global_state=app.state.global_state,
+        metrics=app.state.metrics_service,
+        pipeline=app.state.pipeline_service,
+        skill_agent_mapping=app.state.skill_agent_mapping,
+        priority_engine=app.state.priority_engine,
+    )
+    logger.info("E-12: Full Autonomous Operation initialized (metrics + data lifecycle + self-improvement)")
+
+    # ── E-12 FINAL: True Autonomous Operation ──
+    app.state.insight_bridge = InsightActionBridge(
+        priority_engine=app.state.priority_engine,
+        metrics=app.state.metrics_service,
+        global_state=app.state.global_state,
+    )
+    app.state.autonomous_loop = AutonomousLoopService(
+        priority_engine=app.state.priority_engine,
+        chain_wiring=app.state.skill_chain_wiring,
+        skill_agent_mapping=app.state.skill_agent_mapping,
+        global_state=app.state.global_state,
+        failure_recovery=app.state.failure_recovery,
+        guardrail=app.state.guardrail_service,
+    )
+    app.state.autonomous_scheduler = AutonomousSchedulerService(
+        failure_recovery=app.state.failure_recovery,
+    )
+
+    # Register scheduled jobs
+    app.state.autonomous_scheduler.register(
+        "metrics_snapshot", 86400, app.state.metrics_service.take_snapshot,
+        "Daily metrics snapshot")
+    app.state.autonomous_scheduler.register(
+        "weekly_audit", 604800, app.state.self_improvement.run_weekly_audit,
+        "Weekly self-audit")
+    app.state.autonomous_scheduler.register(
+        "data_maintenance", 21600, app.state.data_lifecycle.run_maintenance,
+        "Data lifecycle maintenance (6h)")
+    app.state.autonomous_scheduler.register(
+        "metric_thresholds", 3600, app.state.insight_bridge.check_metrics,
+        "Hourly metric threshold check")
+
+    # Start scheduler
+    await app.state.autonomous_scheduler.start_all()
+    logger.info("E-12 FINAL: Autonomous Loop + Scheduler + InsightBridge initialized — SYSTEM IS AUTONOMOUS")
+
     yield
 
     # E-4a shutdown
@@ -469,6 +535,7 @@ app.include_router(bridges_router.router)  # E-8: Bridges
 app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
 app.include_router(revenue_router.router)  # E-10: Revenue
 app.include_router(lifecycle_router.router)  # E-11: Lifecycle
+app.include_router(autonomous_router.router)  # E-12: Autonomous
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

@@ -24,16 +24,34 @@ logger = logging.getLogger("cc.priority")
 class PriorityItem:
     """A prioritized task or action."""
 
+    DEFAULT_TTL = 86400  # 24 hours
+
     def __init__(self, item_id: str, task_type: str, description: str,
-                 agent: str = "", metadata: dict[str, Any] | None = None):
+                 agent: str = "", metadata: dict[str, Any] | None = None,
+                 ttl: int = 86400):
         self.item_id = item_id
         self.task_type = task_type
         self.description = description
         self.agent = agent
         self.metadata = metadata or {}
         self.created_at = time.time()
+        self.ttl = ttl
         self.priority_score: float = 0.0
         self.factors: dict[str, float] = {}
+
+    @property
+    def is_expired(self) -> bool:
+        return (time.time() - self.created_at) > self.ttl
+
+    @property
+    def age_hours(self) -> float:
+        return (time.time() - self.created_at) / 3600
+
+    @property
+    def decayed_score(self) -> float:
+        """Score decays 10% per hour."""
+        decay = max(0, 1 - (self.age_hours * 0.1))
+        return self.priority_score * decay
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -120,7 +138,9 @@ class PriorityEngine:
 
     def get_top(self, n: int = 10, agent: str | None = None,
                 task_type: str | None = None) -> list[dict[str, Any]]:
-        """Get top N priority items with optional filters."""
+        """Get top N priority items with optional filters. Removes expired."""
+        self._queue = [i for i in self._queue if not i.is_expired]
+        self._queue.sort(key=lambda x: x.decayed_score, reverse=True)
         items = self._queue
         if agent:
             items = [i for i in items if i.agent == agent]
