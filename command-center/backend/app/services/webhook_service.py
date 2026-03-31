@@ -48,6 +48,13 @@ WEBHOOK_HANDLERS = {
     "lemonsqueezy": {
         "payment": {"agent": "client_success_lead", "task": "Onboard new client"},
         "cancellation": {"agent": "client_success_lead", "task": "Retain cancelling client"},
+        # P-10: expanded payment lifecycle events
+        "order_created": {"agent": "client_success_lead", "task": "Create client and start onboarding from payment"},
+        "subscription_created": {"agent": "client_success_lead", "task": "Link subscription to client record"},
+        "subscription_updated": {"agent": "client_success_lead", "task": "Update client subscription status"},
+        "subscription_cancelled": {"agent": "client_success_lead", "task": "Flag churn risk — subscription cancelled"},
+        "subscription_payment_success": {"agent": "client_success_lead", "task": "Record revenue event from subscription payment"},
+        "subscription_payment_failed": {"agent": "client_success_lead", "task": "Alert — subscription payment failed, flag at-risk"},
     },
     "hubspot": {
         "form_submit": {"agent": "sales_outreach_lead", "task": "Qualify form submission"},

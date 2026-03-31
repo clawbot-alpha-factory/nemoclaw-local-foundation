@@ -180,6 +180,15 @@ class BridgeManager:
                 requires_approval=True,  # Sends to real people
                 cost_per_call=0.005,
             ),
+            # P-10: Lemon Squeezy payment bridge
+            "lemonsqueezy": BridgeConfig(
+                name="lemonsqueezy",
+                enabled=bool(os.environ.get("LEMONSQUEEZY_API_KEY")),
+                rate_limit_per_minute=20,
+                daily_cap=200,
+                requires_approval=True,  # Payment actions
+                cost_per_call=0.0,
+            ),
         }
 
     def _init_bridges(self) -> None:
@@ -212,6 +221,16 @@ class BridgeManager:
                 logger.info("WhatsApp bridge loaded (provider=%s)", wa_provider)
             except Exception as e:
                 logger.warning("Failed to load WhatsApp bridge: %s", e)
+
+        # P-10: Lemon Squeezy payment bridge
+        ls_key = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+        if ls_key:
+            try:
+                from app.services.bridges.lemonsqueezy_bridge import LemonSqueezyBridge
+                self._bridges["lemonsqueezy"] = LemonSqueezyBridge(api_key=ls_key)
+                logger.info("LemonSqueezy bridge loaded (key: %s...)", ls_key[:8])
+            except Exception as e:
+                logger.warning("Failed to load LemonSqueezy bridge: %s", e)
 
     async def execute(
         self,
