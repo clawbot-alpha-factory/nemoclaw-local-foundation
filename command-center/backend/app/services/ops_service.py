@@ -6,6 +6,7 @@ JSON persistence for tasks, activity feed, and dashboard aggregation.
 
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -13,8 +14,10 @@ from uuid import uuid4
 
 log = logging.getLogger("cc.cc.6")
 
-VALID_STATUSES = {"pending", "in_progress", "blocked", "completed", "cancelled"}
+VALID_STATUSES = {"pending", "in_progress", "blocked", "blocked_failed", "completed", "cancelled"}
 TERMINAL_STATUSES = {"completed", "cancelled"}
+FAILED_STATUSES = {"cancelled"}  # deps in these states trigger blocked_failed
+MAX_CYCLE_DEPTH = 50
 
 
 class OpsService:
@@ -32,7 +35,10 @@ class OpsService:
         self.tasks: dict[str, dict[str, Any]] = {}
         self.activity_feed: list[dict[str, Any]] = []
         self._max_activity = 50
+        self._dep_lock = threading.Lock()
+        self._dependents_of: dict[str, set[str]] = {}  # task_id → set of dependent task_ids
         self._load_tasks()
+        self._rebuild_dependency_index()
         log.info(
             "OpsService initialized — %d tasks loaded, data_dir=%s",
             len(self.tasks),
@@ -89,6 +95,197 @@ class OpsService:
         self.activity_feed.insert(0, entry)
         self.activity_feed = self.activity_feed[: self._max_activity]
 
+
+    # ── Dependency Management (P-4) ─────────────────────────────────────
+
+    def _rebuild_dependency_index(self) -> None:
+        """Build reverse index: task_id → set of tasks that depend on it."""
+        self._dependents_of = {}
+        for task in self.tasks.values():
+            for dep_id in task.get("depends_on", []):
+                self._dependents_of.setdefault(dep_id, set()).add(task["id"])
+
+    def _detect_cycle(self, task_id: str, depends_on: list[str]) -> str | None:
+        """DFS cycle detection. Returns cycle description or None."""
+        visited: set[str] = set()
+
+        def dfs(current: str, depth: int) -> bool:
+            if depth > MAX_CYCLE_DEPTH:
+                return True
+            if current == task_id:
+                return True
+            if current in visited:
+                return False
+            visited.add(current)
+            task = self.tasks.get(current)
+            if not task:
+                return False
+            for dep in task.get("depends_on", []):
+                if dfs(dep, depth + 1):
+                    return True
+            return False
+
+        for dep_id in depends_on:
+            visited.clear()
+            if dfs(dep_id, 0):
+                return f"Circular dependency detected: {task_id} → {dep_id} → ... → {task_id}"
+        return None
+
+    def _compute_blocked_fields(self, task: dict[str, Any]) -> None:
+        """Compute blocked_by, blocked, depends_total, depends_completed."""
+        deps = task.get("depends_on", [])
+        if not deps:
+            task["blocked_by"] = []
+            task["blocked"] = False
+            task["depends_total"] = 0
+            task["depends_completed"] = 0
+            return
+
+        blocked_by = []
+        completed_count = 0
+        for dep_id in deps:
+            dep_task = self.tasks.get(dep_id)
+            if not dep_task:
+                continue
+            if dep_task.get("status") == "completed":
+                completed_count += 1
+            else:
+                blocked_by.append(dep_id)
+
+        task["blocked_by"] = blocked_by
+        task["blocked"] = len(blocked_by) > 0
+        task["depends_total"] = len(deps)
+        task["depends_completed"] = completed_count
+
+    def _auto_unblock_dependents(self, completed_task_id: str) -> list[str]:
+        """After a task completes, auto-unblock its dependents. Returns unblocked task IDs."""
+        unblocked: list[str] = []
+        dependent_ids = self._dependents_of.get(completed_task_id, set())
+
+        for dep_task_id in dependent_ids:
+            dep_task = self.tasks.get(dep_task_id)
+            if not dep_task or dep_task["status"] not in ("blocked", "blocked_failed"):
+                continue
+
+            self._compute_blocked_fields(dep_task)
+            if not dep_task["blocked"]:
+                now = datetime.now(timezone.utc).isoformat()
+                old_status = dep_task["status"]
+                dep_task["status"] = "pending"
+                dep_task["updated_at"] = now
+                dep_task["history"].append({
+                    "timestamp": now,
+                    "action": "auto_unblocked",
+                    "from_status": old_status,
+                    "to_status": "pending",
+                    "trigger": completed_task_id,
+                })
+                unblocked.append(dep_task_id)
+                log.info("Auto-unblocked task %s (dependency %s completed)", dep_task_id, completed_task_id)
+
+        return unblocked
+
+    def _propagate_failed_deps(self, failed_task_id: str) -> list[str]:
+        """When a dep fails/cancels, mark dependents as blocked_failed."""
+        affected: list[str] = []
+        dependent_ids = self._dependents_of.get(failed_task_id, set())
+
+        for dep_task_id in dependent_ids:
+            dep_task = self.tasks.get(dep_task_id)
+            if not dep_task or dep_task["status"] in TERMINAL_STATUSES:
+                continue
+
+            now = datetime.now(timezone.utc).isoformat()
+            old_status = dep_task["status"]
+            dep_task["status"] = "blocked_failed"
+            dep_task["updated_at"] = now
+            dep_task["history"].append({
+                "timestamp": now,
+                "action": "dependency_failed",
+                "from_status": old_status,
+                "to_status": "blocked_failed",
+                "failed_dependency": failed_task_id,
+            })
+            affected.append(dep_task_id)
+            log.info("Task %s marked blocked_failed (dependency %s failed)", dep_task_id, failed_task_id)
+
+        return affected
+
+    def force_unblock(self, task_id: str) -> dict[str, Any]:
+        """Manually unblock a task, overriding dependency checks."""
+        if task_id not in self.tasks:
+            raise KeyError(f"Task {task_id} not found")
+
+        task = self.tasks[task_id]
+        if task["status"] not in ("blocked", "blocked_failed"):
+            raise ValueError(f"Task {task_id} is not blocked (status: {task['status']})")
+
+        now = datetime.now(timezone.utc).isoformat()
+        old_status = task["status"]
+        task["status"] = "pending"
+        task["blocked_by"] = []
+        task["blocked"] = False
+        task["updated_at"] = now
+        task["history"].append({
+            "timestamp": now,
+            "action": "force_unblocked",
+            "from_status": old_status,
+            "to_status": "pending",
+        })
+        self._record_activity("task_force_unblocked", task_id)
+        self._save_tasks()
+        log.info("Force-unblocked task %s", task_id)
+        return task
+
+    def get_dependency_graph(self, root_task_id: str | None = None, max_depth: int = 10) -> dict[str, Any]:
+        """Get dependency graph, optionally rooted at a specific task."""
+        graph: dict[str, Any] = {"nodes": [], "edges": []}
+        visited: set[str] = set()
+
+        def walk(task_id: str, depth: int) -> None:
+            if task_id in visited or depth > max_depth:
+                return
+            visited.add(task_id)
+            task = self.tasks.get(task_id)
+            if not task:
+                return
+            self._compute_blocked_fields(task)
+            graph["nodes"].append({
+                "id": task_id,
+                "title": task.get("title", ""),
+                "status": task.get("status", ""),
+                "blocked": task.get("blocked", False),
+                "depends_total": task.get("depends_total", 0),
+                "depends_completed": task.get("depends_completed", 0),
+            })
+            for dep_id in task.get("depends_on", []):
+                graph["edges"].append({"from": dep_id, "to": task_id})
+                walk(dep_id, depth + 1)
+            # Also walk dependents
+            for dep_task_id in self._dependents_of.get(task_id, set()):
+                graph["edges"].append({"from": task_id, "to": dep_task_id})
+                walk(dep_task_id, depth + 1)
+
+        if root_task_id:
+            walk(root_task_id, 0)
+        else:
+            # Walk all tasks that have dependencies
+            for tid, task in self.tasks.items():
+                if task.get("depends_on") or tid in self._dependents_of:
+                    walk(tid, 0)
+
+        # Deduplicate edges
+        seen_edges: set[tuple[str, str]] = set()
+        unique_edges = []
+        for e in graph["edges"]:
+            key = (e["from"], e["to"])
+            if key not in seen_edges:
+                seen_edges.add(key)
+                unique_edges.append(e)
+        graph["edges"] = unique_edges
+
+        return graph
+
     # ── Task Lifecycle ─────────────────────────────────────────────────────
 
     def create_task(
@@ -99,6 +296,7 @@ class OpsService:
         skill_id: Optional[str] = None,
         priority: str = "medium",
         tags: Optional[list[str]] = None,
+        depends_on: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Create a new task and persist it.
 
@@ -113,17 +311,38 @@ class OpsService:
         Returns:
             The newly created task dict.
         """
+        # Validate dependencies (P-4)
+        deps = depends_on or []
+        for dep_id in deps:
+            if dep_id not in self.tasks:
+                raise ValueError(f"Dependency task '{dep_id}' does not exist")
+
         task_id = uuid4().hex[:8]
+
+        # Cycle detection
+        if deps:
+            cycle = self._detect_cycle(task_id, deps)
+            if cycle:
+                raise ValueError(cycle)
+
+        # Determine initial status: blocked if any dep is incomplete
+        initial_status = "pending"
+        if deps:
+            incomplete = [d for d in deps if self.tasks.get(d, {}).get("status") != "completed"]
+            if incomplete:
+                initial_status = "blocked"
+
         now = datetime.now(timezone.utc).isoformat()
         task: dict[str, Any] = {
             "id": task_id,
             "title": title,
             "description": description,
-            "status": "pending",
+            "status": initial_status,
             "priority": priority,
             "agent_id": agent_id,
             "skill_id": skill_id,
             "tags": tags or [],
+            "depends_on": deps,
             "created_at": now,
             "updated_at": now,
             "assigned_at": now if agent_id else None,
@@ -133,14 +352,20 @@ class OpsService:
                     "timestamp": now,
                     "action": "created",
                     "from_status": None,
-                    "to_status": "pending",
+                    "to_status": initial_status,
                 }
             ],
         }
         self.tasks[task_id] = task
-        self._record_activity("task_created", task_id, {"title": title, "agent_id": agent_id})
+
+        # Update reverse index (P-4)
+        for dep_id in deps:
+            self._dependents_of.setdefault(dep_id, set()).add(task_id)
+        self._compute_blocked_fields(task)
+
+        self._record_activity("task_created", task_id, {"title": title, "agent_id": agent_id, "depends_on": deps})
         self._save_tasks()
-        log.info("Created task %s: %s", task_id, title)
+        log.info("Created task %s: %s (deps=%s, status=%s)", task_id, title, deps, initial_status)
         return task
 
     def update_task(
@@ -197,6 +422,18 @@ class OpsService:
                 changes["status"] = {"from": old_status, "to": status}
                 if status in TERMINAL_STATUSES:
                     task["completed_at"] = now
+                # P-4: auto-unblock dependents on completion
+                if status == "completed":
+                    with self._dep_lock:
+                        unblocked = self._auto_unblock_dependents(task_id)
+                        if unblocked:
+                            log.info("Auto-unblocked %d tasks after %s completed", len(unblocked), task_id)
+                # P-4: propagate failure to dependents
+                if status in FAILED_STATUSES:
+                    with self._dep_lock:
+                        affected = self._propagate_failed_deps(task_id)
+                        if affected:
+                            log.info("Marked %d tasks as blocked_failed after %s failed", len(affected), task_id)
 
         if agent_id is not None:
             old_agent = task["agent_id"]
@@ -301,6 +538,7 @@ class OpsService:
                 haystack = f"{task['title']} {task['description']}".lower()
                 if needle not in haystack:
                     continue
+            self._compute_blocked_fields(task)
             results.append(task)
 
         results.sort(key=lambda t: t.get("updated_at", ""), reverse=True)

@@ -26,6 +26,8 @@ class PriorityItem:
 
     DEFAULT_TTL = 86400  # 24 hours
 
+    blocked: bool = False
+
     def __init__(self, item_id: str, task_type: str, description: str,
                  agent: str = "", metadata: dict[str, Any] | None = None,
                  ttl: int = 86400):
@@ -141,7 +143,8 @@ class PriorityEngine:
         """Get top N priority items with optional filters. Removes expired."""
         self._queue = [i for i in self._queue if not i.is_expired]
         self._queue.sort(key=lambda x: x.decayed_score, reverse=True)
-        items = self._queue
+        # P-4: exclude blocked tasks before scoring
+        items = [i for i in self._queue if not i.blocked]
         if agent:
             items = [i for i in items if i.agent == agent]
         if task_type:
@@ -150,7 +153,9 @@ class PriorityEngine:
 
     def pop_next(self, agent: str | None = None) -> dict[str, Any] | None:
         """Pop the highest priority item."""
-        items = self._queue if not agent else [i for i in self._queue if i.agent == agent]
+        # P-4: exclude blocked tasks
+        pool = [i for i in self._queue if not i.blocked]
+        items = pool if not agent else [i for i in pool if i.agent == agent]
         if not items:
             return None
         item = items[0]

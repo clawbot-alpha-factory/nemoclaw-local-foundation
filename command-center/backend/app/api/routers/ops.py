@@ -26,6 +26,7 @@ class TaskCreate(BaseModel):
     status: Optional[str] = "pending"
     budget_limit: Optional[float] = None
     metadata: Optional[dict] = {}
+    depends_on: Optional[List[str]] = None
 
 
 class TaskUpdate(BaseModel):
@@ -100,7 +101,7 @@ async def create_task(
 ):
     """Create a new task."""
     try:
-        task = svc.create_task(title=body.title, description=body.description, agent_id=body.assigned_agent if hasattr(body, "assigned_agent") else getattr(body, "agent", None), priority=getattr(body, "priority", "medium"))
+        task = svc.create_task(title=body.title, description=body.description or "", agent_id=getattr(body, "agent", None), priority=getattr(body, "priority", "medium"), depends_on=body.depends_on)
         log.info("Task created: %s (agent=%s, skill=%s)", task.get("id"), body.agent, body.skill)
         return task
     except ValueError as e:
@@ -125,7 +126,16 @@ async def update_task(
         raise HTTPException(status_code=400, detail="No fields to update")
 
     try:
-        task = svc.update_task(task_id=task_id, updates=updates)
+        # Remap router field names to service field names
+        mapped = {}
+        for k, v in updates.items():
+            if k == "agent":
+                mapped["agent_id"] = v
+            elif k == "skill":
+                mapped["skill_id"] = v
+            else:
+                mapped[k] = v
+        task = svc.update_task(task_id=task_id, **mapped)
         if task is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
         log.info("Task updated: %s fields=%s", task_id, list(updates.keys()))
@@ -138,6 +148,51 @@ async def update_task(
         log.error("Failed to update task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Task update error: {str(e)}")
 
+
+
+
+# ── P-4: Task Dependency Endpoints ───────────────────────────────────────────
+
+@router.get("/tasks/dependency-graph")
+async def dependency_graph(
+    root: Optional[str] = Query(None, description="Root task ID (optional)"),
+    depth: int = Query(10, ge=1, le=50, description="Max traversal depth"),
+    _=Depends(require_auth),
+    svc=Depends(_svc),
+):
+    """Get the task dependency graph."""
+    try:
+        return svc.get_dependency_graph(root_task_id=root, max_depth=depth)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tasks/{task_id}/dependencies")
+async def task_dependencies(
+    task_id: str,
+    _=Depends(require_auth),
+    svc=Depends(_svc),
+):
+    """Get dependency tree for a specific task."""
+    try:
+        return svc.get_dependency_graph(root_task_id=task_id, max_depth=10)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tasks/{task_id}/force-unblock")
+async def force_unblock_task(
+    task_id: str,
+    _=Depends(require_auth),
+    svc=Depends(_svc),
+):
+    """Manually unblock a blocked task, overriding dependency checks."""
+    try:
+        return svc.force_unblock(task_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # ── GET /api/operations/budget ───────────────────────────────────────────────
 
