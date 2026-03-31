@@ -1,0 +1,1 @@
+{"inputs": {"event_data": "Event type: deal_stage_change. Source: rev-07-deal-progression-tracker. Payload: deal_id=DEAL-2026-0089, client=NovaTech MENA, previous_stage=proposal, new_stage=negotiation, deal_value=22000, agent=revenue-closer-agent, timestamp=2026-04-01T14:32:00Z."}}
