@@ -55,6 +55,16 @@ def load_spec(args):
 
 def validate_inputs(spec):
     errors = []
+    # Sanitize all inputs
+    for key in list(spec.get("inputs", {}).keys()):
+        val = spec["inputs"][key]
+        if not isinstance(val, str):
+            spec["inputs"][key] = str(val)
+        # Strip dangerous characters
+        spec["inputs"][key] = spec["inputs"][key].replace("\x00", "").strip()
+        # Length cap (prevent memory abuse)
+        if len(spec["inputs"][key]) > 50000:
+            spec["inputs"][key] = spec["inputs"][key][:50000]
     if not spec["inputs"].get("webinar_topic") or len(spec["inputs"]["webinar_topic"]) < 10:
         errors.append("Missing required input: webinar_topic")
     if not spec["inputs"].get("target_audience") or len(spec["inputs"]["target_audience"]) < 10:

@@ -1,0 +1,45 @@
+name: int-05-cross-platform-scraper
+version: 1.0.0
+display_name: "Cross-Platform Scraper"
+description: >
+  Scrapes Twitter/X, Instagram, TikTok, YouTube, Reddit via Apify. Extracts comments, replies, discussions. Feeds into int-02 Demand Pattern Analyzer. Bridge-ready for Apify API.
+author: NemoClaw E-9 Gap Fix
+created: 2026-03-31
+tier: F
+tag: intelligence
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+execution_role: >
+  You are a social media data extraction specialist. Design scraping strategies that capture maximum demand signals from public discussions.
+inputs:
+  - name: targets
+    type: string
+    required: true
+    description: "Scraping targets: URLs, usernames, hashtags, subreddits"
+    validation:
+      min_length: 5
+      max_length: 5000
+  - name: platforms
+    type: string
+    required: false
+    description: "Platforms to scrape"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "twitter,instagram,youtube,reddit"
+outputs:
+  - name: result
+    type: string
+  - name: result_file
+    type: file_path
+  - name: envelope_file
+    type: file_path
+artifacts:
+  storage_location: skills/int-05-cross-platform-scraper/outputs/
+  filename_pattern: "int-05-cross-platform-scraper_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "int-05-cross-platform-scraper_{workflow_id}_{timestamp}_envelope.json"
+routing:
+  default_alias: moderate
+composable:
+  output_type: "intelligence_executor_output"

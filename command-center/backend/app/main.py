@@ -96,6 +96,14 @@ from app.api.routers import self_build as self_build_router
 from app.services.bridge_manager import BridgeManager
 from app.api.routers import bridges as bridges_router
 
+# ── Engine (E-9 fix) imports ──
+from app.services.skill_agent_mapping import SkillAgentMappingService
+from app.services.skill_chain_wiring import SkillChainWiringService
+from app.services.global_state_service import GlobalStateService
+from app.services.priority_engine import PriorityEngine
+from app.services.failure_recovery_service import FailureRecoveryService
+from app.api.routers import skill_wiring as skill_wiring_router
+
 # ── Engine (E-5) imports ──
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
@@ -345,6 +353,20 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-8: BridgeManager initialized")
 
+    # ── E-9 Fix: Skill Wiring ──
+    # ── E-9 Gap Fix: Global State + Priority + Recovery ──
+    app.state.global_state = GlobalStateService()
+    app.state.priority_engine = PriorityEngine(global_state=app.state.global_state)
+    app.state.failure_recovery = FailureRecoveryService(global_state=app.state.global_state)
+    logger.info("E-9: GlobalState + PriorityEngine + FailureRecovery initialized")
+
+    app.state.skill_agent_mapping = SkillAgentMappingService()
+    app.state.skill_chain_wiring = SkillChainWiringService(
+        skill_agent_mapping=app.state.skill_agent_mapping,
+        bridge_manager=app.state.bridge_manager,
+    )
+    logger.info("E-9: Skill Agent Mapping + Chain Wiring initialized")
+
     yield
 
     # E-4a shutdown
@@ -404,6 +426,7 @@ app.include_router(enterprise_router.router)  # E-4c: Enterprise
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
 app.include_router(self_build_router.router)  # E-7b: Self-Build
 app.include_router(bridges_router.router)  # E-8: Bridges
+app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

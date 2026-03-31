@@ -1,0 +1,45 @@
+name: rev-20-global-state-engine
+version: 1.0.0
+display_name: "Global State Engine"
+description: >
+  Reads and updates the global state layer. Stores leads, deals, content performance, experiments, channel ROI. Makes the system stateful across all runs.
+author: NemoClaw E-9 Gap Fix
+created: 2026-03-31
+tier: A+
+tag: revenue
+skill_type: tracker
+schema_version: 2
+runner_version_required: ">=4.0.0"
+execution_role: >
+  You are a state management specialist. Maintain accurate, up-to-date records of all leads, deals, and system performance.
+inputs:
+  - name: state_update
+    type: string
+    required: true
+    description: "What to update: new lead, deal stage change, performance metric"
+    validation:
+      min_length: 10
+      max_length: 10000
+  - name: collection
+    type: string
+    required: false
+    description: "Collection: leads, deals, content, experiments, channels, learnings"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "leads"
+outputs:
+  - name: result
+    type: string
+  - name: result_file
+    type: file_path
+  - name: envelope_file
+    type: file_path
+artifacts:
+  storage_location: skills/rev-20-global-state-engine/outputs/
+  filename_pattern: "rev-20-global-state-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-20-global-state-engine_{workflow_id}_{timestamp}_envelope.json"
+routing:
+  default_alias: moderate
+composable:
+  output_type: "revenue_tracker_output"

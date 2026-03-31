@@ -1,0 +1,53 @@
+name: rev-21-priority-engine
+version: 1.0.0
+display_name: "Priority Scoring Engine"
+description: >
+  Scores all pending tasks by urgency, value, staleness, confidence, agent fit. Outputs ranked priority queue. Used by rev-06 orchestrator.
+author: NemoClaw E-9 Gap Fix
+created: 2026-03-31
+tier: A+
+tag: revenue
+skill_type: analyzer
+schema_version: 2
+runner_version_required: ">=4.0.0"
+execution_role: >
+  You are a task prioritization specialist. Analyze all pending actions and rank them by expected impact on revenue.
+inputs:
+  - name: pending_tasks
+    type: string
+    required: true
+    description: "List of pending tasks with context"
+    validation:
+      min_length: 20
+      max_length: 15000
+  - name: current_pipeline
+    type: string
+    required: false
+    description: "Current pipeline state for context"
+    validation:
+      min_length: 5
+      max_length: 10000
+outputs:
+  - name: result
+    type: string
+  - name: result_file
+    type: file_path
+  - name: envelope_file
+    type: file_path
+
+  - name: insight
+    type: string
+  - name: recommended_action
+    type: string
+  - name: trigger_skill
+    type: string
+  - name: confidence
+    type: float
+artifacts:
+  storage_location: skills/rev-21-priority-engine/outputs/
+  filename_pattern: "rev-21-priority-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-21-priority-engine_{workflow_id}_{timestamp}_envelope.json"
+routing:
+  default_alias: moderate
+composable:
+  output_type: "revenue_analyzer_output"

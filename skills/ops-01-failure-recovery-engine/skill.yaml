@@ -1,0 +1,45 @@
+name: ops-01-failure-recovery-engine
+version: 1.0.0
+display_name: "Failure Recovery Engine"
+description: >
+  Handles skill/bridge failures. Retry (2x) → fallback skill → escalate to different agent → log pattern. Prevents silent failures.
+author: NemoClaw E-9 Gap Fix
+created: 2026-03-31
+tier: A+
+tag: operations
+skill_type: executor
+schema_version: 2
+runner_version_required: ">=4.0.0"
+execution_role: >
+  You are a system reliability specialist. When things fail, diagnose the root cause and recommend the optimal recovery path.
+inputs:
+  - name: failure_context
+    type: string
+    required: true
+    description: "What failed: skill_id, error, agent, inputs"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: severity
+    type: string
+    required: false
+    description: "Severity: low, medium, high, critical"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "medium"
+outputs:
+  - name: result
+    type: string
+  - name: result_file
+    type: file_path
+  - name: envelope_file
+    type: file_path
+artifacts:
+  storage_location: skills/ops-01-failure-recovery-engine/outputs/
+  filename_pattern: "ops-01-failure-recovery-engine_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "ops-01-failure-recovery-engine_{workflow_id}_{timestamp}_envelope.json"
+routing:
+  default_alias: moderate
+composable:
+  output_type: "operations_executor_output"

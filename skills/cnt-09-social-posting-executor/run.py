@@ -55,6 +55,16 @@ def load_spec(args):
 
 def validate_inputs(spec):
     errors = []
+    # Sanitize all inputs
+    for key in list(spec.get("inputs", {}).keys()):
+        val = spec["inputs"][key]
+        if not isinstance(val, str):
+            spec["inputs"][key] = str(val)
+        # Strip dangerous characters
+        spec["inputs"][key] = spec["inputs"][key].replace("\x00", "").strip()
+        # Length cap (prevent memory abuse)
+        if len(spec["inputs"][key]) > 50000:
+            spec["inputs"][key] = spec["inputs"][key][:50000]
     if not spec["inputs"].get("post_content") or len(spec["inputs"]["post_content"]) < 10:
         errors.append("Missing required input: post_content")
     if not spec["inputs"].get("platform") or len(spec["inputs"]["platform"]) < 3:
@@ -111,6 +121,18 @@ def should_retry(state):
     return "accept"
 
 def step_retry(state): return {**state, "retry_count": state.get("retry_count", 0) + 1}
+
+
+# ── BRIDGE: Social Posting Integration ──
+def step_bridge_post(state):
+    """Placeholder for social posting bridge (Buffer/Meta API)."""
+    platform = state["inputs"].get("platform", "")
+    # Bridge not yet connected — log intent for future activation
+    import logging as _log
+    _log.getLogger("cc.bridge.social").info(
+        "Social post queued for %s (bridge pending)", platform
+    )
+    return {**state, "bridge_result": f"queued_for_{platform}"}
 
 def step_5_artifact(state):
     output = state.get("final_output", state.get("generated_output", ""))

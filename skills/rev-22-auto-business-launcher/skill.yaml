@@ -1,0 +1,45 @@
+name: rev-22-auto-business-launcher
+version: 1.0.0
+display_name: "Auto Business Launcher"
+description: >
+  Full autonomous loop: detect demand → generate offer → create landing page → payment link → content → outreach → sales. Zero human intervention from signal to revenue.
+author: NemoClaw E-9 Gap Fix
+created: 2026-03-31
+tier: A+
+tag: revenue
+skill_type: orchestrator
+schema_version: 2
+runner_version_required: ">=4.0.0"
+execution_role: >
+  You are a rapid business launch specialist. Given a validated demand signal, design and execute a complete go-to-market in hours, not weeks.
+inputs:
+  - name: demand_signal
+    type: string
+    required: true
+    description: "Validated demand signal with confidence score and ICP"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: budget_limit
+    type: string
+    required: false
+    description: "Maximum budget in USD for launch"
+    validation:
+      min_length: 5
+      max_length: 10000
+    default: "50"
+outputs:
+  - name: result
+    type: string
+  - name: result_file
+    type: file_path
+  - name: envelope_file
+    type: file_path
+artifacts:
+  storage_location: skills/rev-22-auto-business-launcher/outputs/
+  filename_pattern: "rev-22-auto-business-launcher_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "rev-22-auto-business-launcher_{workflow_id}_{timestamp}_envelope.json"
+routing:
+  default_alias: premium
+composable:
+  output_type: "revenue_orchestrator_output"

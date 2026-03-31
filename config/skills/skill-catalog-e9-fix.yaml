@@ -1,0 +1,47 @@
+# NemoClaw E-9 Gap Fix Catalog
+skills:
+
+  - id: "rev-20-global-state-engine"
+    name: "Global State Engine"
+    status: built
+    type: tracker
+    directory: "skills/rev-20-global-state-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9_fix
+
+  - id: "rev-21-priority-engine"
+    name: "Priority Scoring Engine"
+    status: built
+    type: analyzer
+    directory: "skills/rev-21-priority-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9_fix
+
+  - id: "ops-01-failure-recovery-engine"
+    name: "Failure Recovery Engine"
+    status: built
+    type: executor
+    directory: "skills/ops-01-failure-recovery-engine"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9_fix
+
+  - id: "int-05-cross-platform-scraper"
+    name: "Cross-Platform Scraper"
+    status: built
+    type: executor
+    directory: "skills/int-05-cross-platform-scraper"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9_fix
+
+  - id: "rev-22-auto-business-launcher"
+    name: "Auto Business Launcher"
+    status: built
+    type: orchestrator
+    directory: "skills/rev-22-auto-business-launcher"
+    has_run_py: true
+    has_skill_yaml: true
+    tier: e9_fix

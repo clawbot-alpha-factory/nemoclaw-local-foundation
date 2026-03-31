@@ -55,6 +55,16 @@ def load_spec(args):
 
 def validate_inputs(spec):
     errors = []
+    # Sanitize all inputs
+    for key in list(spec.get("inputs", {}).keys()):
+        val = spec["inputs"][key]
+        if not isinstance(val, str):
+            spec["inputs"][key] = str(val)
+        # Strip dangerous characters
+        spec["inputs"][key] = spec["inputs"][key].replace("\x00", "").strip()
+        # Length cap (prevent memory abuse)
+        if len(spec["inputs"][key]) > 50000:
+            spec["inputs"][key] = spec["inputs"][key][:50000]
     if not spec["inputs"].get("offer_performance_data") or len(spec["inputs"]["offer_performance_data"]) < 20:
         errors.append("Missing required input: offer_performance_data")
     if errors:

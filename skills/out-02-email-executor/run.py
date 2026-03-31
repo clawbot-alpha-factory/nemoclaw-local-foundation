@@ -55,6 +55,16 @@ def load_spec(args):
 
 def validate_inputs(spec):
     errors = []
+    # Sanitize all inputs
+    for key in list(spec.get("inputs", {}).keys()):
+        val = spec["inputs"][key]
+        if not isinstance(val, str):
+            spec["inputs"][key] = str(val)
+        # Strip dangerous characters
+        spec["inputs"][key] = spec["inputs"][key].replace("\x00", "").strip()
+        # Length cap (prevent memory abuse)
+        if len(spec["inputs"][key]) > 50000:
+            spec["inputs"][key] = spec["inputs"][key][:50000]
     if not spec["inputs"].get("email_spec") or len(spec["inputs"]["email_spec"]) < 20:
         errors.append("Missing required input: email_spec")
     if errors:
@@ -109,6 +119,41 @@ def should_retry(state):
     return "accept"
 
 def step_retry(state): return {**state, "retry_count": state.get("retry_count", 0) + 1}
+
+
+# ── BRIDGE: Resend Integration ──
+def step_bridge_send(state):
+    """If email_spec has to/subject/body, send via Resend bridge."""
+    try:
+        import httpx, os
+        email_spec = state["inputs"].get("email_spec", "")
+        # Only send if inputs look like actual email data
+        if "@" in email_spec and "subject" in email_spec.lower():
+            api_key = os.environ.get("RESEND_API_KEY", "")
+            if api_key:
+                # Parse simple format: to=x subject=y body=z
+                import json as _json
+                try:
+                    spec = _json.loads(email_spec)
+                except Exception:
+                    spec = {}
+                if spec.get("to") and spec.get("subject"):
+                    resp = httpx.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json={
+                            "from": spec.get("from_email", "noreply@resend.dev"),
+                            "to": [spec["to"]] if isinstance(spec["to"], str) else spec["to"],
+                            "subject": spec["subject"],
+                            "text": spec.get("body", spec.get("text", "")),
+                        },
+                        timeout=30,
+                    )
+                    if resp.status_code == 200:
+                        return {**state, "bridge_result": "sent"}
+    except Exception:
+        pass
+    return state
 
 def step_5_artifact(state):
     output = state.get("final_output", state.get("generated_output", ""))
