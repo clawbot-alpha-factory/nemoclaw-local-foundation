@@ -171,6 +171,15 @@ class BridgeManager:
                 requires_approval=False,  # Read-only, safe
                 cost_per_call=0.0,
             ),
+            # P-9: WhatsApp bridge (MENA adaptation)
+            "whatsapp": BridgeConfig(
+                name="whatsapp",
+                enabled=bool(os.environ.get("WHATSAPP_ACCOUNT_SID") or os.environ.get("WHATSAPP_ACCESS_TOKEN")),
+                rate_limit_per_minute=30,
+                daily_cap=500,
+                requires_approval=True,  # Sends to real people
+                cost_per_call=0.005,
+            ),
         }
 
     def _init_bridges(self) -> None:
@@ -192,6 +201,17 @@ class BridgeManager:
                 logger.info("Instantly bridge loaded (key: %s...)", instantly_key[:8])
             except Exception as e:
                 logger.warning("Failed to load Instantly bridge: %s", e)
+
+        # P-9: WhatsApp bridge
+        wa_provider = os.environ.get("WHATSAPP_PROVIDER", "twilio")
+        wa_has_keys = bool(os.environ.get("WHATSAPP_ACCOUNT_SID") or os.environ.get("WHATSAPP_ACCESS_TOKEN"))
+        if wa_has_keys:
+            try:
+                from app.services.bridges.whatsapp_bridge import WhatsAppBridge
+                self._bridges["whatsapp"] = WhatsAppBridge(provider=wa_provider)
+                logger.info("WhatsApp bridge loaded (provider=%s)", wa_provider)
+            except Exception as e:
+                logger.warning("Failed to load WhatsApp bridge: %s", e)
 
     async def execute(
         self,

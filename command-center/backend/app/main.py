@@ -413,6 +413,11 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-8: BridgeManager initialized")
 
+    # ── P-9: Language Service (MENA adaptation) ──
+    from app.services.language_service import LanguageService
+    app.state.language_service = LanguageService()
+    logger.info("P-9: LanguageService initialized")
+
     # ── E-9 Fix: Skill Wiring ──
     # ── E-9 Gap Fix: Global State + Priority + Recovery ──
     app.state.global_state = GlobalStateService()

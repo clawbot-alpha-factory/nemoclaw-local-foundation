@@ -20,6 +20,18 @@ from typing import Any
 
 logger = logging.getLogger("cc.priority")
 
+# ── P-9: Lead Source Boost (MENA warm intro weighting) ──────────────
+# Additive boost to priority score based on lead source type.
+# Warm intros are culturally weighted higher in MENA markets.
+SOURCE_BOOST = {
+    "warm_intro": 30,
+    "referral": 30,
+    "inbound": 20,
+    "linkedin": 15,
+    "cold": 0,
+}
+MAX_PRIORITY_SCORE = 100
+
 
 class PriorityItem:
     """A prioritized task or action."""
@@ -120,6 +132,15 @@ class PriorityEngine:
             item.factors[factor] = contribution
             total += contribution
         item.priority_score = min(total * 10, 100)  # Scale to 0-100
+
+        # P-9: Apply lead source boost from metadata
+        if item.metadata:
+            source_type = item.metadata.get("source_type", "cold")
+            boost = SOURCE_BOOST.get(source_type, 0)
+            if boost:
+                item.priority_score = min(item.priority_score + boost, MAX_PRIORITY_SCORE)
+                item.factors["source_boost"] = boost
+
         return item.priority_score
 
     def add_task(self, item_id: str, task_type: str, description: str,
