@@ -85,7 +85,7 @@ def call_google(messages, model=None, max_tokens=4000):
 def call_resolved(messages, context, max_tokens=4000):
     try:
         provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-        model = context.get("resolved_model", "gpt-5.4-mini")
+        model = context.get("resolved_model", "")
         if provider == "anthropic":
             return call_anthropic(messages, model=model, max_tokens=max_tokens)
         elif provider == "google":
@@ -404,7 +404,7 @@ STRICT RULES:
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 
@@ -482,7 +482,7 @@ Be strict and specific. Every deduction must correspond to a listed issue.
 
     content, error = call_resolved(messages, context, max_tokens=3000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=3000)
+        content, error = call_openai(messages, max_tokens=3000)
     if error:
         return None, error
 
@@ -636,7 +636,7 @@ Output the full improved scaffold in this exact structured markdown format:
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 

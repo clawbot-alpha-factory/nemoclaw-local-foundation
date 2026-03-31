@@ -90,7 +90,7 @@ def call_google(messages, model=None, max_tokens=4000):
 
 def call_resolved(messages, context, max_tokens=4000):
     provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "gpt-4o-mini")
+    model = context.get("resolved_model", "")
     if provider == "anthropic":
         return call_anthropic(messages, model=model, max_tokens=max_tokens)
     elif provider == "google":
@@ -335,7 +335,7 @@ Every section must be present and substantive."""
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 
@@ -412,7 +412,7 @@ Return ONLY valid JSON in this exact format:
 
     content, error = call_resolved(messages, context, max_tokens=4000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=4000)
+        content, error = call_openai(messages, max_tokens=4000)
     if error:
         return None, error
 
@@ -543,7 +543,7 @@ Return the COMPLETE revised specification — not just the changed parts. All se
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 

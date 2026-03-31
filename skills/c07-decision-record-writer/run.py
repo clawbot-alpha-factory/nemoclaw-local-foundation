@@ -85,7 +85,7 @@ def call_google(messages, model=None, max_tokens=4000):
 def call_resolved(messages, context, max_tokens=4000):
     try:
         provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-        model = context.get("resolved_model", "gpt-4o-mini")
+        model = context.get("resolved_model", "")
         if provider == "anthropic":
             return call_anthropic(messages, model=model, max_tokens=max_tokens)
         elif provider == "google":
@@ -308,7 +308,7 @@ def step_2_llm(inputs, context):
 
     content, error = call_resolved(messages, context, max_tokens=6000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+        content, error = call_openai(messages, max_tokens=6000)
     if error:
         return None, error
 
@@ -392,7 +392,7 @@ def step_3_critic(inputs, context):
 
     content, error = call_resolved(messages, context, max_tokens=2000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=2000)
+        content, error = call_openai(messages, max_tokens=2000)
     if error:
         return None, error
 
@@ -504,7 +504,7 @@ def step_4_llm(inputs, context):
 
     content, error = call_resolved(messages, context, max_tokens=6000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+        content, error = call_openai(messages, max_tokens=6000)
     if error:
         return None, error
 

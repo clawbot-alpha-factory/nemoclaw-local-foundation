@@ -84,7 +84,7 @@ def call_google(messages, model=None, max_tokens=4000):
 
 def call_resolved(messages, context, max_tokens=4000):
     provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "gpt-4o-mini")
+    model = context.get("resolved_model", "")
     try:
         if provider == "anthropic":
             return call_anthropic(messages, model=model, max_tokens=max_tokens)
@@ -291,7 +291,7 @@ Write the complete article now:"""
 
     content, error = call_resolved(messages, context, max_tokens=6000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+        content, error = call_openai(messages, max_tokens=6000)
     if error:
         return None, error
 
@@ -391,7 +391,7 @@ Return ONLY this JSON structure (no markdown, no explanation):
 
     content, error = call_resolved(messages, context, max_tokens=3000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=3000)
+        content, error = call_openai(messages, max_tokens=3000)
     if error:
         return None, error
 
@@ -506,7 +506,7 @@ Write the complete revised article in clean markdown:"""
 
     content, error = call_resolved(messages, context, max_tokens=6000)
     if error:
-        content, error = call_openai(messages, model="gpt-4o-mini", max_tokens=6000)
+        content, error = call_openai(messages, max_tokens=6000)
     if error:
         return None, error
 

@@ -90,9 +90,9 @@ def call_google(messages, model=None, max_tokens=6000):
 def call_resolved(messages, context, max_tokens=6000):
     m = context.get("resolved_model", "")
     p = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    if p == "google": return call_google(messages, model=m or "gemini-2.5-flash", max_tokens=max_tokens)
-    if p == "openai": return call_openai(messages, model=m or "gpt-5.4-mini", max_tokens=max_tokens)
-    return call_anthropic(messages, model=m or "claude-sonnet-4-6", max_tokens=max_tokens)
+    if p == "google": return call_google(messages, model=m, max_tokens=max_tokens)
+    if p == "openai": return call_openai(messages, model=m, max_tokens=max_tokens)
+    return call_anthropic(messages, model=m, max_tokens=max_tokens)
 
 
 # ── Section Extraction (reused from c07/f09/e12-market-research pattern) ──────
@@ -884,7 +884,7 @@ Generate the complete technology trend scan report."""
     tokens = _get_token_budget(scan_depth)
     content, error = call_resolved(messages, context, max_tokens=tokens)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=tokens)
+        content, error = call_openai(messages, max_tokens=tokens)
     if error:
         return None, error
     return {"output": content}, None
@@ -944,7 +944,7 @@ Evaluate."""
     ]
     content, error = call_resolved(messages, context, max_tokens=1500)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=1500)
+        content, error = call_openai(messages, max_tokens=1500)
 
     llm_scores = {"analytical_depth": 5, "strategic_utility": 5, "llm_feedback": ""}
     if not error and content:
@@ -1046,7 +1046,7 @@ Fix all issues."""
     tokens = _get_token_budget(scan_depth)
     content, error = call_resolved(messages, context, max_tokens=tokens)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=tokens)
+        content, error = call_openai(messages, max_tokens=tokens)
     if error:
         return None, error
     return {"output": content}, None

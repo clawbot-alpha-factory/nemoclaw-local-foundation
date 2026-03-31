@@ -57,14 +57,20 @@ def call_llm(messages, max_tokens=4000):
     from lib.routing import call_llm as _routed_call
     return _routed_call(messages, task_class="moderate", max_tokens=max_tokens)
 
-def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=4000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("complex_reasoning")
     from langchain_anthropic import ChatAnthropic
     llm = ChatAnthropic(model=model, max_tokens=max_tokens)
     resp = llm.invoke(messages)
     return resp.content, None
 
 
-def call_openai(messages, model="gpt-4o-mini", max_tokens=4000):
+def call_openai(messages, model=None, max_tokens=4000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
     from langchain_openai import ChatOpenAI
     llm = ChatOpenAI(model=model, max_tokens=max_tokens)
     resp = llm.invoke(messages)
@@ -207,7 +213,7 @@ def step_3_critic(state):
     if score < 7.0:
         print(f"    [critic] Heuristic score {score:.1f} < 7.0 — running LLM critic")
         llm_score, feedback = call_cheap_critic(output, state.get("step_1_output", ""))
-        cost = estimate_cost("claude-haiku-4-5-20251001")
+        cost = estimate_cost()
         state["context"]["budget_state"]["remaining"] -= cost
         score = (score + llm_score) / 2  # Average heuristic + LLM
         state = {**state, "cost": state.get("cost", 0) + cost}

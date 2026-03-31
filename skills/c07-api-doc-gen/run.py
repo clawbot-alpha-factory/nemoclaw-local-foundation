@@ -84,7 +84,7 @@ def call_google(messages, model=None, max_tokens=4000):
 
 def call_resolved(messages, context, max_tokens=4000):
     provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "gpt-5.4-mini")
+    model = context.get("resolved_model", "")
     try:
         if provider == "anthropic":
             return call_anthropic(messages, model=model, max_tokens=max_tokens)
@@ -307,7 +307,7 @@ IMPORTANT: Do NOT invent any endpoints, parameters, fields, or behaviors not exp
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 
@@ -386,7 +386,7 @@ Respond with ONLY this JSON (no markdown fences, no extra text):
 
     content, error = call_resolved(messages, context, max_tokens=2000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=2000)
+        content, error = call_openai(messages, max_tokens=2000)
     if error:
         return None, error
 
@@ -507,7 +507,7 @@ Produce the complete revised documentation. Every piece of content must be trace
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 

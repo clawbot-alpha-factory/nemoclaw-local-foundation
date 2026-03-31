@@ -88,9 +88,9 @@ def call_google(messages, model=None, max_tokens=6000):
 def call_resolved(messages, context, max_tokens=6000):
     m = context.get("resolved_model", "")
     p = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    if p == "google": return call_google(messages, model=m or "gemini-2.5-flash", max_tokens=max_tokens)
-    if p == "openai": return call_openai(messages, model=m or "gpt-5.4-mini", max_tokens=max_tokens)
-    return call_anthropic(messages, model=m or "claude-sonnet-4-6", max_tokens=max_tokens)
+    if p == "google": return call_google(messages, model=m, max_tokens=max_tokens)
+    if p == "openai": return call_openai(messages, model=m, max_tokens=max_tokens)
+    return call_anthropic(messages, model=m, max_tokens=max_tokens)
 
 
 # ── Section Extraction Helper ─────────────────────────────────────────────────
@@ -672,7 +672,7 @@ Generate the complete product requirements document ({scope_level} scope)."""
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 
@@ -734,7 +734,7 @@ Evaluate."""
 
     content, error = call_resolved(messages, context, max_tokens=1500)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=1500)
+        content, error = call_openai(messages, max_tokens=1500)
 
     llm_scores = {"consistency_score": 5, "audience_fit": 5, "llm_feedback": ""}
     if not error and content:
@@ -823,7 +823,7 @@ Fix all issues."""
 
     content, error = call_resolved(messages, context, max_tokens=8000)
     if error:
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=8000)
+        content, error = call_openai(messages, max_tokens=8000)
     if error:
         return None, error
 

@@ -150,15 +150,15 @@ Format each section with a clear markdown header."""}
     resolved_provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
 
     if resolved_provider == "google":
-        content, error = call_google(messages, model=resolved_model or "gemini-2.5-flash", max_tokens=6000)
+        content, error = call_google(messages, model=resolved_model, max_tokens=6000)
     elif resolved_provider == "openai" or resolved_provider not in ("anthropic", "google"):
-        content, error = call_openai(messages, model=resolved_model or "gpt-5.4-mini", max_tokens=6000)
+        content, error = call_openai(messages, model=resolved_model, max_tokens=6000)
     else:
-        content, error = call_anthropic(messages, model=resolved_model or "claude-sonnet-4-6", max_tokens=6000)
+        content, error = call_anthropic(messages, model=resolved_model, max_tokens=6000)
 
     if error:
         # Fallback to OpenAI if primary provider fails
-        content, error = call_openai(messages, model="gpt-5.4-mini", max_tokens=6000)
+        content, error = call_openai(messages, max_tokens=6000)
     if error:
         return None, error
 

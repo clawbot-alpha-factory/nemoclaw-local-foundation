@@ -109,9 +109,9 @@ def call_resolved(messages, context, max_tokens=4000):
     provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
     model = context.get("resolved_model", "")
     if provider == "anthropic":
-        return call_anthropic(messages, model=model or "claude-sonnet-4-6", max_tokens=max_tokens)
+        return call_anthropic(messages, model=model, max_tokens=max_tokens)
     elif provider == "google":
-        return call_google(messages, model=model or "gemini-2.5-flash", max_tokens=max_tokens)
+        return call_google(messages, model=model, max_tokens=max_tokens)
     else:
         return call_openai(messages, model=model or "gpt-4.1-mini", max_tokens=max_tokens)
 
