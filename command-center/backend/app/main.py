@@ -92,6 +92,10 @@ from app.services.deploy_service import DeployService
 from app.services.phase_completion_service import PhaseCompletionService
 from app.api.routers import self_build as self_build_router
 
+# ── Engine (E-8) imports ──
+from app.services.bridge_manager import BridgeManager
+from app.api.routers import bridges as bridges_router
+
 # ── Engine (E-5) imports ──
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
@@ -334,6 +338,13 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-7b: Self-Build Engine initialized (THE TIPPING POINT)")
 
+    # ── E-8: Bridge Activation ──
+    app.state.bridge_manager = BridgeManager(
+        guardrail_service=app.state.guardrail_service,
+        audit_service=app.state.audit_service,
+    )
+    logger.info("E-8: BridgeManager initialized")
+
     yield
 
     # E-4a shutdown
@@ -392,6 +403,7 @@ app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
 app.include_router(self_build_router.router)  # E-7b: Self-Build
+app.include_router(bridges_router.router)  # E-8: Bridges
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
