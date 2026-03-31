@@ -97,6 +97,8 @@ class DeployService:
         self.alert_service = alert_service
         self.audit_service = audit_service
         self.deploys: list[DeployJob] = []
+        self._persist_path = Path.home() / '.nemoclaw' / 'deploy-jobs.json'
+        self._persist_path.parent.mkdir(parents=True, exist_ok=True)
         self._last_failure_time: float = 0
         self._deploy_timestamps: list[float] = []
         logger.info("DeployService initialized (staging-first, canary=%ds)", self.CANARY_DURATION_SECONDS)
@@ -188,6 +190,7 @@ class DeployService:
                         "files": list(files.keys()),
                     })
 
+                self._save_deploys()
                 logger.info("Deploy %s COMPLETE: commit %s", job.deploy_id, commit)
             else:
                 await self._rollback(job, "Git commit failed")
@@ -372,7 +375,16 @@ class DeployService:
                 "reason": reason,
             })
 
+        self._save_deploys()
         logger.warning("Deploy %s ROLLED BACK: %s", job.deploy_id, reason)
+
+    def _save_deploys(self):
+        """Persist deploys to disk."""
+        try:
+            data = [d.to_dict() for d in self.deploys[-50:]]
+            self._persist_path.write_text(json.dumps(data, indent=2, default=str))
+        except Exception as e:
+            logger.warning("Failed to persist deploys: %s", e)
 
     def get_deploys(self, limit: int = 20) -> list[dict[str, Any]]:
         return [d.to_dict() for d in self.deploys[-limit:]]

@@ -73,7 +73,17 @@ class CodeGenerationService:
         self.repo_root = repo_root
         self.backend_dir = repo_root / "command-center" / "backend"
         self.jobs: dict[str, GenerationJob] = {}
+        self._persist_path = Path.home() / '.nemoclaw' / 'codegen-jobs.json'
+        self._persist_path.parent.mkdir(parents=True, exist_ok=True)
         logger.info("CodeGenerationService initialized")
+
+    def _save_jobs(self):
+        """Persist job state to disk (survives restart)."""
+        try:
+            data = {jid: j.to_dict() for jid, j in self.jobs.items()}
+            self._persist_path.write_text(json.dumps(data, indent=2, default=str))
+        except Exception as e:
+            logger.warning("Failed to persist codegen jobs: %s", e)
 
     def _read_existing_file(self, filepath: str) -> str:
         """Read existing file for diff context."""
@@ -154,12 +164,14 @@ class CodeGenerationService:
 
             job.status = "completed"
             job.completed_at = datetime.now(timezone.utc).isoformat()
+            self._save_jobs()
             logger.info("CodeGen job %s completed: %d files, %d tests, $%.2f",
                         job.job_id, len(job.generated_code), len(job.generated_tests), job.cost)
 
         except Exception as e:
             job.status = "failed"
             job.error = str(e)
+            self._save_jobs()
             logger.error("CodeGen job %s failed: %s", job.job_id, e)
 
     async def _generate_file(self, task: str, filepath: str, existing_code: str,

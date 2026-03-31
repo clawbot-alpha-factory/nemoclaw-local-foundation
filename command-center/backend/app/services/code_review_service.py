@@ -81,6 +81,8 @@ class CodeReviewService:
         self.backend_dir = repo_root / "command-center" / "backend"
         self.python = str(repo_root / ".venv313" / "bin" / "python3")
         self.reviews: list[ReviewResult] = []
+        self._persist_path = Path.home() / '.nemoclaw' / 'code-reviews.json'
+        self._persist_path.parent.mkdir(parents=True, exist_ok=True)
         self.human_gate_enabled = True  # Configurable
         logger.info("CodeReviewService initialized (human_gate=%s)", self.human_gate_enabled)
 
@@ -95,6 +97,7 @@ class CodeReviewService:
             result.overall_verdict = "rejected"
             result.blocking_issues.extend(layer1.get("issues", []))
             self.reviews.append(result)
+            self._save_reviews()
             return result
 
         # Layer 2: Test execution (Fix #1)
@@ -104,6 +107,7 @@ class CodeReviewService:
             result.overall_verdict = "rejected"
             result.blocking_issues.append("Generated tests failed")
             self.reviews.append(result)
+            self._save_reviews()
             return result
 
         # Layer 3: CTO agent review (Fix #2 — structured JSON)
@@ -114,6 +118,7 @@ class CodeReviewService:
             result.overall_verdict = "rejected"
             result.blocking_issues.extend(layer3.get("issues", []))
             self.reviews.append(result)
+            self._save_reviews()
             return result
 
         # Layer 4: Operations — regression check
@@ -123,6 +128,7 @@ class CodeReviewService:
             result.overall_verdict = "rejected"
             result.blocking_issues.append("Regression failed")
             self.reviews.append(result)
+            self._save_reviews()
             return result
 
         # Layer 5: Peer review — diff-aware (Fix #6)
@@ -141,6 +147,7 @@ class CodeReviewService:
             result.overall_verdict = "rejected"
 
         self.reviews.append(result)
+        self._save_reviews()
         logger.info("Review %s: %s (%d layers, $%.2f)",
                      result.review_id, result.overall_verdict, len(result.layers), result.cost)
         return result
@@ -359,6 +366,14 @@ Respond with ONLY a JSON object:
             logger.warning("Peer review failed: %s", e)
 
         return {"passed": False, "cost": 0, "error": "Peer review unavailable — REJECTED"}
+
+    def _save_reviews(self):
+        """Persist reviews to disk."""
+        try:
+            data = [r.to_dict() for r in self.reviews[-50:]]  # Keep last 50
+            self._persist_path.write_text(json.dumps(data, indent=2, default=str))
+        except Exception as e:
+            logger.warning("Failed to persist reviews: %s", e)
 
     def get_reviews(self, limit: int = 20) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self.reviews[-limit:]]
