@@ -141,6 +141,9 @@ from app.api.routers import activity as activity_router
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
 
+# ── P-8: Skills Marketplace ──
+from app.api.routers import marketplace as marketplace_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -380,6 +383,14 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-5: SkillFactoryService initialized")
 
+    # ── P-8: Skills Marketplace ──
+    from app.services.skill_marketplace_service import SkillMarketplaceService
+    app.state.skill_marketplace_service = SkillMarketplaceService(
+        repo_root=Path(__file__).resolve().parents[3],
+        skill_service=app.state.skill_service,
+    )
+    logger.info("P-8: SkillMarketplaceService initialized")
+
     # ── E-7b: Self-Build Engine (THE TIPPING POINT) ──
     app.state.build_plan_tracker = BuildPlanTracker()
     app.state.code_generation_service = CodeGenerationService(Path(__file__).resolve().parents[3])
@@ -598,6 +609,7 @@ app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
+app.include_router(marketplace_router.router)  # P-8: Skills Marketplace
 app.include_router(self_build_router.router)  # E-7b: Self-Build
 app.include_router(bridges_router.router)  # E-8: Bridges
 app.include_router(skill_wiring_router.router)  # E-9: Skill Wiring
