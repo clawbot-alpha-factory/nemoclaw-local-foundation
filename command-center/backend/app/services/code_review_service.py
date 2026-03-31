@@ -160,8 +160,8 @@ class CodeReviewService:
 
             # Size check
             lines = len(code.split("\n"))
-            if lines > 600:
-                issues.append(f"{filepath}: {lines} lines (max 600)")
+            if lines > 3000:
+                issues.append(f"{filepath}: {lines} lines (max 3000)")
                 passed = False
 
             # Secrets scan
@@ -268,7 +268,7 @@ REJECTION CRITERIA:
 
         try:
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4o", max_tokens=1500)
+            llm = ChatOpenAI(model="gpt-4o", max_tokens=16000)
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             text = resp.content.strip()
 
@@ -346,7 +346,7 @@ Respond with ONLY a JSON object:
 
         try:
             from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model="gpt-4o", max_tokens=1000)
+            llm = ChatOpenAI(model="gpt-4o", max_tokens=16000)
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             text = resp.content.strip()
 

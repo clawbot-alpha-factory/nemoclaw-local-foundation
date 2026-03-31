@@ -192,7 +192,7 @@ Return ONLY the Python code. No markdown, no explanation."""
 
         try:
             from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=8000)
+            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=32000)
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             code = resp.content.strip()
             # Strip markdown fences if present
@@ -240,7 +240,7 @@ Return ONLY the Python test code. No markdown."""
 
         try:
             from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=4000)
+            llm = ChatAnthropic(model="claude-opus-4-6", max_tokens=16000)
             resp = await asyncio.to_thread(llm.invoke, [("human", prompt)])
             code = resp.content.strip()
             if code.startswith("```python"):
