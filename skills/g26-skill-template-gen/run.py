@@ -35,7 +35,10 @@ def load_env():
     return k
 
 
-def call_openai(messages, model="gpt-5.4-mini", max_tokens=20000):
+def call_openai(messages, model=None, max_tokens=20000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -46,7 +49,10 @@ def call_openai(messages, model="gpt-5.4-mini", max_tokens=20000):
     return llm.invoke(lc).content, None
 
 
-def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=20000):
+def call_anthropic(messages, model=None, max_tokens=20000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("complex_reasoning")
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -57,7 +63,10 @@ def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=20000):
     return llm.invoke(lc).content, None
 
 
-def call_google(messages, model="gemini-2.5-flash", max_tokens=20000):
+def call_google(messages, model=None, max_tokens=20000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("moderate")
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_core.messages import HumanMessage, SystemMessage
     env = load_env()
@@ -70,7 +79,7 @@ def call_google(messages, model="gemini-2.5-flash", max_tokens=20000):
 
 def call_resolved(messages, context, max_tokens=20000):
     m = context.get("resolved_model", "")
-    p = context.get("resolved_provider", "anthropic")
+    p = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
     if p == "google": return call_google(messages, model=m or "gemini-2.5-flash", max_tokens=max_tokens)
     if p == "openai": return call_openai(messages, model=m or "gpt-5.4-mini", max_tokens=max_tokens)
     return call_anthropic(messages, model=m or "claude-sonnet-4-6", max_tokens=max_tokens)
@@ -349,9 +358,9 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
        return k
 
 4. LLM CALL FUNCTIONS — EXACT PATTERN from reference (only include if skill has LLM steps):
-   def call_openai(messages, model="gpt-5.4-mini", max_tokens=4000): ...
-   def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=4000): ...
-   def call_google(messages, model="gemini-2.5-flash", max_tokens=4000): ...
+   def call_openai(messages, model=None, max_tokens=4000): ...
+   def call_anthropic(messages, model=None, max_tokens=4000): ...
+   def call_google(messages, model=None, max_tokens=4000): ...
    def call_resolved(messages, context, max_tokens=4000): ...
 
    Each uses langchain imports INSIDE the function (lazy import pattern).
@@ -362,6 +371,15 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
      Failure: return None, "error message"
 
    Callers MUST unpack the tuple:
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("moderate")
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("complex_reasoning")
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
      content, error = call_resolved(messages, context, max_tokens=6000)
      if error:
          return None, error
@@ -415,7 +433,7 @@ Every run.py MUST follow this exact structure. Do NOT invent alternatives.
    - Step 1 output: context.get("step_1_output", {{}})
    - Inputs: inputs.get("field_name", "")
    - Resolved model: context.get("resolved_model", "")
-   - Resolved provider: context.get("resolved_provider", "")
+   - Resolved provider: context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
 
 7. STEP_HANDLERS DICT — maps every step_id to its handler function:
    STEP_HANDLERS = {{

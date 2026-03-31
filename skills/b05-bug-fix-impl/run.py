@@ -31,7 +31,10 @@ def load_env():
     return k
 
 
-def call_openai(messages, model="gpt-5.4-mini", max_tokens=4000):
+def call_openai(messages, model=None, max_tokens=4000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
     try:
         from langchain_openai import ChatOpenAI
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -45,7 +48,10 @@ def call_openai(messages, model="gpt-5.4-mini", max_tokens=4000):
         return None, str(e)
 
 
-def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=4000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("complex_reasoning")
     try:
         from langchain_anthropic import ChatAnthropic
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -59,7 +65,10 @@ def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=4000):
         return None, str(e)
 
 
-def call_google(messages, model="gemini-2.5-flash", max_tokens=4000):
+def call_google(messages, model=None, max_tokens=4000):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("moderate")
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -74,7 +83,7 @@ def call_google(messages, model="gemini-2.5-flash", max_tokens=4000):
 
 
 def call_resolved(messages, context, max_tokens=4000):
-    provider = context.get("resolved_provider", "openai")
+    provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
     model = context.get("resolved_model", "gpt-5.4-mini")
     if provider == "anthropic":
         return call_anthropic(messages, model=model, max_tokens=max_tokens)

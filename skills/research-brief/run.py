@@ -26,7 +26,10 @@ def load_env():
     return keys
 
 
-def call_openai(messages, model="gpt-5.4-mini", max_tokens=1500):
+def call_openai(messages, model=None, max_tokens=1500):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("general_short")
     """Direct OpenAI API call via langchain-openai."""
     from langchain_openai import ChatOpenAI
     env = load_env()
@@ -45,7 +48,10 @@ def call_openai(messages, model="gpt-5.4-mini", max_tokens=1500):
     return response.content, None
 
 
-def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=1500):
+def call_anthropic(messages, model=None, max_tokens=1500):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("complex_reasoning")
     """Direct Anthropic API call via langchain-anthropic."""
     from langchain_anthropic import ChatAnthropic
     env = load_env()
@@ -72,7 +78,10 @@ def call_anthropic(messages, model="claude-sonnet-4-6", max_tokens=1500):
     return response.content, None
 
 
-def call_google(messages, model="gemini-2.5-flash", max_tokens=1500):
+def call_google(messages, model=None, max_tokens=1500):
+    if model is None:
+        from lib.routing import resolve_alias
+        _, model, _ = resolve_alias("moderate")
     """Direct Google API call via langchain-google-genai."""
     from langchain_google_genai import ChatGoogleGenerativeAI
     env = load_env()
@@ -138,7 +147,7 @@ Format each section with a clear markdown header."""}
 
     # Use model resolved by routing system — respect budget enforcer decisions including fallbacks
     resolved_model = context.get("resolved_model", "")
-    resolved_provider = context.get("resolved_provider", "anthropic")
+    resolved_provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
 
     if resolved_provider == "google":
         content, error = call_google(messages, model=resolved_model or "gemini-2.5-flash", max_tokens=6000)
