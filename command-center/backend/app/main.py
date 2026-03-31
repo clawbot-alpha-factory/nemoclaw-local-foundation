@@ -362,7 +362,10 @@ async def lifespan(app: FastAPI):
     app.state.secret_manager = SecretManager()
     app.state.sla_service = SLAService(alert_service=app.state.alert_service)
     app.state.audit_service = AuditService()
-    app.state.approval_chain_service = ApprovalChainService(audit_service=app.state.audit_service)
+    app.state.approval_chain_service = ApprovalChainService(
+        audit_service=app.state.audit_service,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+    )
     logger.info("E-4c: Guardrails + Alerts + Webhooks + Config + Secrets + SLA + Audit + Approvals initialized")
 
     # ── E-5: Skill Factory ──

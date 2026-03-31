@@ -1,53 +1,40 @@
+#!/usr/bin/env python3
 """
-NemoClaw Execution Engine — ApprovalChainService (E-4c)
+NemoClaw P-5 Deployment: Approval Model + Rubric Scores
 
-Multi-level approvals (#41): configurable chains per action type + spend.
+Patches: approval_chain_service.py (rubric scoring, factor derivation, hard overrides)
+Patches: enterprise.py (3 new endpoints)
 
-NEW FILE: command-center/backend/app/services/approval_chain_service.py
+Run from repo root:
+    cd ~/nemoclaw-local-foundation
+    python3 scripts/deploy-p5.py
 """
-from __future__ import annotations
-import json
-import logging
-import uuid
-from datetime import datetime, timezone
+
 from pathlib import Path
-from typing import Any
+import sys
 
-logger = logging.getLogger("cc.approval_chain")
+BACKEND = Path.home() / "nemoclaw-local-foundation" / "command-center" / "backend"
 
-APPROVAL_CHAINS = {
-    "low_spend": {
-        "threshold": 10.0,
-        "chain": [],
-        "description": "Auto-approved within guardrails",
-    },
-    "medium_spend": {
-        "threshold": 50.0,
-        "chain": ["operations_lead"],
-        "description": "$10-$50: Operations approves",
-    },
-    "high_spend": {
-        "threshold": 100.0,
-        "chain": ["operations_lead", "executive_operator"],
-        "description": "$50-$100: Operations → CEO",
-    },
-    "critical_spend": {
-        "threshold": float("inf"),
-        "chain": ["operations_lead", "operations_lead", "executive_operator"],
-        "description": ">$100: Operations → COO → CEO",
-    },
-    "first_bridge": {
-        "threshold": 0,
-        "chain": ["executive_operator"],
-        "description": "First-time bridge: CEO approval",
-    },
-    "first_email": {
-        "threshold": 0,
-        "chain": ["operations_lead"],
-        "description": "First-time email: COO approval",
-    },
-}
 
+def deploy():
+    errors = []
+
+    # ═══════════════════════════════════════════════════════════════
+    # 1. PATCH approval_chain_service.py
+    # ═══════════════════════════════════════════════════════════════
+    print("1/2 Patching approval_chain_service.py...")
+
+    svc_path = BACKEND / "app" / "services" / "approval_chain_service.py"
+    svc = svc_path.read_text()
+
+    # Patch 1a: Add imports (json, Path)
+    svc = svc.replace(
+        "from __future__ import annotations\nimport logging\nimport uuid\nfrom datetime import datetime, timezone\nfrom typing import Any",
+        "from __future__ import annotations\nimport json\nimport logging\nimport uuid\nfrom datetime import datetime, timezone\nfrom pathlib import Path\nfrom typing import Any",
+    )
+
+    # Patch 1b: Add rubric constants after APPROVAL_CHAINS
+    rubric_constants = '''
 
 # ── Rubric Scoring (P-5) ────────────────────────────────────────────
 POLICY_VERSION = "v1"
@@ -88,100 +75,15 @@ REVERSIBILITY_MAP = {
 SCORE_HISTORY_MAX = 1000
 DEDUP_WINDOW = 500
 
+'''
 
-class ApprovalRequest:
-    def __init__(self, action: str, amount: float, requested_by: str, chain_type: str):
-        self.request_id = str(uuid.uuid4())[:8]
-        self.action = action
-        self.amount = amount
-        self.requested_by = requested_by
-        self.chain_type = chain_type
-        self.chain = list(APPROVAL_CHAINS.get(chain_type, {}).get("chain", []))
-        self.current_step = 0
-        self.status = "pending"
-        self.approvals: list[dict[str, Any]] = []
-        self.created_at = datetime.now(timezone.utc).isoformat()
+    svc = svc.replace(
+        "\nclass ApprovalRequest:",
+        rubric_constants + "\nclass ApprovalRequest:",
+    )
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "request_id": self.request_id,
-            "action": self.action,
-            "amount": self.amount,
-            "requested_by": self.requested_by,
-            "chain_type": self.chain_type,
-            "chain": self.chain,
-            "current_step": self.current_step,
-            "status": self.status,
-            "approvals": self.approvals,
-            "created_at": self.created_at,
-        }
-
-class ApprovalChainService:
-    def __init__(self, audit_service=None, activity_log_service=None):
-        self.audit_service = audit_service
-        self._activity_log = activity_log_service
-        self.requests: dict[str, ApprovalRequest] = {}
-        logger.info("ApprovalChainService initialized (%d chain types)", len(APPROVAL_CHAINS))
-
-    def get_chain_for_spend(self, amount: float) -> str:
-        if amount < 10:
-            return "low_spend"
-        elif amount < 50:
-            return "medium_spend"
-        elif amount < 100:
-            return "high_spend"
-        else:
-            return "critical_spend"
-
-    def submit(self, action: str, amount: float, requested_by: str, chain_type: str = "") -> dict[str, Any]:
-        if not chain_type:
-            chain_type = self.get_chain_for_spend(amount)
-
-        chain_def = APPROVAL_CHAINS.get(chain_type, {})
-        chain = chain_def.get("chain", [])
-
-        if not chain:
-            if self.audit_service:
-                self.audit_service.log("auto_approved", requested_by, {"action": action, "amount": amount})
-            return {"status": "auto_approved", "action": action, "amount": amount}
-
-        req = ApprovalRequest(action, amount, requested_by, chain_type)
-        self.requests[req.request_id] = req
-        logger.info("Approval requested: %s ($%.2f) chain=%s", action, amount, chain_type)
-        return {"status": "pending", "request": req.to_dict()}
-
-    def approve(self, request_id: str, approver: str) -> dict[str, Any]:
-        req = self.requests.get(request_id)
-        if not req:
-            return {"success": False, "reason": "Request not found"}
-        if req.status != "pending":
-            return {"success": False, "reason": f"Request already {req.status}"}
-
-        # Validate approver matches expected role
-        if req.current_step < len(req.chain):
-            expected = req.chain[req.current_step]
-            if approver != expected and approver != "executive_operator":
-                return {"success": False, "reason": f"Expected approver: {expected}, got: {approver}"}
-        req.approvals.append({"approver": approver, "action": "approved", "timestamp": datetime.now(timezone.utc).isoformat()})
-        req.current_step += 1
-
-        if req.current_step >= len(req.chain):
-            req.status = "approved"
-            if self.audit_service:
-                self.audit_service.log("approval_complete", approver, {"request_id": request_id, "amount": req.amount})
-        return {"success": True, "request": req.to_dict()}
-
-    def reject(self, request_id: str, rejector: str, reason: str = "") -> dict[str, Any]:
-        req = self.requests.get(request_id)
-        if not req:
-            return {"success": False, "reason": "Request not found"}
-        req.status = "rejected"
-        req.approvals.append({"approver": rejector, "action": "rejected", "reason": reason, "timestamp": datetime.now(timezone.utc).isoformat()})
-        if self.audit_service:
-            self.audit_service.log("approval_rejected", rejector, {"request_id": request_id, "reason": reason})
-        return {"success": True, "request": req.to_dict()}
-
-
+    # Patch 1c: Add rubric methods to ApprovalChainService (before get_pending)
+    rubric_methods = '''
     # ── Rubric Scoring (P-5) ─────────────────────────────────────────
 
     def _init_rubric(self):
@@ -463,8 +365,190 @@ class ApprovalChainService:
         self._init_rubric()
         return self._score_history[-limit:]
 
-    def get_pending(self) -> list[dict[str, Any]]:
-        return [r.to_dict() for r in self.requests.values() if r.status == "pending"]
+'''
 
-    def get_chains(self) -> dict[str, Any]:
-        return dict(APPROVAL_CHAINS)
+    # Insert before get_pending
+    svc = svc.replace(
+        "    def get_pending(self) -> list[dict[str, Any]]:",
+        rubric_methods + "    def get_pending(self) -> list[dict[str, Any]]:",
+    )
+
+    # Patch 1d: Add activity_log param to __init__
+    svc = svc.replace(
+        "    def __init__(self, audit_service=None):\n        self.audit_service = audit_service",
+        "    def __init__(self, audit_service=None, activity_log_service=None):\n        self.audit_service = audit_service\n        self._activity_log = activity_log_service",
+    )
+
+    svc_path.write_text(svc)
+    try:
+        compile(svc_path.read_text(), str(svc_path), "exec")
+        print("  ✅ approval_chain_service.py compiles")
+    except SyntaxError as e:
+        errors.append(f"approval_chain_service.py: {e}")
+        print(f"  ❌ approval_chain_service.py: {e}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2. PATCH enterprise.py router
+    # ═══════════════════════════════════════════════════════════════
+    print("2/2 Patching enterprise.py router...")
+
+    ent_path = BACKEND / "app" / "api" / "routers" / "enterprise.py"
+    ent = ent_path.read_text()
+
+    # Add new request models after ApprovalSubmit
+    ent = ent.replace(
+        "class ApprovalSubmit(BaseModel):\n    action: str\n    amount: float\n    requested_by: str\n    chain_type: str = \"\"",
+        '''class ApprovalSubmit(BaseModel):
+    action: str
+    amount: float
+    requested_by: str
+    chain_type: str = ""
+
+class RubricScoreRequest(BaseModel):
+    action: str
+    amount: float = 0.0
+    factors: dict[str, float] = {}
+
+class RubricSubmitRequest(BaseModel):
+    action: str
+    amount: float = 0.0
+    requested_by: str
+    factors: dict[str, float] = {}
+    request_id: str = ""''',
+    )
+
+    # Add 3 new endpoints before the chains endpoint
+    new_endpoints = '''
+# ── Rubric Scoring (P-5) ──
+@router.post("/api/engine/approvals/score")
+async def score_approval(body: RubricScoreRequest, request: Request) -> dict[str, Any]:
+    """Dry-run rubric score simulation — no side effects."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    return svc.simulate_score(body.action, body.amount, body.factors or None)
+
+@router.post("/api/engine/approvals/submit-scored")
+async def submit_scored_approval(body: RubricSubmitRequest, request: Request) -> dict[str, Any]:
+    """Submit approval with rubric scoring. Scores first, then routes based on risk level."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    return svc.submit_with_rubric(
+        action=body.action, amount=body.amount,
+        requested_by=body.requested_by,
+        user_factors=body.factors or None,
+        request_id=body.request_id,
+    )
+
+@router.get("/api/engine/approvals/score-history")
+async def score_history(request: Request, limit: int = 50) -> dict[str, Any]:
+    """Get recent rubric scoring decisions."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    history = svc.get_score_history(limit=limit)
+    return {"total": len(history), "entries": history}
+
+'''
+
+    ent = ent.replace(
+        '@router.get("/api/engine/approvals/chains")',
+        new_endpoints + '@router.get("/api/engine/approvals/chains")',
+    )
+
+    ent_path.write_text(ent)
+    try:
+        compile(ent_path.read_text(), str(ent_path), "exec")
+        print("  ✅ enterprise.py compiles")
+    except SyntaxError as e:
+        errors.append(f"enterprise.py: {e}")
+        print(f"  ❌ enterprise.py: {e}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 3. PATCH main.py — pass activity_log to approval chain
+    # ═══════════════════════════════════════════════════════════════
+    print("3/3 Patching main.py...")
+
+    main_path = BACKEND / "app" / "main.py"
+    main = main_path.read_text()
+
+    main = main.replace(
+        '    app.state.approval_chain_service = ApprovalChainService(audit_service=app.state.audit_service)',
+        '    app.state.approval_chain_service = ApprovalChainService(\n        audit_service=app.state.audit_service,\n        activity_log_service=getattr(app.state, "activity_log_service", None),\n    )',
+    )
+
+    main_path.write_text(main)
+    try:
+        compile(main_path.read_text(), str(main_path), "exec")
+        print("  ✅ main.py compiles")
+    except SyntaxError as e:
+        errors.append(f"main.py: {e}")
+        print(f"  ❌ main.py: {e}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SUMMARY
+    # ═══════════════════════════════════════════════════════════════
+    print()
+    if errors:
+        print(f"⛔ {len(errors)} ERRORS:")
+        for e in errors:
+            print(f"  - {e}")
+        sys.exit(1)
+    else:
+        print("✅ P-5 deployed successfully")
+        print()
+        print("Restart backend, then validate:")
+        print()
+        print('  TOKEN=$(cat ~/.nemoclaw/cc-token)')
+        print()
+        print('  # 1. Simulate low-risk (should auto-approve)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"apollo_search\",\"amount\":0.01,\"factors\":{\"data_sensitivity\":0}}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/score | python3 -m json.tool')
+        print()
+        print('  # 2. Simulate high-risk (should escalate)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"cold_email_blast\",\"amount\":25.0,\"factors\":{\"data_sensitivity\":6}}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/score | python3 -m json.tool')
+        print()
+        print('  # 3. Submit with rubric (low-risk → auto-approved)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"apollo_search\",\"amount\":0.01,\"requested_by\":\"sales_outreach_lead\",\"factors\":{\"data_sensitivity\":0}}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/submit-scored | python3 -m json.tool')
+        print()
+        print('  # 4. Submit with rubric (high-risk → escalated)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"cold_email_blast\",\"amount\":25.0,\"requested_by\":\"marketing_campaigns_lead\",\"factors\":{\"data_sensitivity\":6}}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/submit-scored | python3 -m json.tool')
+        print()
+        print('  # 5. Idempotency test (same request_id → cached)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"apollo_search\",\"amount\":0.01,\"requested_by\":\"sales_outreach_lead\",\"request_id\":\"dedup-test-1\"}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/submit-scored | python3 -m json.tool')
+        print('  # Run again — should return same result')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"apollo_search\",\"amount\":0.01,\"requested_by\":\"sales_outreach_lead\",\"request_id\":\"dedup-test-1\"}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/submit-scored | python3 -m json.tool')
+        print()
+        print('  # 6. Score history')
+        print('  curl -s -H "Authorization: Bearer $TOKEN" \\')
+        print('    http://127.0.0.1:8100/api/engine/approvals/score-history | python3 -m json.tool')
+        print()
+        print('  # 7. Existing submit still works (backward compat)')
+        print('  curl -s -X POST -H "Authorization: Bearer $TOKEN" \\')
+        print('    -H "Content-Type: application/json" \\')
+        print("    -d '{\"action\":\"test_action\",\"amount\":5.0,\"requested_by\":\"ops\"}' \\")
+        print('    http://127.0.0.1:8100/api/engine/approvals/submit | python3 -m json.tool')
+        print()
+        print('  # 8. Regression')
+        print('  cd ~/nemoclaw-local-foundation && bash scripts/full_regression.sh')
+        print()
+        print('  # 9. Commit')
+        print('  git add -A && git status')
+        print('  git commit -m "feat(engine): P-5 approval rubric scoring — risk-based routing, factor derivation, hard overrides, policy versioning"')
+        print('  git push origin main')
+
+
+if __name__ == "__main__":
+    deploy()

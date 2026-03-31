@@ -41,6 +41,18 @@ class ApprovalSubmit(BaseModel):
     requested_by: str
     chain_type: str = ""
 
+class RubricScoreRequest(BaseModel):
+    action: str
+    amount: float = 0.0
+    factors: dict[str, float] = {}
+
+class RubricSubmitRequest(BaseModel):
+    action: str
+    amount: float = 0.0
+    requested_by: str
+    factors: dict[str, float] = {}
+    request_id: str = ""
+
 # ── Engine Mode ──
 @router.post("/api/engine/mode")
 async def set_mode(body: ModeRequest, request: Request) -> dict[str, Any]:
@@ -146,6 +158,32 @@ async def reject_request(request_id: str, request: Request, rejector: str = "", 
     if not result.get("success"):
         raise HTTPException(400, result)
     return result
+
+
+# ── Rubric Scoring (P-5) ──
+@router.post("/api/engine/approvals/score")
+async def score_approval(body: RubricScoreRequest, request: Request) -> dict[str, Any]:
+    """Dry-run rubric score simulation — no side effects."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    return svc.simulate_score(body.action, body.amount, body.factors or None)
+
+@router.post("/api/engine/approvals/submit-scored")
+async def submit_scored_approval(body: RubricSubmitRequest, request: Request) -> dict[str, Any]:
+    """Submit approval with rubric scoring. Scores first, then routes based on risk level."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    return svc.submit_with_rubric(
+        action=body.action, amount=body.amount,
+        requested_by=body.requested_by,
+        user_factors=body.factors or None,
+        request_id=body.request_id,
+    )
+
+@router.get("/api/engine/approvals/score-history")
+async def score_history(request: Request, limit: int = 50) -> dict[str, Any]:
+    """Get recent rubric scoring decisions."""
+    svc = _svc(request, "approval_chain_service", "ApprovalChainService")
+    history = svc.get_score_history(limit=limit)
+    return {"total": len(history), "entries": history}
 
 @router.get("/api/engine/approvals/chains")
 async def get_chains(request: Request) -> dict[str, Any]:
