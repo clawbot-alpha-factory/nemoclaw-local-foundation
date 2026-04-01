@@ -1,56 +1,83 @@
 #!/usr/bin/env python3
 """
-NemoClaw Routing Resolver v1.0.0
+NemoClaw Routing Resolver v1.1.0
 Shared module for resolving LLM routing through config/routing/routing-config.yaml.
 Enforces architecture lock L-003: never hardcode provider/model in skills.
 """
 
-import json
+import logging
 import os
-import subprocess
 import sys
+import threading
 from pathlib import Path
+
+logger = logging.getLogger("nemoclaw.routing")
 
 REPO = Path(__file__).resolve().parents[1]
 ROUTING_CONFIG = REPO / "config" / "routing" / "routing-config.yaml"
-BUDGET_ENFORCER = REPO / "scripts" / "budget-enforcer.py"
 ENV_FILE = REPO / "config" / ".env"
 
 _routing_cache = None
 _env_cache = None
+_cache_lock = threading.Lock()
 
 
 def _load_yaml(path):
+    """Load a YAML file with error handling."""
     import yaml
-    with open(path) as f:
-        return yaml.safe_load(f)
+    try:
+        with open(path) as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.error(f"Routing config not found: {path}")
+        raise FileNotFoundError(
+            f"NemoClaw routing config missing: {path}\n"
+            f"Expected at: {ROUTING_CONFIG}\n"
+            f"Run 'python3 scripts/validate.py' to diagnose."
+        )
+    except yaml.YAMLError as e:
+        logger.error(f"Malformed YAML in {path}: {e}")
+        raise ValueError(
+            f"NemoClaw routing config is malformed: {path}\n"
+            f"YAML error: {e}"
+        )
 
 
 def load_routing_config():
-    """Load and cache the routing config from YAML."""
+    """Load and cache the routing config from YAML (thread-safe)."""
     global _routing_cache
     if _routing_cache is not None:
         return _routing_cache
-    cfg = _load_yaml(ROUTING_CONFIG)
-    _routing_cache = cfg
-    return cfg
+    with _cache_lock:
+        if _routing_cache is not None:
+            return _routing_cache
+        cfg = _load_yaml(ROUTING_CONFIG)
+        if not isinstance(cfg, dict) or "providers" not in cfg:
+            raise ValueError(
+                f"Routing config missing 'providers' key: {ROUTING_CONFIG}"
+            )
+        _routing_cache = cfg
+        return cfg
 
 
 def load_env():
-    """Load API keys from config/.env."""
+    """Load API keys from config/.env (thread-safe)."""
     global _env_cache
     if _env_cache is not None:
         return _env_cache
-    keys = {}
-    if ENV_FILE.exists():
-        with open(ENV_FILE) as f:
-            for ln in f:
-                ln = ln.strip()
-                if "=" in ln and not ln.startswith("#"):
-                    a, b = ln.split("=", 1)
-                    keys[a.strip()] = b.strip()
-    _env_cache = keys
-    return keys
+    with _cache_lock:
+        if _env_cache is not None:
+            return _env_cache
+        keys = {}
+        if ENV_FILE.exists():
+            with open(ENV_FILE) as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if "=" in ln and not ln.startswith("#"):
+                        a, b = ln.split("=", 1)
+                        keys[a.strip()] = b.strip()
+        _env_cache = keys
+        return keys
 
 
 def resolve_alias(task_class="moderate"):
@@ -64,7 +91,16 @@ def resolve_alias(task_class="moderate"):
     if alias not in providers:
         alias = default_alias
 
-    entry = providers[alias]
+    entry = providers.get(alias)
+    if entry is None:
+        # Last resort: use the first available provider
+        if providers:
+            alias = next(iter(providers))
+            entry = providers[alias]
+            logger.warning(f"Default alias '{default_alias}' not in providers, falling back to '{alias}'")
+        else:
+            raise ValueError("No providers defined in routing-config.yaml")
+
     return entry["provider"], entry["model"], entry.get("estimated_cost_per_call", 0.01)
 
 
@@ -77,7 +113,7 @@ def resolve_from_env_or_config(task_class="moderate"):
         providers = cfg.get("providers", {})
         cost = 0.01
         for entry in providers.values():
-            if entry["provider"] == p and entry["model"] == m:
+            if entry.get("provider") == p and entry.get("model") == m:
                 cost = entry.get("estimated_cost_per_call", 0.01)
                 break
         return p, m, cost
