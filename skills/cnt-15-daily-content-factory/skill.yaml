@@ -1,0 +1,70 @@
+name: cnt-15-daily-content-factory
+version: 1.0.0
+display_name: "Daily Content Factory"
+description: >
+  Master orchestrator that runs the daily content pipeline. Analyzes yesterday's performance,
+  plans content mix, generates scripts in batch, composes videos via cnt-12, distributes via
+  cnt-08/cnt-09, and produces a daily report.
+author: NemoClaw Factory E-9
+created: 2026-04-01
+language: en
+
+tier: C
+tag: content-factory
+skill_type: orchestrator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are the daily content factory orchestrator. Plan and coordinate the full daily content
+  pipeline from strategy to distribution, optimizing for engagement and revenue across all platforms.
+
+inputs:
+  - name: date
+    type: string
+    required: true
+    description: "Target date for content production (YYYY-MM-DD)"
+    validation:
+      min_length: 10
+      max_length: 10
+  - name: content_mix
+    type: string
+    required: false
+    description: "Override content mix (JSON object)"
+  - name: theme
+    type: string
+    required: false
+    description: "Daily theme or narrative arc"
+  - name: accounts
+    type: string
+    required: false
+    description: "Comma-separated account IDs to produce for"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-15-daily-content-factory/outputs/
+  filename_pattern: "cnt-15-daily-content-factory_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-15-daily-content-factory_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_orchestrator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

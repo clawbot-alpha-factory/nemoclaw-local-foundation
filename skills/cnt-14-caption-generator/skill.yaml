@@ -1,0 +1,66 @@
+name: cnt-14-caption-generator
+version: 1.0.0
+display_name: "Caption Generator"
+description: >
+  Generates styled captions for video content. Transcribes audio via whisper bridge,
+  applies platform-specific caption styling, and validates output.
+author: NemoClaw Factory E-9
+created: 2026-04-01
+language: en
+
+tier: C
+tag: content-factory
+skill_type: transformer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a caption styling specialist. Transcribe audio and apply platform-optimized
+  caption styles with proper timing, emphasis, and visual formatting.
+
+inputs:
+  - name: audio_path
+    type: string
+    required: true
+    description: "Path to audio file for transcription"
+    validation:
+      min_length: 3
+      max_length: 1000
+  - name: style
+    type: string
+    required: false
+    description: "Caption style preset (tiktok, youtube, instagram)"
+    default: "tiktok"
+  - name: highlight_color
+    type: string
+    required: false
+    description: "Highlight color for emphasized words"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-14-caption-generator/outputs/
+  filename_pattern: "cnt-14-caption-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-14-caption-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: cheap
+
+composable:
+  output_type: "content_transformer_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

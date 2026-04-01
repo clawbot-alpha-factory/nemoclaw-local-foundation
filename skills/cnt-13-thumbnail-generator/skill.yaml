@@ -1,0 +1,73 @@
+name: cnt-13-thumbnail-generator
+version: 1.0.0
+display_name: "Thumbnail Generator"
+description: >
+  Generates scroll-stopping thumbnails for video content. Uses LLM for design concept, calls
+  image generation bridge, and validates quality via critic loop.
+author: NemoClaw Factory E-9
+created: 2026-04-01
+language: en
+
+tier: C
+tag: content-factory
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a thumbnail design specialist. Create eye-catching, high-CTR thumbnail concepts
+  optimized for each platform's visual language and audience psychology.
+
+inputs:
+  - name: title
+    type: string
+    required: true
+    description: "Video or post title for the thumbnail"
+    validation:
+      min_length: 5
+      max_length: 500
+  - name: agent_id
+    type: string
+    required: true
+    description: "Agent character to feature"
+    validation:
+      min_length: 2
+      max_length: 100
+  - name: platform
+    type: string
+    required: true
+    description: "Target platform"
+    default: "tiktok"
+  - name: subtitle
+    type: string
+    required: false
+    description: "Optional subtitle or tagline"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-13-thumbnail-generator/outputs/
+  filename_pattern: "cnt-13-thumbnail-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-13-thumbnail-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_generator_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

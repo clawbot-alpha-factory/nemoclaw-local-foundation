@@ -1,0 +1,96 @@
+# Social media accounts managed by Zara (social_media_lead)
+# ALL accounts have TikTok + Instagram minimum
+
+accounts:
+  nemoclaw_company:
+    display_name: "NemoClaw AI"
+    platforms: [tiktok, instagram, youtube, linkedin, twitter]
+    posting_frequency: 3
+    content_types: [team_narrative, milestones, collaborations, behind_scenes]
+    theme: "FRIENDS-style AI company journey Day 0 to 1M ARR"
+    cross_promote: true
+
+  tariq_ceo:
+    display_name: "Tariq | AI CEO"
+    agent_id: executive_operator
+    platforms: [tiktok, instagram, youtube, linkedin]
+    posting_frequency: 1
+    content_types: [leadership_decisions, system_wins, team_management]
+
+  hassan_sales:
+    display_name: "Hassan | AI Sales Agent"
+    agent_id: sales_outreach_lead
+    platforms: [tiktok, instagram, youtube, linkedin, twitter]
+    posting_frequency: 2
+    content_types: [sales_tips, pipeline_wins, deal_stories, cold_outreach_demos]
+
+  omar_revenue:
+    display_name: "Omar | AI Revenue Mastermind"
+    agent_id: growth_revenue_lead
+    platforms: [tiktok, instagram, linkedin, twitter]
+    posting_frequency: 1
+    content_types: [revenue_strategies, pricing_experiments, growth_data]
+
+  rania_marketing:
+    display_name: "Rania | AI Marketing Brain"
+    agent_id: marketing_campaigns_lead
+    platforms: [tiktok, instagram, youtube, linkedin]
+    posting_frequency: 2
+    content_types: [campaign_results, roas_wins, experiment_data, ad_teardowns]
+
+  zara_social:
+    display_name: "Zara | Behind the AI"
+    agent_id: social_media_lead
+    platforms: [tiktok, instagram, youtube]
+    posting_frequency: 2
+    content_types: [behind_scenes, meta_content, agent_spotlights, how_we_make_content]
+
+  faisal_engineering:
+    display_name: "Faisal | AI Engineer"
+    agent_id: engineering_lead
+    platforms: [tiktok, instagram, linkedin, twitter]
+    posting_frequency: 1
+    content_types: [tech_builds, deployment_wins, code_quality, ai_tools]
+
+  nadia_strategy:
+    display_name: "Nadia | AI Market Detective"
+    agent_id: strategy_lead
+    platforms: [tiktok, instagram, linkedin]
+    posting_frequency: 1
+    content_types: [market_insights, trend_analysis, competitor_moves]
+
+  khalid_ops:
+    display_name: "Khalid | AI Operations"
+    agent_id: operations_lead
+    platforms: [tiktok, instagram, linkedin]
+    posting_frequency: 1
+    content_types: [process_perfection, efficiency_wins, system_optimization]
+
+  amira_clients:
+    display_name: "Amira | AI Client Success"
+    agent_id: client_success_lead
+    platforms: [tiktok, instagram, linkedin]
+    posting_frequency: 1
+    content_types: [client_wins, retention_stories, onboarding_tips]
+
+  yasmin_content:
+    display_name: "Yasmin | AI Writer"
+    agent_id: narrative_content_lead
+    platforms: [tiktok, instagram, linkedin]
+    posting_frequency: 1
+    content_types: [writing_craft, brand_stories, content_tips]
+
+  layla_product:
+    display_name: "Layla | AI Product Builder"
+    agent_id: product_architect
+    platforms: [tiktok, instagram, linkedin]
+    posting_frequency: 1
+    content_types: [building_things, architecture_wins, product_design]
+
+# Revenue settings
+revenue:
+  every_post_must_have: "CTA, link_in_bio, lead_magnet, or brand_awareness_path"
+  cross_promotion: true
+  affiliate_links_allowed: true
+  digital_products_allowed: true
+  direct_sales_from_content: true

@@ -814,3 +814,35 @@ capabilities:
     requires_inputs: [agent_id, performance_data]
     produces_outputs: [promotion_brief, content_hooks, visual_ideas]
     memory_keys_written: [agent_promo_briefs]
+
+  # ── Content Factory (Phase 2) ──
+  video_composition:
+    owned_by: social_media_lead
+    skill: cnt-12-video-composer
+    fallback_agent: narrative_content_lead
+    requires_inputs: [script_text, agent_id, platform]
+    produces_outputs: [video_path, thumbnail_path, duration_seconds]
+
+  thumbnail_generation:
+    owned_by: social_media_lead
+    skill: cnt-13-thumbnail-generator
+    requires_inputs: [title, agent_id, platform]
+    produces_outputs: [thumbnail_path]
+
+  caption_generation:
+    owned_by: social_media_lead
+    skill: cnt-14-caption-generator
+    requires_inputs: [audio_path, style]
+    produces_outputs: [srt_path, ass_path]
+
+  daily_content_production:
+    owned_by: social_media_lead
+    skill: cnt-15-daily-content-factory
+    requires_inputs: [date]
+    produces_outputs: [daily_report, content_pieces]
+
+  screen_capture_content:
+    owned_by: social_media_lead
+    skill: cnt-16-screen-capture-video
+    requires_inputs: [task_description, agent_id, narration_text]
+    produces_outputs: [video_path, duration_seconds]

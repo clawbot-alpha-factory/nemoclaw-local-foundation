@@ -1,0 +1,91 @@
+# Platform-specific video/content specifications
+platforms:
+  tiktok:
+    video:
+      width: 1080
+      height: 1920
+      max_duration_seconds: 60
+      codec: libx264
+      crf: 23
+      format: mp4
+    captions:
+      position: bottom_center
+      margin_bottom: 150
+      font_size: 48
+      style: tiktok
+    posting:
+      max_hashtags: 5
+      max_caption_length: 2200
+      best_times: ["09:00", "12:00", "17:00", "20:00"]
+
+  instagram_reel:
+    video:
+      width: 1080
+      height: 1920
+      max_duration_seconds: 90
+      codec: libx264
+      crf: 23
+      format: mp4
+    captions:
+      position: bottom_center
+      margin_bottom: 200
+      font_size: 44
+      style: tiktok
+    posting:
+      max_hashtags: 30
+      max_caption_length: 2200
+      best_times: ["09:00", "12:00", "18:00"]
+
+  instagram_feed:
+    video:
+      width: 1080
+      height: 1080
+      max_duration_seconds: 60
+      codec: libx264
+      crf: 23
+      format: mp4
+
+  youtube_short:
+    video:
+      width: 1080
+      height: 1920
+      max_duration_seconds: 60
+      codec: libx264
+      crf: 20
+      format: mp4
+    captions:
+      position: bottom_center
+      margin_bottom: 100
+      font_size: 44
+      style: youtube
+
+  youtube:
+    video:
+      width: 1920
+      height: 1080
+      max_duration_seconds: 600
+      codec: libx264
+      crf: 20
+      format: mp4
+
+  linkedin:
+    video:
+      width: 1080
+      height: 1080
+      max_duration_seconds: 300
+      codec: libx264
+      crf: 23
+      format: mp4
+    posting:
+      max_caption_length: 3000
+
+  twitter:
+    video:
+      width: 1280
+      height: 720
+      max_duration_seconds: 140
+      codec: libx264
+      crf: 23
+      format: mp4
+    posting:
+      max_caption_length: 280

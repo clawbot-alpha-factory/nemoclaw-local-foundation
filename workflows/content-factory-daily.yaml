@@ -1,0 +1,84 @@
+# NemoClaw Content Factory — Daily Production Workflow
+# Autonomous daily content production pipeline across 12 social accounts.
+# Triggered at 6:00 AM daily; produces 10+ content pieces per run.
+
+name: content-factory-daily
+version: "1.0"
+mode: multi_agent
+description: "Autonomous daily content production pipeline"
+trigger: scheduled
+schedule: "0 6 * * *"  # 6:00 AM daily
+
+context:
+  workspace_id: content_factory_daily
+  shared_memory: true
+  workspace_root: assets/content-factory/
+
+phases:
+  strategy:
+    agent: social_media_lead
+    skills:
+      - cnt-07-content-performance-analyzer
+      - cnt-10-viral-pattern-analyzer
+    inputs_from: assets/content-factory/analytics/
+    outputs_to: shared_memory
+    on_failure:
+      retry: 1
+      fallback: skip  # strategy can use defaults
+
+  planning:
+    agent: social_media_lead
+    skills:
+      - cnt-06-content-calendar-builder
+    inputs_from: shared_memory.strategy
+    outputs_to: shared_memory.plan
+    on_failure:
+      retry: 1
+      fallback: halt
+
+  scripting:
+    agent: social_media_lead
+    skills:
+      - cnt-01-viral-hook-generator
+      - cnt-02-instagram-reel-script-writer
+      - cnt-03-tiktok-content-engine
+      - cnt-05-youtube-script-writer
+      - cnt-11-agent-self-promo-generator
+    parallel: true
+    inputs_from: shared_memory.plan
+    outputs_to: "assets/content-factory/scripts/{date}/"
+    on_failure:
+      retry: 1
+      fallback: skip  # individual script failures should not halt pipeline
+
+  composition:
+    agent: social_media_lead
+    skills:
+      - cnt-12-video-composer
+      - cnt-13-thumbnail-generator
+      - cnt-14-caption-generator
+    inputs_from: "assets/content-factory/scripts/{date}/"
+    outputs_to: "assets/content-factory/videos/{date}/"
+    on_failure:
+      retry: 1
+      fallback: skip
+
+  distribution:
+    agent: social_media_lead
+    skills:
+      - cnt-08-cross-channel-distributor
+      - cnt-09-social-posting-executor
+    inputs_from: "assets/content-factory/videos/{date}/"
+    requires_human_approval: true
+    on_failure:
+      retry: 0
+      fallback: halt  # do not auto-retry publishing
+
+  reporting:
+    agent: social_media_lead
+    skills:
+      - cnt-07-content-performance-analyzer
+    outputs_to: "assets/content-factory/reports/{date}.json"
+    on_failure:
+      retry: 1
+      fallback: skip

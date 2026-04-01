@@ -1,0 +1,76 @@
+name: cnt-16-screen-capture-video
+version: 1.0.0
+display_name: "Screen Capture Video"
+description: >
+  Creates screen recording timelapse videos. Captures screenshots via PinchTab, generates
+  narration via fish-speech, composes timelapse video, and adds captions.
+author: NemoClaw Factory E-9
+created: 2026-04-01
+language: en
+
+tier: C
+tag: content-factory
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a screen capture video producer. Record agent activity as screenshots, compose
+  them into engaging timelapse videos with narration and captions.
+
+inputs:
+  - name: task_description
+    type: string
+    required: true
+    description: "Description of the task being recorded"
+    validation:
+      min_length: 10
+      max_length: 2000
+  - name: agent_id
+    type: string
+    required: true
+    description: "Agent performing the task"
+    validation:
+      min_length: 2
+      max_length: 100
+  - name: narration_text
+    type: string
+    required: true
+    description: "Narration script for the video"
+    validation:
+      min_length: 10
+      max_length: 5000
+  - name: speed_multiplier
+    type: string
+    required: false
+    description: "Timelapse speed multiplier"
+    default: "4"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-16-screen-capture-video/outputs/
+  filename_pattern: "cnt-16-screen-capture-video_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-16-screen-capture-video_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: cheap
+
+composable:
+  output_type: "content_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"

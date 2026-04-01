@@ -1,0 +1,35 @@
+# NemoClaw Content Factory Pipeline Configuration
+version: "1.0"
+
+schedule:
+  strategy_phase: "06:00"
+  production_phase: "07:00"
+  publish_phase: "10:00"
+  analytics_phase: "23:00"
+
+daily_content_mix:
+  short_videos: 4
+  carousels: 3
+  text_posts: 3
+  screen_recordings: 1
+
+quality_gate:
+  auto_approve_threshold: 7.0
+  review_threshold: 5.0
+  reject_threshold: 3.0
+  max_revisions: 2
+
+agent_rotation:
+  # Which agents get featured each day (cycles through)
+  cycle: [hassan, omar, rania, zara, faisal, nadia, tariq, khalid, amira, yasmin, layla]
+  features_per_day: 3
+
+narrative:
+  theme: "FRIENDS-style AI company building to $1M ARR"
+  episode_format: "The One Where {agent} {achievement}"
+  hashtags: ["#AIagents", "#NemoClaw", "#BuildInPublic", "#AIautomation", "#StartupJourney"]
+
+content_storage:
+  base_dir: "assets/content-factory"
+  retain_days: 90
+  repurpose_after_days: 7

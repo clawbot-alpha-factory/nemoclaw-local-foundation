@@ -1,0 +1,74 @@
+name: cnt-12-video-composer
+version: 1.0.0
+display_name: "Video Composer"
+description: >
+  Composes short-form videos from script text. Generates image prompts from script visual cues,
+  calls the video composer tool, and runs quality checks via critic loop.
+author: NemoClaw Factory E-9
+created: 2026-04-01
+language: en
+
+tier: C
+tag: content-factory
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+max_loop_iterations: 3
+
+execution_role: >
+  You are a short-form video production assistant. Break scripts into visual scenes, generate
+  compelling image prompts, and compose engaging videos optimized for the target platform.
+
+inputs:
+  - name: script_text
+    type: string
+    required: true
+    description: "Full video script with scenes and visual cues"
+    validation:
+      min_length: 20
+      max_length: 10000
+  - name: agent_id
+    type: string
+    required: true
+    description: "Agent character featured in the video"
+    validation:
+      min_length: 2
+      max_length: 100
+  - name: platform
+    type: string
+    required: true
+    description: "Target platform (tiktok, instagram_reel, youtube_short)"
+    default: "tiktok"
+  - name: visual_style
+    type: string
+    required: false
+    description: "Visual style for the video"
+    default: "slideshow"
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/cnt-12-video-composer/outputs/
+  filename_pattern: "cnt-12-video-composer_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "cnt-12-video-composer_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+
+routing:
+  default_alias: moderate
+
+composable:
+  output_type: "content_executor_output"
+
+metadata:
+  generated_by: "E-9"
+  tier: "C"
