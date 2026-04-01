@@ -12,92 +12,18 @@ import sys
 from datetime import datetime, timezone
 
 
-def load_env():
-    """Load API keys from config/.env."""
-    env_path = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
-    keys = {}
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    keys[k.strip()] = v.strip()
-    return keys
-
-
+# ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
 def call_openai(messages, model=None, max_tokens=1500):
-    if model is None:
-        from lib.routing import resolve_alias
-        _, model, _ = resolve_alias("general_short")
-    """Direct OpenAI API call via langchain-openai."""
-    from langchain_openai import ChatOpenAI
-    env = load_env()
-    api_key = env.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-    if not api_key:
-        return None, "OPENAI_API_KEY not found in config/.env"
-    llm = ChatOpenAI(model=model, api_key=api_key, max_tokens=max_tokens, temperature=0.3)
-    from langchain_core.messages import HumanMessage, SystemMessage
-    lc_messages = []
-    for m in messages:
-        if m["role"] == "system":
-            lc_messages.append(SystemMessage(content=m["content"]))
-        else:
-            lc_messages.append(HumanMessage(content=m["content"]))
-    response = llm.invoke(lc_messages)
-    return response.content, None
-
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
 
 def call_anthropic(messages, model=None, max_tokens=1500):
-    if model is None:
-        from lib.routing import resolve_alias
-        _, model, _ = resolve_alias("complex_reasoning")
-    """Direct Anthropic API call via langchain-anthropic."""
-    from langchain_anthropic import ChatAnthropic
-    env = load_env()
-    api_key = env.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
-    if not api_key:
-        return None, "ANTHROPIC_API_KEY not found in config/.env"
-    llm = ChatAnthropic(model=model, api_key=api_key, max_tokens=max_tokens, temperature=0.3)
-    from langchain_core.messages import HumanMessage, SystemMessage
-    lc_messages = []
-    system_content = None
-    for m in messages:
-        if m["role"] == "system":
-            system_content = m["content"]
-        else:
-            lc_messages.append(HumanMessage(content=m["content"]))
-    if system_content:
-        llm = ChatAnthropic(
-            model=model, api_key=api_key, max_tokens=max_tokens,
-            temperature=0.3,
-        )
-        from langchain_core.messages import SystemMessage
-        lc_messages.insert(0, SystemMessage(content=system_content))
-    response = llm.invoke(lc_messages)
-    return response.content, None
-
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="complex_reasoning", max_tokens=max_tokens)
 
 def call_google(messages, model=None, max_tokens=1500):
-    if model is None:
-        from lib.routing import resolve_alias
-        _, model, _ = resolve_alias("moderate")
-    """Direct Google API call via langchain-google-genai."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    env = load_env()
-    api_key = env.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY", ""))
-    if not api_key:
-        return None, "GOOGLE_API_KEY not found in config/.env"
-    llm = ChatGoogleGenerativeAI(model=model, google_api_key=api_key, max_tokens=max_tokens)
-    from langchain_core.messages import HumanMessage, SystemMessage
-    lc_messages = []
-    for m in messages:
-        if m["role"] == "system":
-            lc_messages.append(SystemMessage(content=m["content"]))
-        else:
-            lc_messages.append(HumanMessage(content=m["content"]))
-    response = llm.invoke(lc_messages)
-    return response.content, None
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
 
 def step_1_validate_and_plan(inputs, context):

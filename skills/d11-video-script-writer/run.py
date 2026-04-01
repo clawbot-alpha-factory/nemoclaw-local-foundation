@@ -23,152 +23,29 @@ import sys
 from datetime import datetime, timezone
 
 
-def load_env():
-    p = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
-    k = {}
-    if os.path.exists(p):
-        with open(p) as f:
-            for ln in f:
-                ln = ln.strip()
-                if "=" in ln and not ln.startswith("#"):
-                    a, b = ln.split("=", 1)
-                    k[a.strip()] = b.strip()
-    return k
 
-
-def call_openai(messages, model=None, max_tokens=4000):
+# ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
+def call_openai(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias, get_api_key
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("general_short")
-    try:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatOpenAI(
-            model=model,
-            max_tokens=max_tokens,
-            api_key=env.get("OPENAI_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"OpenAI error: {e}"
+    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
 
-
-def call_anthropic(messages, model=None, max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("complex_reasoning")
-    try:
-        from langchain_anthropic import ChatAnthropic
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatAnthropic(
-            model=model,
-            max_tokens=max_tokens,
-            api_key=env.get("ANTHROPIC_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"Anthropic error: {e}"
+    return call_llm(messages, task_class="complex_reasoning", max_tokens=max_tokens)
 
-
-def call_google(messages, model=None, max_tokens=4000):
+def call_google(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("moderate")
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatGoogleGenerativeAI(
-            model=model,
-            max_tokens=max_tokens,
-            google_api_key=env.get("GOOGLE_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"Google error: {e}"
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
-
-def call_resolved(messages, context, max_tokens=4000):
-    provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "")
-    if provider == "anthropic":
-        return call_anthropic(messages, model=model, max_tokens=max_tokens)
-    elif provider == "google":
-        return call_google(messages, model=model, max_tokens=max_tokens)
-    else:
-        return call_openai(messages, model=model or "gpt-4.1-mini", max_tokens=max_tokens)
-
-
-# ---------------------------------------------------------------------------
-# Platform constraint definitions
-# ---------------------------------------------------------------------------
-
-PLATFORM_CONSTRAINTS = {
-    "youtube_longform": {
-        "hook_window_seconds": 15,
-        "duration_default": "8-12 minutes",
-        "duration_seconds_range": (480, 720),
-        "min_scenes": 5,
-        "max_scenes": 15,
-        "structural_notes": (
-            "YouTube long-form: strong pattern-interrupt hook in first 15s, "
-            "chapter-friendly segments, mid-roll CTA placement, end-screen CTA, "
-            "retention-optimized pacing with curiosity loops."
-        ),
-    },
-    "tiktok_reels_shortform": {
-        "hook_window_seconds": 5,
-        "duration_default": "60 seconds",
-        "duration_seconds_range": (30, 90),
-        "min_scenes": 3,
-        "max_scenes": 8,
-        "structural_notes": (
-            "TikTok/Reels short-form: immediate hook in first 3-5s, fast cuts, "
-            "on-screen text overlays throughout, single CTA at end, "
-            "vertical-first framing, trending audio consideration."
-        ),
-    },
-    "linkedin": {
-        "hook_window_seconds": 10,
-        "duration_default": "90-120 seconds",
-        "duration_seconds_range": (60, 180),
-        "min_scenes": 3,
-        "max_scenes": 8,
-        "structural_notes": (
-            "LinkedIn: professional tone hook in first 10s, insight-driven structure, "
-            "data/stat callouts, thought-leadership framing, subtle CTA, "
-            "captions essential (often watched muted)."
-        ),
-    },
-    "general": {
-        "hook_window_seconds": 10,
-        "duration_default": "3-5 minutes",
-        "duration_seconds_range": (180, 300),
-        "min_scenes": 4,
-        "max_scenes": 12,
-        "structural_notes": (
-            "General video: engaging hook in first 10s, clear narrative arc, "
-            "balanced pacing, visual variety, single clear CTA."
-        ),
-    },
-}
+def call_resolved(messages, context, max_tokens=6000):
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
 
 def parse_duration_target(duration_str, platform):

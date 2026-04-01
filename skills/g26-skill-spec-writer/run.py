@@ -22,68 +22,29 @@ from datetime import datetime, timezone
 import yaml
 
 
-# ── Env + LLM Helpers ─────────────────────────────────────────────────────────
-def load_env():
-    p = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
-    k = {}
-    if os.path.exists(p):
-        with open(p) as f:
-            for ln in f:
-                ln = ln.strip()
-                if "=" in ln and not ln.startswith("#"):
-                    a, b = ln.split("=", 1)
-                    k[a.strip()] = b.strip()
-    return k
 
-
-def call_openai(messages, model=None, max_tokens=4000):
+# ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
+def call_openai(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias, get_api_key
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("general_short")
-    from langchain_openai import ChatOpenAI
-    from langchain_core.messages import HumanMessage, SystemMessage
-    env = load_env()
-    key = env.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-    if not key: return None, "OPENAI_API_KEY not found"
-    llm = ChatOpenAI(model=model, api_key=key, max_tokens=max_tokens, temperature=0.2)
-    lc = [SystemMessage(content=m["content"]) if m["role"] == "system" else HumanMessage(content=m["content"]) for m in messages]
-    return llm.invoke(lc).content, None
+    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
 
-
-def call_anthropic(messages, model=None, max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("complex_reasoning")
-    from langchain_anthropic import ChatAnthropic
-    from langchain_core.messages import HumanMessage, SystemMessage
-    env = load_env()
-    key = env.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
-    if not key: return None, "ANTHROPIC_API_KEY not found"
-    llm = ChatAnthropic(model=model, api_key=key, max_tokens=max_tokens, temperature=0.2)
-    lc = [SystemMessage(content=m["content"]) if m["role"] == "system" else HumanMessage(content=m["content"]) for m in messages]
-    return llm.invoke(lc).content, None
+    return call_llm(messages, task_class="complex_reasoning", max_tokens=max_tokens)
 
-
-def call_google(messages, model=None, max_tokens=4000):
+def call_google(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("moderate")
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_core.messages import HumanMessage, SystemMessage
-    env = load_env()
-    key = env.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY", ""))
-    if not key: return None, "GOOGLE_API_KEY not found"
-    llm = ChatGoogleGenerativeAI(model=model, google_api_key=key, max_tokens=max_tokens)
-    lc = [SystemMessage(content=m["content"]) if m["role"] == "system" else HumanMessage(content=m["content"]) for m in messages]
-    return llm.invoke(lc).content, None
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
-
-def call_resolved(messages, context, max_tokens=4000):
-    m = context.get("resolved_model", "")
-    p = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    if p == "google": return call_google(messages, model=m, max_tokens=max_tokens)
-    if p == "openai": return call_openai(messages, model=m, max_tokens=max_tokens)
-    return call_anthropic(messages, model=m, max_tokens=max_tokens)
+def call_resolved(messages, context, max_tokens=6000):
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
 
 # ── Naming Convention Validation ──────────────────────────────────────────────

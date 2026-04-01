@@ -25,130 +25,30 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 # Environment loader
 # ---------------------------------------------------------------------------
-def load_env():
-    p = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
-    k = {}
-    if os.path.exists(p):
-        with open(p) as f:
-            for ln in f:
-                ln = ln.strip()
-                if "=" in ln and not ln.startswith("#"):
-                    a, b = ln.split("=", 1)
-                    k[a.strip()] = b.strip()
-    return k
 
-
-# ---------------------------------------------------------------------------
-# LLM call functions
-# ---------------------------------------------------------------------------
-def call_openai(messages, model=None, max_tokens=4000):
+# ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
+def call_openai(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias, get_api_key
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("general_short")
-    try:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatOpenAI(
-            model=model,
-            max_tokens=max_tokens,
-            api_key=env.get("OPENAI_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"openai error: {e}"
+    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
 
-
-def call_anthropic(messages, model=None, max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("complex_reasoning")
-    try:
-        from langchain_anthropic import ChatAnthropic
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatAnthropic(
-            model=model,
-            max_tokens=max_tokens,
-            api_key=env.get("ANTHROPIC_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"anthropic error: {e}"
+    return call_llm(messages, task_class="complex_reasoning", max_tokens=max_tokens)
 
-
-def call_google(messages, model=None, max_tokens=4000):
+def call_google(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("moderate")
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        llm = ChatGoogleGenerativeAI(
-            model=model,
-            max_tokens=max_tokens,
-            google_api_key=env.get("GOOGLE_API_KEY", ""),
-        )
-        lc = [
-            SystemMessage(content=m["content"]) if m["role"] == "system"
-            else HumanMessage(content=m["content"])
-            for m in messages
-        ]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, f"google error: {e}"
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
+def call_resolved(messages, context, max_tokens=6000):
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
-def call_resolved(messages, context, max_tokens=4000):
-    provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "")
-    if provider == "anthropic":
-        return call_anthropic(messages, model=model, max_tokens=max_tokens)
-    elif provider == "google":
-        return call_google(messages, model=model, max_tokens=max_tokens)
-    else:
-        return call_openai(messages, model=model or "gpt-4.1-mini", max_tokens=max_tokens)
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-EXECUTION_ROLE = (
-    "You are a senior product strategist and MVP scoping expert with deep experience "
-    "in lean product development. You define achievable MVP scopes by ruthlessly "
-    "prioritizing features using MoSCoW methodology (Must Have, Should Have, Could Have, "
-    "Won't Have). You structure output as markdown with exactly seven H2 sections: "
-    "MoSCoW Feature Prioritization (with H3 subsections per category, each feature as a "
-    "bullet with name, description, and effort estimate grounded in stated constraints), "
-    "User Journey Map (numbered steps for Must Have features only, showing touchpoint, "
-    "user action, system response, and the aha moment), Technical Scope Boundaries "
-    "(explicit in-scope and out-of-scope technology decisions derived from constraints), "
-    "Launch Criteria Checklist (5-12 binary pass/fail criteria covering functional, quality, "
-    "and operational readiness), Risk-Adjusted Timeline (phase-based with durations traceable "
-    "to resource constraints, 15-25% buffer, top 3 risks with mitigations), Out of Scope "
-    "(deliberate exclusions with rationale and reconsideration timeline), and Resource "
-    "Allocation (team/budget allocation across phases with gap analysis). You never "
-    "fabricate timeline estimates — every date and duration must trace back to the stated "
-    "resource constraints and timeline inputs. You ground every recommendation in the "
-    "specific product, audience, and constraints provided."
-)
-
-SCOPE_MODE_RANGES = {
-    "lean": (3, 5),
-    "balanced": (5, 10),
-    "comprehensive": (10, 15),
-}
 
 REQUIRED_SECTIONS = [
     "MoSCoW Feature Prioritization",

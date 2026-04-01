@@ -18,123 +18,29 @@ import sys
 from datetime import datetime, timezone
 
 
-def load_env():
-    p = os.path.expanduser("~/nemoclaw-local-foundation/config/.env")
-    k = {}
-    if os.path.exists(p):
-        with open(p) as f:
-            for ln in f:
-                ln = ln.strip()
-                if "=" in ln and not ln.startswith("#"):
-                    a, b = ln.split("=", 1)
-                    k[a.strip()] = b.strip()
-    return k
 
-
-def call_openai(messages, model=None, max_tokens=4000):
+# ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
+def call_openai(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias, get_api_key
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("general_short")
-    try:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        api_key = env.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-        llm = ChatOpenAI(model=model, max_tokens=max_tokens, api_key=api_key)
-        lc = [SystemMessage(content=m["content"]) if m["role"] == "system"
-              else HumanMessage(content=m["content"]) for m in messages]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, str(e)
+    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
 
-
-def call_anthropic(messages, model=None, max_tokens=4000):
+def call_anthropic(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("complex_reasoning")
-    try:
-        from langchain_anthropic import ChatAnthropic
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        api_key = env.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
-        llm = ChatAnthropic(model=model, max_tokens=max_tokens, api_key=api_key)
-        lc = [SystemMessage(content=m["content"]) if m["role"] == "system"
-              else HumanMessage(content=m["content"]) for m in messages]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, str(e)
+    return call_llm(messages, task_class="complex_reasoning", max_tokens=max_tokens)
 
-
-def call_google(messages, model=None, max_tokens=4000):
+def call_google(messages, model=None, max_tokens=6000):
+    from lib.routing import call_llm, resolve_alias
     if model is None:
-        from lib.routing import resolve_alias
         _, model, _ = resolve_alias("moderate")
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.messages import HumanMessage, SystemMessage
-        env = load_env()
-        api_key = env.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY", ""))
-        llm = ChatGoogleGenerativeAI(model=model, max_output_tokens=max_tokens, google_api_key=api_key)
-        lc = [SystemMessage(content=m["content"]) if m["role"] == "system"
-              else HumanMessage(content=m["content"]) for m in messages]
-        return llm.invoke(lc).content, None
-    except Exception as e:
-        return None, str(e)
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
-
-def call_resolved(messages, context, max_tokens=4000):
-    provider = context.get("resolved_provider", __import__("lib.routing", fromlist=["resolve_alias"]).resolve_alias("moderate")[0])
-    model = context.get("resolved_model", "")
-    try:
-        if provider == "anthropic":
-            return call_anthropic(messages, model=model, max_tokens=max_tokens)
-        elif provider == "google":
-            return call_google(messages, model=model, max_tokens=max_tokens)
-        else:
-            return call_openai(messages, model=model, max_tokens=max_tokens)
-    except Exception as e:
-        return None, str(e)
-
-
-ARTICLE_TYPE_SECTIONS = {
-    "how-to": ["title", "overview", "prerequisites", "steps", "troubleshooting", "related_articles", "metadata_tags"],
-    "troubleshooting": ["title", "problem_statement", "symptoms", "causes", "solution_steps", "troubleshooting", "related_articles", "metadata_tags"],
-    "reference": ["title", "overview", "definitions", "parameters_or_options", "examples", "related_articles", "metadata_tags"],
-    "conceptual": ["title", "overview", "background", "key_concepts", "use_cases", "related_articles", "metadata_tags"],
-}
-
-ARTICLE_TYPE_GUIDANCE = {
-    "how-to": (
-        "Structure as a how-to guide with: a clear title (H1), an Overview section (H2) explaining what this guide covers, "
-        "a Prerequisites section (H2) if applicable, numbered Step-by-step instructions under a Steps section (H2), "
-        "a Troubleshooting section (H2) with common issues and fixes, "
-        "a Related Articles section (H2), and a Metadata/Tags section (H2) with relevant keywords."
-    ),
-    "troubleshooting": (
-        "Structure as a troubleshooting article with: a clear title (H1), a Problem Statement section (H2), "
-        "a Symptoms section (H2) listing observable signs, a Causes section (H2), "
-        "numbered Solution Steps under a Solution Steps section (H2), a Troubleshooting Tips section (H2) for edge cases, "
-        "a Related Articles section (H2), and a Metadata/Tags section (H2)."
-    ),
-    "reference": (
-        "Structure as a reference article with: a clear title (H1), an Overview section (H2), "
-        "a Definitions section (H2), a Parameters or Options section (H2) with a table or list, "
-        "an Examples section (H2) with concrete usage examples, "
-        "a Related Articles section (H2), and a Metadata/Tags section (H2)."
-    ),
-    "conceptual": (
-        "Structure as a conceptual article with: a clear title (H1), an Overview section (H2), "
-        "a Background section (H2), a Key Concepts section (H2) with subsections per concept, "
-        "a Use Cases section (H2), a Related Articles section (H2), and a Metadata/Tags section (H2)."
-    ),
-}
-
-TONE_DIRECTIVES = {
-    "professional": "Use clear, formal language appropriate for professional documentation.",
-    "friendly": "Use approachable, conversational language while remaining accurate.",
-    "technical": "Use precise technical terminology appropriate for expert readers.",
-    "concise": "Be brief and direct. Minimize prose. Use bullet points and short sentences.",
-}
+def call_resolved(messages, context, max_tokens=6000):
+    from lib.routing import call_llm
+    return call_llm(messages, task_class="moderate", max_tokens=max_tokens)
 
 
 def check_required_sections(article_text):
