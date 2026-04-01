@@ -1,5 +1,6 @@
 name: rev-24-auto-deployment-engine
 version: 1.0.0
+schema_version: 2
 display_name: "Auto Deployment Engine"
 description: >
   Generate offer → create landing page → deploy → connect tracking → start traffic. Full deployment loop. Bridge-ready for Webflow/Framer.

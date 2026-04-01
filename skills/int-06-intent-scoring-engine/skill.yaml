@@ -1,5 +1,6 @@
 name: int-06-intent-scoring-engine
 version: 1.0.0
+schema_version: 2
 display_name: "Intent Scoring Engine"
 description: >
   Turns raw signals into scored buying intent. Pain level, buying intent, urgency, recommended offer type. Feeds into lead qualification.

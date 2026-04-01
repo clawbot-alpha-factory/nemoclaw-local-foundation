@@ -614,7 +614,7 @@ class PeerReviewEngine:
     def _log_to_decisions(self, request):
         """Log review outcome to MA-4."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Peer review: {request['verdict']} ({request['output_type']})"
             desc = (

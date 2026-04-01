@@ -330,7 +330,7 @@ class PatternTracker:
     def _promote_to_memory(self, key, pattern):
         """Promote a failure pattern to long-term memory."""
         try:
-            from scripts.agent_memory import MemorySystem
+            from agent_memory import MemorySystem
             dp = {"executive_operator": ["*"]}
             mem = MemorySystem("failure_learning", dp)
 
@@ -655,7 +655,7 @@ class FailureRecovery:
     def _log_to_decisions(self, failure):
         """Log critical failures to MA-4 decision system."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Failure recovery: {failure['category']} ({failure['recovery_outcome']})"
             desc = (

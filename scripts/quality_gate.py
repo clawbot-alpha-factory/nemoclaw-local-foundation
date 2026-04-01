@@ -449,7 +449,7 @@ class QualityGate:
     def _log_escalation(self, result):
         """Log escalation when max revisions reached."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Quality gate escalation: {result.skill_id or result.output_type}"
             desc = (
@@ -469,7 +469,7 @@ class QualityGate:
     def _log_to_decisions(self, result):
         """Log gate results to MA-4."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Quality gate {result.verdict}: {result.output_type}"
             failed_rules = [c["rule"] for c in result.checks if not c["passed"]]

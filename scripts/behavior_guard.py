@@ -319,7 +319,7 @@ class ViolationTracker:
     def _log_to_decisions(self, entry):
         """Log block/escalate violations to MA-4."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Behavior violation: {entry['rule']} by {entry['agent']}"
             desc = (

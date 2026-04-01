@@ -11,7 +11,7 @@ Real-time cost monitoring during plan execution:
 
 Usage:
   # Imported by task_decomposer.py during execution
-  from scripts.cost_governor import CostGovernor
+  from cost_governor import CostGovernor
   gov = CostGovernor(plan)
   gov.reserve()
   gov.track_task(task, actual_cost)
@@ -546,7 +546,7 @@ class CostGovernor:
     def _log_to_decision_system(self, event_type, message, task=None):
         """Log cost governance events to MA-4 decision log."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Cost governance: {event_type}"
             description = (

@@ -550,7 +550,7 @@ class ConflictResolver:
     def _log_to_decisions(self, conflict):
         """Log resolution to MA-4 decision system."""
         try:
-            from scripts.decision_log import DecisionLog
+            from decision_log import DecisionLog
             dl = DecisionLog()
             title = f"Conflict resolved: {conflict['type']} ({conflict['severity']})"
             desc = (

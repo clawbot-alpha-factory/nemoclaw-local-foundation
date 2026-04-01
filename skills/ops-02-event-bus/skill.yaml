@@ -1,5 +1,6 @@
 name: ops-02-event-bus
 version: 1.0.0
+schema_version: 2
 display_name: "Event Bus Controller"
 description: >
   Routes real-time events: email opens, payments, scraper signals, deal advances. Feeds orchestrator + priority engine.

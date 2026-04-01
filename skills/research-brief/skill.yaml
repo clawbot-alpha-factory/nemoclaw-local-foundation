@@ -4,7 +4,7 @@ description: Takes a topic and produces a structured research brief with backgro
 author: Core88
 created: 2026-03-23
 
-schema_version: 1
+schema_version: 2
 runner_version_required: ">=1.0.0"
 routing_system_version_required: ">=1.1.0"
 compatibility_notes: >

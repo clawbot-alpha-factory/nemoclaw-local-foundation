@@ -1,5 +1,6 @@
 name: rev-23-resource-allocator
 version: 1.0.0
+schema_version: 2
 display_name: "Resource Constraint Allocator"
 description: >
   Hard enforcement of daily outreach caps, per-channel budget, risk thresholds. Prevents spam, domain burn, budget waste.

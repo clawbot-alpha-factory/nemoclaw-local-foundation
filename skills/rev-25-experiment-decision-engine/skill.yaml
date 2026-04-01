@@ -1,5 +1,6 @@
 name: rev-25-experiment-decision-engine
 version: 1.0.0
+schema_version: 2
 display_name: "Experiment Decision Engine"
 description: >
   Kill/scale decisions based on conversion thresholds. If conversion < threshold → kill. If ROI > threshold → scale. Completes autonomous loop.
