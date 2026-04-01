@@ -118,8 +118,8 @@ def load_spec(args):
         },
     }
     if args.input:
-        for i in range(0, len(args.input), 2):
-            spec["inputs"][args.input[i]] = args.input[i + 1]
+        for pair in args.input:
+            spec["inputs"][pair[0]] = pair[1]
     if args.input_from:
         envelope_path = Path(args.input_from)
         if envelope_path.exists():
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     print(f"Thread ID: {wf_id}")
     
     graph = build_graph()
-    conn = sqlite3.connect(str(CHECKPOINT_DB))
+    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
     checkpointer = SqliteSaver(conn)
     app = graph.compile(checkpointer=checkpointer)
     

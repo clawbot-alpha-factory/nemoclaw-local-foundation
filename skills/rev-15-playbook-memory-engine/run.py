@@ -80,13 +80,13 @@ def step_2_generate(state):
 
 CRITICAL: End your response with a JSON block:
 ```json
-{
+{{
   "insight": "your key insight",
   "recommended_action": "specific action to take",
   "trigger_skill": "skill-id-to-trigger or null",
   "confidence": 0.85,
   "demand_volume": "high/medium/low"
-}
+}}
 ```""")]
     from lib.routing import resolve_from_env_or_config as _resolve
     provider, model, _cost = _resolve("moderate")
