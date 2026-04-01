@@ -369,8 +369,10 @@ Rules:
 - Max 5 steps
 """
 
+    from lib.routing import resolve_alias
+    _, _orch_model, _ = resolve_alias("general_short")
     resp = client.chat.completions.create(
-        model="gpt-5.4-mini",
+        model=_orch_model,
         max_completion_tokens=2000,
         messages=[{"role": "user", "content": prompt}],
     )

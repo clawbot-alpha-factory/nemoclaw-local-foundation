@@ -138,7 +138,8 @@ def enforce(task_class):
         alias_provider, budget_cfg
     )
     provider = alias_provider.get(alias, "openai")
-    model    = alias_model.get(alias, "gpt-5.4-mini")
+    _default_model = alias_model.get(default_alias, "") if alias_model else ""
+    model    = alias_model.get(alias, _default_model)
     cost     = cost_estimates.get(alias, 0.001)
     limit    = budget_cfg["budgets"].get(provider, {}).get("total_usd", 10.0)
 

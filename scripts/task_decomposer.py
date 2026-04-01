@@ -481,8 +481,10 @@ Rules:
 - Order tasks logically
 """
 
+    from lib.routing import resolve_alias
+    _, _td_model, _ = resolve_alias("general_short")
     resp = client.chat.completions.create(
-        model="gpt-5.4-mini",
+        model=_td_model,
         max_completion_tokens=2000,
         messages=[{"role": "user", "content": prompt}],
     )
