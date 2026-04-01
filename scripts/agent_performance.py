@@ -50,39 +50,57 @@ MIN_SAMPLE_THRESHOLD = 3  # minimum events before scoring a dimension
 # ═══════════════════════════════════════════════════════════════════════════════
 
 ROLE_WEIGHTS = {
+    # 6 dimensions: quality, speed, cost_efficiency, reliability, compliance, revenue_impact
+    # Revenue-facing agents weight revenue_impact heavily
     "strategy_lead": {
-        "quality": 0.35, "speed": 0.10, "cost_efficiency": 0.15,
-        "reliability": 0.20, "compliance": 0.20,
+        "quality": 0.25, "speed": 0.10, "cost_efficiency": 0.10,
+        "reliability": 0.15, "compliance": 0.15, "revenue_impact": 0.25,
     },
     "product_architect": {
-        "quality": 0.30, "speed": 0.15, "cost_efficiency": 0.15,
-        "reliability": 0.20, "compliance": 0.20,
+        "quality": 0.30, "speed": 0.15, "cost_efficiency": 0.10,
+        "reliability": 0.20, "compliance": 0.15, "revenue_impact": 0.10,
     },
     "growth_revenue_lead": {
-        "quality": 0.25, "speed": 0.20, "cost_efficiency": 0.25,
-        "reliability": 0.15, "compliance": 0.15,
+        "quality": 0.15, "speed": 0.15, "cost_efficiency": 0.15,
+        "reliability": 0.10, "compliance": 0.10, "revenue_impact": 0.35,
     },
     "narrative_content_lead": {
-        "quality": 0.40, "speed": 0.20, "cost_efficiency": 0.10,
-        "reliability": 0.15, "compliance": 0.15,
+        "quality": 0.30, "speed": 0.15, "cost_efficiency": 0.10,
+        "reliability": 0.10, "compliance": 0.10, "revenue_impact": 0.25,
     },
     "engineering_lead": {
         "quality": 0.25, "speed": 0.15, "cost_efficiency": 0.15,
-        "reliability": 0.30, "compliance": 0.15,
+        "reliability": 0.25, "compliance": 0.10, "revenue_impact": 0.10,
     },
     "operations_lead": {
-        "quality": 0.15, "speed": 0.25, "cost_efficiency": 0.25,
-        "reliability": 0.25, "compliance": 0.10,
+        "quality": 0.15, "speed": 0.20, "cost_efficiency": 0.20,
+        "reliability": 0.20, "compliance": 0.10, "revenue_impact": 0.15,
     },
     "executive_operator": {
-        "quality": 0.25, "speed": 0.15, "cost_efficiency": 0.15,
-        "reliability": 0.20, "compliance": 0.25,
+        "quality": 0.20, "speed": 0.10, "cost_efficiency": 0.10,
+        "reliability": 0.15, "compliance": 0.15, "revenue_impact": 0.30,
+    },
+    "sales_outreach_lead": {
+        "quality": 0.10, "speed": 0.20, "cost_efficiency": 0.10,
+        "reliability": 0.10, "compliance": 0.10, "revenue_impact": 0.40,
+    },
+    "marketing_campaigns_lead": {
+        "quality": 0.15, "speed": 0.15, "cost_efficiency": 0.15,
+        "reliability": 0.10, "compliance": 0.10, "revenue_impact": 0.35,
+    },
+    "client_success_lead": {
+        "quality": 0.20, "speed": 0.15, "cost_efficiency": 0.10,
+        "reliability": 0.15, "compliance": 0.10, "revenue_impact": 0.30,
+    },
+    "social_media_lead": {
+        "quality": 0.20, "speed": 0.20, "cost_efficiency": 0.10,
+        "reliability": 0.10, "compliance": 0.10, "revenue_impact": 0.30,
     },
 }
 
 DEFAULT_WEIGHTS = {
-    "quality": 0.25, "speed": 0.20, "cost_efficiency": 0.15,
-    "reliability": 0.20, "compliance": 0.20,
+    "quality": 0.20, "speed": 0.15, "cost_efficiency": 0.10,
+    "reliability": 0.15, "compliance": 0.10, "revenue_impact": 0.30,
 }
 
 # Organization goal overrides (applied on top of role weights)
@@ -251,6 +269,37 @@ class MetricsCollector:
         self.record(agent_id, "compliance", score, "MA-8",
                      {"outcome": "violation", "severity": severity})
 
+    # ── REVENUE IMPACT EVENTS ──
+
+    def record_revenue_generated(self, agent_id, amount_usd, source="direct"):
+        """Record revenue attributed to this agent."""
+        # Normalize: $0-100 = 0.3, $100-500 = 0.5, $500-2K = 0.7, $2K+ = 1.0
+        if amount_usd >= 2000: score = 1.0
+        elif amount_usd >= 500: score = 0.7
+        elif amount_usd >= 100: score = 0.5
+        elif amount_usd > 0: score = 0.3
+        else: score = 0.0
+        self.record(agent_id, "revenue_impact", score, "revenue",
+                     {"amount_usd": amount_usd, "source": source})
+
+    def record_revenue_influence(self, agent_id, influenced_amount_usd, influence_type="support"):
+        """Record indirect revenue contribution (e.g., content that generated leads)."""
+        if influenced_amount_usd >= 1000: score = 0.8
+        elif influenced_amount_usd >= 200: score = 0.5
+        elif influenced_amount_usd > 0: score = 0.3
+        else: score = 0.0
+        self.record(agent_id, "revenue_impact", score, "influence",
+                     {"influenced_amount_usd": influenced_amount_usd, "type": influence_type})
+
+    def record_cost_savings(self, agent_id, saved_usd):
+        """Record cost savings (engineering efficiency, automation, etc.)."""
+        if saved_usd >= 500: score = 0.8
+        elif saved_usd >= 100: score = 0.5
+        elif saved_usd > 0: score = 0.3
+        else: score = 0.0
+        self.record(agent_id, "revenue_impact", score, "cost_savings",
+                     {"saved_usd": saved_usd})
+
     def get_events(self, agent_id, dimension=None, since=None):
         """Get events for an agent, optionally filtered."""
         if dimension:
@@ -324,7 +373,7 @@ class PerformanceScorer:
         composite_parts = []
         insufficient_dimensions = []
 
-        for dim in ["quality", "speed", "cost_efficiency", "reliability", "compliance"]:
+        for dim in ["quality", "speed", "cost_efficiency", "reliability", "compliance", "revenue_impact"]:
             score, count, sufficient = self.score_dimension(agent_id, dim)
 
             dimensions[dim] = {
@@ -653,8 +702,8 @@ def run_tests():
         else:
             print(f"  ❌ {name}: {detail}")
 
-    # Test 1: Role weights defined for all 7 agents
-    test("7 role weight profiles", len(ROLE_WEIGHTS) == 7)
+    # Test 1: Role weights defined for all 11 agents
+    test("11 role weight profiles", len(ROLE_WEIGHTS) == 11)
 
     # Test 2: All weights sum to 1.0
     for agent_id, weights in ROLE_WEIGHTS.items():
@@ -980,7 +1029,7 @@ class GamificationEngine:
             return None
 
         comparison = {"agent_a": agent_a, "agent_b": agent_b, "dimensions": {}}
-        for dim in ["quality", "speed", "cost_efficiency", "reliability", "compliance"]:
+        for dim in ["quality", "speed", "cost_efficiency", "reliability", "compliance", "revenue_impact"]:
             score_a = report_a.get("dimensions", {}).get(dim, {}).get("score", 0) or 0
             score_b = report_b.get("dimensions", {}).get(dim, {}).get("score", 0) or 0
             comparison["dimensions"][dim] = {

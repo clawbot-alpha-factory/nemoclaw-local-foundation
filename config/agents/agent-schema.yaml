@@ -111,7 +111,7 @@ domain_boundaries:
     forbidden:
     - code_generation
     - prompt_modification
-    - pricing_decisions
+    - pricing_execution
     memory_write_keys:
     - market_*
     - trend_*
@@ -143,9 +143,9 @@ domain_boundaries:
     - revenue_pipeline
     - web_browsing
     forbidden:
-    - market_research
     - code_generation
     - architecture_decisions
+    - market_research_ownership
     memory_write_keys:
     - pricing_*
     - funnel_*
@@ -322,6 +322,18 @@ domain_overlap_governance:
   scheduling:
     workflow_owner: operations_lead
     campaign_owner: marketing_campaigns_lead
+  lead_handoff:
+    marketing_owner: marketing_campaigns_lead
+    sales_owner: sales_outreach_lead
+    rule: Marketing generates MQLs. Sales accepts when lead score > threshold. No approval needed — automated handoff.
+  upsell_pipeline:
+    client_owner: client_success_lead
+    revenue_owner: growth_revenue_lead
+    rule: Client success identifies opportunity. Revenue lead prices it. No sequential gate — both can act in parallel.
+  content_ads_boundary:
+    organic_owner: social_media_lead
+    paid_owner: marketing_campaigns_lead
+    rule: Organic content that performs well auto-flagged for paid amplification. No approval needed.
 agents:
 - agent_id: executive_operator
   display_name: Executive Operator
@@ -386,7 +398,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_write_all
-    long_term: read_write
+    long_term: read_write_own_domain
   failure_modes:
   - conflict unresolvable -> escalate to human
   - cost ceiling exceeded -> auto-pause all workflows
@@ -415,6 +427,13 @@ agents:
     - decision_log
     - workflow_outcomes
     - agent_performance_reviews
+    external_learning_sources:
+    - industry_benchmarks
+    - ceo_playbooks
+    - scaling_patterns
+    - competitor_strategies
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -484,7 +503,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   failure_modes:
   - insufficient market data -> request more inputs
   - conflicting signals -> escalate to executive_operator
@@ -511,6 +530,15 @@ agents:
     - decision_log
     - go_no_go_outcomes
     - market_feedback
+    external_learning_sources:
+    - market_intelligence
+    - competitor_analysis
+    - industry_reports
+    - startup_patterns
+    - course_seller_tactics
+    - agency_growth_models
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -576,7 +604,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   constraints:
   - cannot modify prompts for agents it is actively scheduling in the same workflow
   - 'future: split prompt_design + skill_building to Platform Lead when scale demands'
@@ -607,6 +635,13 @@ agents:
     - workflow_outcomes
     - scheduling_adherence_data
     - throughput_metrics
+    external_learning_sources:
+    - ops_benchmarks
+    - automation_patterns
+    - lean_manufacturing
+    - devops_practices
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -668,7 +703,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   failure_modes:
   - scope creep detected -> flag and propose cut
   - feasibility conflict with strategy -> trigger joint review
@@ -695,6 +730,13 @@ agents:
     - decision_records
     - implementation_outcomes
     - scope_change_history
+    external_learning_sources:
+    - product_hunt_trends
+    - saas_patterns
+    - ux_research
+    - build_vs_buy_analysis
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -777,7 +819,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   failure_modes:
   - insufficient competitive pricing data -> request from strategy_lead
   - pricing conflict with positioning -> debate with narrative_content_lead
@@ -804,6 +846,16 @@ agents:
     - revenue_outcomes
     - funnel_metrics
     - pricing_experiment_results
+    external_learning_sources:
+    - revenue_playbooks
+    - pricing_experiments_public
+    - funnel_benchmarks
+    - hormozi_offers
+    - saas_pricing_pages
+    - affiliate_models
+    - course_monetization
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -869,7 +921,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   failure_modes:
   - brand voice inconsistency -> self-correct using tone calibrator
   - content doesn't align with strategy -> request context from strategy_lead
@@ -896,6 +948,13 @@ agents:
     - content_performance
     - brand_consistency_audits
     - audience_feedback
+    external_learning_sources:
+    - viral_content_analysis
+    - copywriting_frameworks
+    - content_benchmarks
+    - brand_case_studies
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -963,7 +1022,7 @@ agents:
   memory_access:
     private: read_write
     shared: read_all, write_own_domain
-    long_term: read_only
+    long_term: read_write_own_domain
   failure_modes:
   - implementation doesn't match spec -> request clarification from product_architect
   - quality below threshold -> self-review and fix
@@ -991,6 +1050,13 @@ agents:
     - build_outcomes
     - code_review_feedback
     - reliability_incidents
+    external_learning_sources:
+    - open_source_trends
+    - architecture_patterns
+    - devtools_market
+    - api_design_trends
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -1094,12 +1160,12 @@ agents:
     shared: read_all, write_own_domain
     long_term: read_only
   constraints:
-  - Must follow approved messaging framework from narrative_content_lead
-  - Must follow approved pricing from growth_revenue_lead
-  - Must follow approved target market from strategy_lead
+  - Use approved messaging as baseline. Can A/B test variant angles within ±20% without pre-approval. Post-hoc review within 48h.
+  - Use approved pricing as default. Can test ±15% pricing variants for up to 72h without pre-approval. Log all experiments.
+  - Primary focus on approved ICP. Can test adjacent segments with up to 20% of outreach volume. Report findings weekly.
   - Must log every prospect interaction to CRM
   - Must comply with anti-spam laws (CAN-SPAM, GDPR)
-  - Cannot exceed 50 outreach/day without escalation
+  - Soft alert at 300 outreach/day for budget review — no hard cap. Volume drives pipeline.
   - Must share all conversion data with marketing via feedback loop
   - 80% time on highest-value deals, 20% on prospecting
   failure_modes:
@@ -1142,6 +1208,14 @@ agents:
     - response_rates
     - deal_outcomes
     - outreach_experiments
+    external_learning_sources:
+    - cold_outreach_benchmarks
+    - reply_rate_studies
+    - sales_playbooks
+    - objection_libraries
+    - deal_closing_patterns
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -1149,6 +1223,8 @@ agents:
     request_approval_chain:
     - growth_revenue_lead
     - operations_lead
+  can_propose_strategic_pivot: true
+  pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: marketing_campaigns_lead
   display_name: Marketing & Campaigns Lead
   title: VP Marketing & Growth
@@ -1241,7 +1317,7 @@ agents:
   constraints:
   - Must follow approved brand voice from narrative_content_lead
   - Must follow approved positioning from growth_revenue_lead
-  - Cannot exceed ad spend ceiling without executive_operator approval
+  - Auto-scale up to 2x ceiling when ROAS exceeds 3x for 24h+. Alert executive_operator. Approval required only above 2x ceiling.
   - Must track every dollar with attribution to revenue
   - Must comply with platform advertising policies
   - Must share performance data with sales via feedback loop
@@ -1289,6 +1365,14 @@ agents:
     - campaign_outcomes
     - attribution_data
     - experiment_results
+    external_learning_sources:
+    - ad_creative_trends
+    - platform_algorithm_updates
+    - roas_benchmarks
+    - growth_hacking_patterns
+    - tiktok_ad_library
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -1296,6 +1380,8 @@ agents:
     request_approval_chain:
     - growth_revenue_lead
     - operations_lead
+  can_propose_strategic_pivot: true
+  pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: client_success_lead
   display_name: Client Success Lead
   title: VP Client Success & Retention
@@ -1388,12 +1474,12 @@ agents:
     long_term: read_only
   constraints:
   - Must follow approved service levels from executive_operator
-  - Cannot promise scope without product_architect approval
-  - Cannot offer discounts without growth_revenue_lead approval
+  - Can commit to scope items that exist in the skill library. Only require product_architect approval for net-new scope.
+  - Can offer up to 15% retention discount autonomously for clients with revenue >$500/mo at churn risk. Log and review post-hoc.
   - Must log every client interaction
   - Must escalate churn risk immediately to executive_operator
   - Cannot share internal system details with clients
-  - Upsell only if value_delivered >= value_promised
+  - Upsell encouraged when client_health_score > 7.0 OR value_delivered >= value_promised. Bias toward action, not gatekeeping.
   failure_modes:
   - client unresponsive -> try different channel, escalate after 3 attempts
   - delivery behind -> coordinate with operations_lead, escalate if client-facing
@@ -1438,6 +1524,13 @@ agents:
     - client_feedback
     - churn_analyses
     - satisfaction_trends
+    external_learning_sources:
+    - retention_playbooks
+    - nps_benchmarks
+    - churn_prediction_models
+    - upsell_frameworks
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -1445,6 +1538,8 @@ agents:
     request_approval_chain:
     - executive_operator
     - operations_lead
+  can_propose_strategic_pivot: true
+  pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: social_media_lead
   display_name: Social Media Lead
   title: VP Social Media & Company Storytelling
@@ -1536,13 +1631,13 @@ agents:
     long_term: read_only
   constraints:
   - Must follow approved brand voice from narrative_content_lead
-  - Must follow approved messaging framework from narrative_content_lead
+  - Use approved messaging as baseline. Can A/B test variant angles within ±20% without pre-approval. Post-hoc review within 48h.
   - Cannot post content that contradicts company positioning (growth_revenue_lead)
   - Must collect self-promotion briefs from all agents weekly
   - Must comply with platform content policies and community guidelines
   - Cannot reveal internal system architecture or proprietary methods
   - Must attribute agent contributions in content featuring their work
-  - Cannot exceed daily posting limits per platform without approval
+  - Auto-scale posting during high-engagement windows or viral moments. Post-hoc review if >3x normal volume.
   - Must maintain consistent cross-platform narrative continuity
   failure_modes:
   - engagement dropping -> analyze patterns, test new formats, escalate to narrative_content_lead
@@ -1588,6 +1683,16 @@ agents:
     - viral_content_patterns
     - platform_algorithm_changes
     - audience_feedback
+    external_learning_sources:
+    - viral_mechanics
+    - hook_patterns
+    - platform_trends
+    - influencer_tactics
+    - meme_culture
+    - tiktok_algorithm
+    - youtube_shorts_strategy
+    learning_philosophy: Learn from EVERYTHING — internal outcomes, competitor moves, viral trends, course sellers, agencies, SaaS benchmarks, failed startups. No source is off limits. Speed of learning
+      = speed of revenue.
   skill_library_access:
     can_browse: true
     can_install_approved: true
@@ -1595,6 +1700,8 @@ agents:
     request_approval_chain:
     - narrative_content_lead
     - operations_lead
+  can_propose_strategic_pivot: true
+  pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 decision_log:
   required: true
   fields:
@@ -1611,7 +1718,11 @@ decision_log:
   stored_in: shared_memory
   queryable_by: all_agents
 learning_loop:
-  trigger: after_each_workflow
+  trigger:
+  - after_each_workflow
+  - after_each_step
+  - on_schedule_daily
+  - on_external_research
   local_phase:
     owner: each_agent
     process:
@@ -1626,8 +1737,19 @@ learning_loop:
     - validate against outcomes
     - curate into long_term memory
     - adjust agent prompts if needed
+  external_learning:
+    enabled: true
+    sources: Web research skills, competitor scraping, market analysis outputs
+    pathway: Research skill output → extract actionable patterns → inject as EXTERNAL lesson → validate via testing → promote to long-term memory
+    auto_trigger: When strategy_lead or social_media_lead completes a research task, auto-extract lessons
+  provisional_lessons:
+    enabled: true
+    description: Agents can write provisional lessons to shared memory immediately without waiting for executive curation. Executive curates asynchronously.
+    auto_promote_threshold: 3+ occurrences with positive outcome → auto-promote to long-term
 parallel_execution:
-  decided_by: executive_operator
+  decided_by:
+  - executive_operator
+  - operations_lead
   safety_checks:
   - write_conflict_detection: no two parallel agents write to same memory key
   - read_dependency_detection: no parallel agent reads key being written by another
@@ -1636,3 +1758,34 @@ parallel_execution:
     sequential: tasks in strict order
     parallel: independent tasks run simultaneously
     hybrid: parallel where safe, sequential where dependent
+  delegation_rule: operations_lead can approve parallel execution for workflows under $20 total cost. executive_operator required above $20.
+revenue_sprint:
+  description: Time-boxed cross-domain collaboration mode for revenue opportunities. Temporarily relaxes domain boundaries.
+  can_initiate:
+  - executive_operator
+  - growth_revenue_lead
+  - operations_lead
+  duration: 24-72 hours
+  triggers:
+  - High-value deal requiring multi-agent coordination
+  - Viral content window with monetization potential
+  - Competitor move requiring immediate response
+  - Market demand signal requiring offer + content + outreach in <24h
+  domain_relaxation: Participating agents can act across domains within the sprint scope. All actions logged.
+  auto_participants: Any agent whose skills are relevant to the sprint objective
+  post_sprint: Mandatory review within 24h of sprint completion. Lessons extracted to learning loop.
+experiment_sandbox:
+  description: Any agent can propose and test a hypothesis outside their domain with minimal budget.
+  max_budget_per_experiment: $50
+  max_duration: 48 hours
+  approval: Self-approved for <$10 experiments. Operations_lead approval for $10-50.
+  success_criteria: Must define measurable success metric before starting.
+  on_success: Results promoted to learning loop. Capability may be formally added to agent.
+  on_failure: Results logged. No penalty. Failure is data.
+performance_budget:
+  enabled: true
+  description: Agents earn additional resources by demonstrating ROI. Top performers get more LLM budget, tool access, and priority scheduling.
+  earn_rate: 1% budget increase per $500 revenue attributed
+  cap: 3x base budget maximum
+  review_period: weekly
+  reset: Never resets downward — earned budget is permanent. Underperformance reduces earning rate, not existing budget.
