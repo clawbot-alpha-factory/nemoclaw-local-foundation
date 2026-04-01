@@ -322,3 +322,9 @@ composable:
   accepts_input_from:
     - "e12-tech-trend-scanner"
     - "e08-comp-intel-synth"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

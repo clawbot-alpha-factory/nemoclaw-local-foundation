@@ -320,3 +320,9 @@ composable:
     - "f09-product-req-writer"
     - "e12-market-research-analyst"
     - "f09-pricing-strategist"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

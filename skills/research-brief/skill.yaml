@@ -5,7 +5,7 @@ author: Core88
 created: 2026-03-23
 
 schema_version: 2
-runner_version_required: ">=1.0.0"
+runner_version_required: ">=4.0.0"
 routing_system_version_required: ">=1.1.0"
 compatibility_notes: >
   Requires budget-enforcer.py v1.1+ for cheaper_claude and reasoning_claude aliases.
@@ -163,3 +163,15 @@ approval_boundaries:
 routing:
   default_alias: cheap_openai
   allow_override: false
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

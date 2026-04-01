@@ -1,6 +1,7 @@
 name: rev-24-auto-deployment-engine
 version: 1.0.0
 schema_version: 2
+runner_version_required: ">=4.0.0"
 display_name: "Auto Deployment Engine"
 description: >
   Generate offer → create landing page → deploy → connect tracking → start traffic. Full deployment loop. Bridge-ready for Webflow/Framer.
@@ -22,3 +23,15 @@ outputs:
     type: file_path
 routing:
   default_alias: premium
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

@@ -1,6 +1,7 @@
 name: int-06-intent-scoring-engine
 version: 1.0.0
 schema_version: 2
+runner_version_required: ">=4.0.0"
 display_name: "Intent Scoring Engine"
 description: >
   Turns raw signals into scored buying intent. Pain level, buying intent, urgency, recommended offer type. Feeds into lead qualification.
@@ -30,3 +31,15 @@ outputs:
     type: float
 routing:
   default_alias: premium
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

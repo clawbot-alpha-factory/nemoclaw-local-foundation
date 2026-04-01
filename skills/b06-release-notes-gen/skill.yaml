@@ -342,3 +342,9 @@ observability:
   track_tokens: true
   track_quality: true
   metrics_file: "~/.nemoclaw/logs/skill-metrics.jsonl"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

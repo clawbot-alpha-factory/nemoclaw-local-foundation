@@ -318,3 +318,9 @@ composable:
     - "a01-arch-spec-writer"
   accepts_input_from:
     - "c07-setup-guide-writer"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

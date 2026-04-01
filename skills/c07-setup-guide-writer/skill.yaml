@@ -322,3 +322,9 @@ composable:
     - "a01-arch-spec-writer"
   accepts_input_from:
     - "g26-skill-spec-writer"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

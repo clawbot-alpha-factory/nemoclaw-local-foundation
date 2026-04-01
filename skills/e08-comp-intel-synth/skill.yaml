@@ -316,3 +316,9 @@ composable:
     - "f18-sales-pitch-crafter"
     - "f09-product-req-writer"
   accepts_input_from: []
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0

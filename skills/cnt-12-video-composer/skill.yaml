@@ -72,3 +72,15 @@ composable:
 metadata:
   generated_by: "E-9"
   tier: "C"
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

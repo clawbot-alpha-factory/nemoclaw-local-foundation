@@ -1,6 +1,7 @@
 name: ops-02-event-bus
 version: 1.0.0
 schema_version: 2
+runner_version_required: ">=4.0.0"
 display_name: "Event Bus Controller"
 description: >
   Routes real-time events: email opens, payments, scraper signals, deal advances. Feeds orchestrator + priority engine.
@@ -22,3 +23,15 @@ outputs:
     type: file_path
 routing:
   default_alias: moderate
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback
