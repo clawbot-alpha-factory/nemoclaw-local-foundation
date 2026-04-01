@@ -13,6 +13,7 @@ SKILL_DIR = Path(__file__).resolve().parent
 OUTPUTS_DIR = SKILL_DIR / "outputs"
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root for lib.routing
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver

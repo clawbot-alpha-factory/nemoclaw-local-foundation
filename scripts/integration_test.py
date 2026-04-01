@@ -695,13 +695,80 @@ Defer enterprise features (SSO, compliance, custom vocabulary) to version 2.
         print()
 
     # ══════════════════════════════════════════════════════════════
+    # Phase 12: GAMIFICATION ENGINE
+    # ══════════════════════════════════════════════════════════════
+    if verbose:
+        print(f"\n  Phase 12 — Gamification Engine")
+
+    try:
+        from agent_performance import (
+            PerformanceManager, MetricsCollector, PerformanceScorer,
+            TrendTracker, GamificationEngine, ACHIEVEMENT_DEFS,
+        )
+
+        # Build a performance manager with mock data
+        pm = PerformanceManager()
+        pm.collector.record_review_score("strategy_lead", 8.5)
+        pm.collector.record_task_duration("strategy_lead", 30, 25)
+        pm.collector.record_cost_efficiency("strategy_lead", 0.05, 0.04)
+        pm.collector.record_task_success("strategy_lead")
+        pm.collector.record_compliance_pass("strategy_lead")
+
+        pm.collector.record_review_score("sales_outreach_lead", 9.0)
+        pm.collector.record_task_duration("sales_outreach_lead", 20, 15)
+        pm.collector.record_cost_efficiency("sales_outreach_lead", 0.03, 0.02)
+        pm.collector.record_task_success("sales_outreach_lead")
+        pm.collector.record_compliance_pass("sales_outreach_lead")
+
+        # Need 3+ samples for sufficient data
+        for _ in range(3):
+            pm.collector.record_review_score("strategy_lead", 8.0)
+            pm.collector.record_review_score("sales_outreach_lead", 8.5)
+
+        test("Gamification: Engine instantiated",
+             isinstance(GamificationEngine(pm), GamificationEngine))
+
+        ge = GamificationEngine(pm)
+
+        # Test rankings
+        rankings = ge.update_rankings()
+        test("Gamification: Rankings produced",
+             isinstance(rankings, list) and len(rankings) >= 2)
+
+        # Test Employee of Month
+        eom = ge.determine_employee_of_month()
+        test("Gamification: Employee of Month selected",
+             eom is not None and "agent_id" in eom and "score" in eom)
+
+        # Test achievement granting
+        granted = ge.grant_achievement("strategy_lead", "first_task")
+        test("Gamification: Achievement granted",
+             granted is True)
+
+        # Test rivalry
+        rivalry = ge.get_rivalry("strategy_lead", "sales_outreach_lead")
+        test("Gamification: Rivalry comparison works",
+             rivalry is not None and "dimensions" in rivalry and "overall" in rivalry)
+
+        # Test dashboard
+        dash = ge.get_dashboard()
+        test("Gamification: Dashboard produced",
+             "leaderboard" in dash and "employee_of_month" in dash and "achievements" in dash)
+
+        test("Gamification: Achievement defs complete",
+             len(ACHIEVEMENT_DEFS) >= 10)
+
+    except Exception as e:
+        test("Gamification: Engine test", False, str(e)[:80])
+
+    # ══════════════════════════════════════════════════════════════
     # SUMMARY
     # ══════════════════════════════════════════════════════════════
     if verbose:
         print(f"  {'═' * 56}")
         status = "PASS ✅" if tp == tt else f"PARTIAL ({tp}/{tt})"
         print(f"  Integration Test: {status}")
-        print(f"  Systems tested: 19 + browser")
+        print(f"  Systems tested: 19 + browser + gamification")
         print(f"  Phases completed: 11")
         print(f"  Checks: {tp}/{tt} passed")
         print(f"  {'═' * 56}")

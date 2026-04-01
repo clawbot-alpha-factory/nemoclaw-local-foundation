@@ -903,7 +903,7 @@ class GamificationEngine:
 
     def update_rankings(self, org_goal="balanced"):
         """Refresh the leaderboard from current performance data."""
-        rankings = self.pm.scorer.rank_agents(org_goal)
+        rankings = self.pm.scorer.rank_agents()
         self.leaderboard["rankings"] = rankings
         self.leaderboard["last_updated"] = datetime.now(timezone.utc).isoformat()
         self._save_leaderboard()

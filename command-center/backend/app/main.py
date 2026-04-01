@@ -140,6 +140,8 @@ from app.api.routers import activity as activity_router
 # ── Engine (E-5) imports ──
 from app.services.skill_factory_service import SkillFactoryService
 from app.api.routers import skill_factory as skill_factory_router
+from app.services.skill_request_service import SkillRequestService
+from app.api.routers import skill_requests as skill_requests_router
 
 # ── P-8: Skills Marketplace ──
 from app.api.routers import marketplace as marketplace_router
@@ -383,6 +385,10 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-5: SkillFactoryService initialized")
 
+    # ── Skill Request Workflow ──
+    app.state.skill_request_service = SkillRequestService()
+    logger.info("Skill Request Workflow initialized")
+
     # ── P-8: Skills Marketplace ──
     from app.services.skill_marketplace_service import SkillMarketplaceService
     app.state.skill_marketplace_service = SkillMarketplaceService(
@@ -614,6 +620,7 @@ app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
+app.include_router(skill_requests_router.router)  # Skill Request Workflow
 app.include_router(marketplace_router.router)  # P-8: Skills Marketplace
 app.include_router(self_build_router.router)  # E-7b: Self-Build
 app.include_router(bridges_router.router)  # E-8: Bridges

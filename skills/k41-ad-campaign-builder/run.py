@@ -24,6 +24,7 @@ OUTPUTS_DIR = SKILL_DIR / "outputs"
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root for lib.routing
 
 # ── LangGraph ──────────────────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ capabilities:
     owned_by: strategy_lead
     skill: e12-market-research-analyst
     fallback_agent: null  # no fallback — only strategy researches
-    requires_inputs: [research_topic, industry_context]
+    requires_inputs: [research_topic, industry_context, specific_questions, known_data, research_depth]
     produces_outputs: [market_overview, segmentation, trends, recommendations]
     memory_keys_written: [market_overview, market_segments, market_trends]
 
@@ -25,7 +25,7 @@ capabilities:
     owned_by: strategy_lead
     skill: e12-tech-trend-scanner
     fallback_agent: null
-    requires_inputs: [technology_domain, industry_context]
+    requires_inputs: [technology_domain, industry_context, time_horizon, known_technologies, specific_focus, scan_depth]
     produces_outputs: [trend_report, maturity_classifications, disruption_vectors]
     memory_keys_written: [tech_trends, disruption_vectors, maturity_map]
 
@@ -33,7 +33,7 @@ capabilities:
     owned_by: strategy_lead
     skill: e08-comp-intel-synth
     fallback_agent: null
-    requires_inputs: [competitor_data, focus_company, industry_context]
+    requires_inputs: [competitor_data, focus_company, industry_context, analysis_priorities, report_depth]
     produces_outputs: [competitive_analysis, positioning_map, strategic_recommendations]
     memory_keys_written: [competitive_landscape, positioning_gaps]
 
@@ -41,7 +41,7 @@ capabilities:
     owned_by: strategy_lead
     skill: j36-biz-idea-validator
     fallback_agent: null
-    requires_inputs: [business_idea, target_market, competitive_landscape]
+    requires_inputs: [business_idea, target_market, competitive_landscape, scope, revenue_model_hints, known_constraints]
     produces_outputs: [validation_report, go_no_go_recommendation]
     memory_keys_written: [validation_result, go_no_go_decision]
 
@@ -49,51 +49,51 @@ capabilities:
     owned_by: strategy_lead
     skill: j36-mvp-scope-definer
     fallback_agent: product_architect  # product can also scope
-    requires_inputs: [product_idea, target_audience, resource_constraints, timeline]
+    requires_inputs: [product_idea, target_audience, resource_constraints, timeline, scope_mode, domain_context, existing_assets]
     produces_outputs: [mvp_scope, feature_priorities, launch_criteria]
     memory_keys_written: [mvp_scope, feature_list, launch_criteria]
 
   comment_signal_scraping:
     owned_by: strategy_lead
     skill: int-01-comment-signal-scraper
-    requires_inputs: [platform_urls, keywords]
+    requires_inputs: [targets, platforms]
     produces_outputs: [signal_report, sentiment_data]
 
   demand_pattern_analysis:
     owned_by: strategy_lead
     skill: int-02-demand-pattern-analyzer
-    requires_inputs: [market_data, timeframe]
+    requires_inputs: [raw_signals, niche]
     produces_outputs: [demand_patterns, trend_forecast]
 
   opportunity_generation:
     owned_by: strategy_lead
     skill: int-03-opportunity-offer-generator
-    requires_inputs: [market_gaps, customer_pain_points]
+    requires_inputs: [demand_insights, capabilities]
     produces_outputs: [opportunity_briefs, offer_concepts]
 
   reality_check:
     owned_by: strategy_lead
     skill: int-04-reality-check-engine
-    requires_inputs: [business_assumptions, market_data]
+    requires_inputs: [opportunity_data, historical_results]
     produces_outputs: [reality_check_report, risk_assessment]
 
   cross_platform_scraping:
     owned_by: strategy_lead
     skill: int-05-cross-platform-scraper
-    requires_inputs: [target_platforms, search_queries]
+    requires_inputs: [targets, platforms]
     produces_outputs: [scraped_data, platform_insights]
 
   experiment_decisions:
     owned_by: strategy_lead
     skill: rev-25-experiment-decision-engine
-    requires_inputs: [experiment_results, thresholds]
+    requires_inputs: [experiment_data]
     produces_outputs: [kill_scale_decision, rationale]
 
   system_learning:
     owned_by: strategy_lead
     skill: rev-19-system-learning-engine
     fallback_agent: executive_operator
-    requires_inputs: [performance_data, outcome_history]
+    requires_inputs: [system_performance_data, learning_period]
     produces_outputs: [learning_insights, priority_adjustments]
 
   # ── Product Architect ─────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ capabilities:
     owned_by: product_architect
     skill: f09-product-req-writer
     fallback_agent: null
-    requires_inputs: [product_idea, target_audience, business_context, scope_level]
+    requires_inputs: [product_idea, target_audience, business_context, constraints, scope_level]
     produces_outputs: [prd, user_stories, acceptance_criteria, nfrs]
     memory_keys_written: [requirements, user_stories, scope_boundaries]
 
@@ -109,7 +109,7 @@ capabilities:
     owned_by: product_architect
     skill: a01-arch-spec-writer
     fallback_agent: engineering_lead  # eng can also architect
-    requires_inputs: [subsystem_name, subsystem_concept]
+    requires_inputs: [subsystem_name, subsystem_concept, boundaries, integration_context, constraints]
     produces_outputs: [architecture_doc, component_breakdown, integration_points]
     memory_keys_written: [architecture, components, integrations]
 
@@ -117,7 +117,7 @@ capabilities:
     owned_by: product_architect
     skill: a01-sys-context-mapper
     fallback_agent: null
-    requires_inputs: [system_name, system_description]
+    requires_inputs: [system_name, system_description, known_integrations, domain_context, output_detail_level]
     produces_outputs: [context_map, external_actors, data_flows]
     memory_keys_written: [system_context, actors, data_flows]
 
@@ -125,7 +125,7 @@ capabilities:
     owned_by: product_architect
     skill: a01-api-surface-designer
     fallback_agent: engineering_lead
-    requires_inputs: [service_description, target_consumers]
+    requires_inputs: [service_description, target_consumers, design_constraints, api_style, output_format]
     produces_outputs: [api_spec, endpoint_inventory, auth_model]
     memory_keys_written: [api_spec, endpoints]
 
@@ -133,7 +133,7 @@ capabilities:
     owned_by: product_architect
     skill: c07-decision-record-writer
     fallback_agent: operations_lead
-    requires_inputs: [decision_title, decision_context, options_considered, chosen_option]
+    requires_inputs: [decision_title, decision_context, options_considered, chosen_option, decision_drivers, status, compliance_domains, review_date]
     produces_outputs: [adr_document, consequences, review_date]
     memory_keys_written: [decision_record]
 
@@ -142,123 +142,123 @@ capabilities:
     owned_by: growth_revenue_lead
     skill: f09-pricing-strategist
     fallback_agent: null
-    requires_inputs: [product_description, target_market, competitive_pricing, cost_structure]
+    requires_inputs: [product_description, target_market, cost_structure, competitive_context, pricing_goals, scope]
     produces_outputs: [pricing_model, revenue_projections, pricing_tiers]
     memory_keys_written: [pricing_model, revenue_projections, pricing_tiers]
 
   revenue_attribution:
     owned_by: growth_revenue_lead
     skill: rev-03-revenue-attribution-analyzer
-    requires_inputs: [revenue_data, channel_data]
+    requires_inputs: [revenue_data, period]
     produces_outputs: [attribution_report, channel_roi]
 
   offer_optimization:
     owned_by: growth_revenue_lead
     skill: rev-04-offer-optimization-engine
-    requires_inputs: [current_offers, conversion_data]
+    requires_inputs: [offer_performance_data, market_context]
     produces_outputs: [optimized_offers, pricing_recommendations]
 
   funnel_analysis:
     owned_by: growth_revenue_lead
     skill: rev-05-funnel-conversion-analyzer
-    requires_inputs: [funnel_data, conversion_metrics]
+    requires_inputs: [funnel_data, funnel_type]
     produces_outputs: [funnel_report, bottleneck_analysis]
 
   revenue_orchestration:
     owned_by: growth_revenue_lead
     skill: rev-06-revenue-orchestrator
-    requires_inputs: [revenue_goals, available_channels]
+    requires_inputs: [pipeline_state, available_budget]
     produces_outputs: [revenue_plan, channel_allocation]
 
   service_packaging:
     owned_by: growth_revenue_lead
     skill: rev-08-agentic-service-packager
-    requires_inputs: [service_capabilities, market_demand]
+    requires_inputs: [capability_description, client_industry]
     produces_outputs: [service_packages, pricing_tiers]
 
   payment_execution:
     owned_by: growth_revenue_lead
     skill: rev-09-payment-execution-engine
-    requires_inputs: [invoice_data, payment_method]
+    requires_inputs: [invoice_data, payment_provider]
     produces_outputs: [payment_confirmation, receipt]
 
   lead_sourcing:
     owned_by: growth_revenue_lead
     skill: rev-10-lead-source-engine
-    requires_inputs: [target_criteria, channels]
+    requires_inputs: [target_icp, sources]
     produces_outputs: [lead_list, source_quality_scores]
 
   risk_allocation:
     owned_by: growth_revenue_lead
     skill: rev-12-risk-capital-allocator
-    requires_inputs: [investment_options, risk_tolerance]
+    requires_inputs: [portfolio_state, risk_tolerance]
     produces_outputs: [allocation_plan, risk_report]
 
   live_experiments:
     owned_by: growth_revenue_lead
     skill: rev-13-live-experiment-runner
-    requires_inputs: [experiment_design, success_criteria]
+    requires_inputs: [experiment_spec, confidence_threshold]
     produces_outputs: [experiment_results, statistical_significance]
 
   revenue_loop_enforcement:
     owned_by: growth_revenue_lead
     skill: rev-14-revenue-loop-enforcer
     fallback_agent: operations_lead
-    requires_inputs: [revenue_targets, actual_performance]
+    requires_inputs: [active_opportunities, loop_stages]
     produces_outputs: [enforcement_actions, gap_analysis]
 
   playbook_memory:
     owned_by: growth_revenue_lead
     skill: rev-15-playbook-memory-engine
-    requires_inputs: [historical_plays, outcomes]
+    requires_inputs: [campaign_results, existing_playbooks]
     produces_outputs: [best_playbooks, win_patterns]
 
   speed_to_revenue:
     owned_by: growth_revenue_lead
     skill: rev-16-speed-to-revenue-optimizer
-    requires_inputs: [pipeline_data, velocity_targets]
+    requires_inputs: [current_state, urgency]
     produces_outputs: [optimization_plan, time_to_revenue_estimate]
 
   demand_mining:
     owned_by: growth_revenue_lead
     skill: rev-17-demand-signal-miner
-    requires_inputs: [market_signals, customer_behavior]
+    requires_inputs: [target_niches, platforms]
     produces_outputs: [demand_signals, opportunity_scores]
 
   instant_offers:
     owned_by: growth_revenue_lead
     skill: rev-18-instant-offer-launcher
-    requires_inputs: [trigger_event, offer_templates]
+    requires_inputs: [demand_signal, speed_mode]
     produces_outputs: [launched_offer, tracking_data]
 
   sales_forecasting:
     owned_by: growth_revenue_lead
     skill: k43-sales-forecast-modeler
-    requires_inputs: [historical_sales, pipeline_data]
+    requires_inputs: [pipeline_summary, forecast_horizon]
     produces_outputs: [forecast_report, confidence_intervals]
 
   contract_drafting:
     owned_by: growth_revenue_lead
     skill: biz-02-contract-drafter
-    requires_inputs: [deal_terms, client_info]
+    requires_inputs: [proposal_summary, jurisdiction]
     produces_outputs: [contract_draft, key_terms]
 
   invoice_generation:
     owned_by: growth_revenue_lead
     skill: biz-03-invoice-generator
-    requires_inputs: [billing_items, client_info]
+    requires_inputs: [contract_details, payment_method]
     produces_outputs: [invoice, payment_instructions]
 
   affiliate_management:
     owned_by: growth_revenue_lead
     skill: scl-01-affiliate-program-engine
-    requires_inputs: [program_goals, commission_structure]
+    requires_inputs: [product_context, commission_model]
     produces_outputs: [affiliate_program, partner_materials]
 
   partnership_proposals:
     owned_by: growth_revenue_lead
     skill: scl-02-partnership-proposal-writer
-    requires_inputs: [partner_info, value_proposition]
+    requires_inputs: [partner_info, partnership_type]
     produces_outputs: [proposal_doc, partnership_terms]
 
   webinar_funnels:
@@ -270,32 +270,32 @@ capabilities:
   podcast_pitches:
     owned_by: growth_revenue_lead
     skill: scl-04-podcast-guest-pitch-writer
-    requires_inputs: [target_podcasts, guest_expertise]
+    requires_inputs: [podcast_info, expertise]
     produces_outputs: [pitch_emails, talking_points]
 
   community_growth:
     owned_by: growth_revenue_lead
     skill: scl-05-community-growth-engine
-    requires_inputs: [community_goals, platform]
+    requires_inputs: [community_vision, platform]
     produces_outputs: [growth_strategy, engagement_plan]
 
   revenue_dashboard:
     owned_by: growth_revenue_lead
     skill: scl-08-revenue-dashboard-generator
     fallback_agent: operations_lead
-    requires_inputs: [metrics_sources, kpi_definitions]
+    requires_inputs: [revenue_data, report_type]
     produces_outputs: [dashboard_config, visualization_specs]
 
   niche_domination:
     owned_by: growth_revenue_lead
     skill: scl-09-niche-domination-engine
-    requires_inputs: [niche_market, competitive_landscape]
+    requires_inputs: [niche_definition, timeline]
     produces_outputs: [domination_strategy, content_plan]
 
   micro_saas:
     owned_by: growth_revenue_lead
     skill: scl-10-micro-saas-generator
-    requires_inputs: [problem_statement, target_users]
+    requires_inputs: [problem_pattern, build_constraint]
     produces_outputs: [saas_concept, mvp_spec, revenue_model]
 
   # ── Narrative & Content Lead (Yasmin) ──────────────────────────────────────
@@ -303,7 +303,7 @@ capabilities:
     owned_by: narrative_content_lead
     skill: d11-copywriting-specialist
     fallback_agent: null
-    requires_inputs: [copy_brief, target_audience, copy_format, brand_voice]
+    requires_inputs: [copy_brief, target_audience, copy_format, brand_voice, reference_material, copy_length]
     produces_outputs: [copy_content, cta, headline]
     memory_keys_written: [copy_content, brand_messaging]
 
@@ -311,7 +311,7 @@ capabilities:
     owned_by: narrative_content_lead
     skill: d11-video-script-writer
     fallback_agent: null
-    requires_inputs: [script_brief, target_audience, video_format]
+    requires_inputs: [script_brief, target_audience, video_format, brand_voice, reference_material, video_duration_target]
     produces_outputs: [video_script, scene_breakdown, cta]
     memory_keys_written: [video_script]
 
@@ -319,7 +319,7 @@ capabilities:
     owned_by: narrative_content_lead
     skill: c07-api-doc-gen
     fallback_agent: engineering_lead
-    requires_inputs: [api_specification, target_audience, api_name]
+    requires_inputs: [api_specification, target_audience, api_name, base_url, authentication_type, include_sdk_patterns, documentation_depth]
     produces_outputs: [api_docs, quick_start, error_reference]
     memory_keys_written: [api_documentation]
 
@@ -327,7 +327,7 @@ capabilities:
     owned_by: narrative_content_lead
     skill: e08-kb-article-writer
     fallback_agent: null
-    requires_inputs: [topic, article_type, target_audience, source_material]
+    requires_inputs: [topic, article_type, target_audience, source_material, related_article_hints, tone]
     produces_outputs: [kb_article, troubleshooting_tips, metadata_tags]
     memory_keys_written: [kb_article]
 
@@ -335,7 +335,7 @@ capabilities:
     owned_by: narrative_content_lead
     skill: e08-meeting-summary-gen
     fallback_agent: operations_lead
-    requires_inputs: [transcript, attendees, meeting_type]
+    requires_inputs: [transcript, attendees, meeting_type, meeting_title, meeting_date, focus_areas]
     produces_outputs: [summary, action_items, decisions, open_questions]
     memory_keys_written: [meeting_decisions, action_items]
 
@@ -343,14 +343,14 @@ capabilities:
     owned_by: narrative_content_lead
     skill: i35-tone-calibrator
     fallback_agent: null
-    requires_inputs: [input_text, target_tone, intensity]
+    requires_inputs: [input_text, target_tone, preserve_structure, intensity]
     produces_outputs: [calibrated_text, tone_analysis]
     memory_keys_written: []  # utility — no memory footprint
 
   blog_writing:
     owned_by: narrative_content_lead
     skill: k48-blog-post-writer
-    requires_inputs: [topic, target_audience, seo_keywords]
+    requires_inputs: [topic, target_audience]
     produces_outputs: [blog_post, meta_description]
 
   # ── Engineering Lead (Faisal) ─────────────────────────────────────────────
@@ -358,7 +358,7 @@ capabilities:
     owned_by: engineering_lead
     skill: b05-feature-impl-writer
     fallback_agent: null
-    requires_inputs: [feature_spec, language]
+    requires_inputs: [feature_spec, language, integration_context, constraints, code_style]
     produces_outputs: [implementation_plan, code_structure, test_recommendations]
     memory_keys_written: [implementation_plan]
 
@@ -366,7 +366,7 @@ capabilities:
     owned_by: engineering_lead
     skill: b05-scaffold-gen
     fallback_agent: null
-    requires_inputs: [project_type, language, feature_requirements, project_name]
+    requires_inputs: [project_type, language, framework, feature_requirements, project_name]
     produces_outputs: [project_scaffold, directory_structure, config_files]
     memory_keys_written: [project_structure]
 
@@ -374,7 +374,7 @@ capabilities:
     owned_by: engineering_lead
     skill: b05-bug-fix-impl
     fallback_agent: null
-    requires_inputs: [bug_description, affected_code_snippet, expected_behavior, actual_behavior]
+    requires_inputs: [bug_description, affected_code_snippet, expected_behavior, actual_behavior, language, severity]
     produces_outputs: [root_cause, fix_diff, test_cases]
     memory_keys_written: [bug_fixes]
 
@@ -382,7 +382,7 @@ capabilities:
     owned_by: engineering_lead
     skill: b06-cicd-designer
     fallback_agent: null
-    requires_inputs: [project_description, deployment_targets, quality_gates, pipeline_format]
+    requires_inputs: [project_description, deployment_targets, quality_gates, pipeline_format, additional_constraints]
     produces_outputs: [pipeline_spec, stages, trigger_conditions]
     memory_keys_written: [cicd_pipeline]
 
@@ -390,7 +390,7 @@ capabilities:
     owned_by: engineering_lead
     skill: b06-release-notes-gen
     fallback_agent: narrative_content_lead  # content can also write notes
-    requires_inputs: [commit_history, version_number, audience_type]
+    requires_inputs: [commit_history, version_number, audience_type, product_name, previous_version, known_issues]
     produces_outputs: [release_notes, changelog]
     memory_keys_written: [release_notes]
 
@@ -398,7 +398,7 @@ capabilities:
     owned_by: engineering_lead
     skill: c07-setup-guide-writer
     fallback_agent: null
-    requires_inputs: [system_description, target_environment]
+    requires_inputs: [system_description, target_environment, prerequisites, setup_steps_hint, audience]
     produces_outputs: [setup_guide, prerequisites, verification_steps]
     memory_keys_written: [setup_documentation]
 
@@ -406,20 +406,20 @@ capabilities:
     owned_by: engineering_lead
     skill: c07-runbook-author
     fallback_agent: null
-    requires_inputs: [system_description, procedures]
+    requires_inputs: [system_description, procedures, failure_scenarios, audience]
     produces_outputs: [runbook, decision_trees, verification_checkpoints]
     memory_keys_written: [operational_runbook]
 
   auto_deployment:
     owned_by: engineering_lead
     skill: rev-24-auto-deployment-engine
-    requires_inputs: [deployment_config, target_environment]
+    requires_inputs: [offer_spec]
     produces_outputs: [deployment_status, rollback_plan]
 
   script_automation:
     owned_by: engineering_lead
     skill: b05-script-automator
-    requires_inputs: [task_description, language]
+    requires_inputs: [task_description, target_shell, operational_context, safety_requirements, output_format]
     produces_outputs: [automated_script, usage_instructions]
 
   # ── Operations Lead (Khalid) ──────────────────────────────────────────────
@@ -427,7 +427,7 @@ capabilities:
     owned_by: operations_lead
     skill: g25-output-format-enforcer
     fallback_agent: null
-    requires_inputs: [input_text, target_format]
+    requires_inputs: [input_text, target_format, format_spec, strip_preamble, strip_postamble, strip_fences, preserve_content]
     produces_outputs: [formatted_output]
     memory_keys_written: []  # utility
 
@@ -435,7 +435,7 @@ capabilities:
     owned_by: operations_lead
     skill: g25-sys-prompt-designer
     fallback_agent: null
-    requires_inputs: [skill_purpose, skill_id, tag]
+    requires_inputs: [skill_purpose, skill_id, tag, skill_yaml, llm_steps, execution_role, domain_constraints, output_format_preference]
     produces_outputs: [system_prompt, guardrails]
     memory_keys_written: [prompt_designs]
 
@@ -443,7 +443,7 @@ capabilities:
     owned_by: operations_lead
     skill: g26-skill-spec-writer
     fallback_agent: null
-    requires_inputs: [skill_concept, skill_name, skill_id, family, domain, tag]
+    requires_inputs: [skill_concept, skill_id, skill_name, family, domain, tag, skill_type, step_hints, has_critic_loop]
     produces_outputs: [skill_yaml]
     memory_keys_written: [generated_specs]
 
@@ -451,7 +451,7 @@ capabilities:
     owned_by: operations_lead
     skill: g26-skill-template-gen
     fallback_agent: null
-    requires_inputs: [skill_yaml]
+    requires_inputs: [skill_yaml, reference_pattern, deterministic_check_type]
     produces_outputs: [skill_run_py]
     memory_keys_written: [generated_code]
 
@@ -459,20 +459,20 @@ capabilities:
     owned_by: operations_lead
     skill: research-brief
     fallback_agent: strategy_lead
-    requires_inputs: [topic]
+    requires_inputs: [topic, depth]
     produces_outputs: [research_brief]
     memory_keys_written: [research_brief]
 
   resource_allocation:
     owned_by: operations_lead
     skill: rev-23-resource-allocator
-    requires_inputs: [available_resources, task_requirements]
+    requires_inputs: [current_usage, limits]
     produces_outputs: [allocation_plan, utilization_forecast]
 
   event_bus:
     owned_by: operations_lead
     skill: ops-02-event-bus
-    requires_inputs: [event_type, payload]
+    requires_inputs: [event_data]
     produces_outputs: [event_confirmation, subscribers_notified]
 
   # ── Web Capabilities (PinchTab) ────────────────────────────────────────────
@@ -480,7 +480,7 @@ capabilities:
     owned_by: strategy_lead
     skill: k50-web-researcher
     fallback_agent: narrative_content_lead
-    requires_inputs: [url, research_question]
+    requires_inputs: [research_query, depth]
     produces_outputs: [web_research_report, extracted_content, source_urls]
     memory_keys_written: [web_research, extracted_data]
     requires_pinchtab: true
@@ -490,7 +490,7 @@ capabilities:
     owned_by: strategy_lead
     skill: k51-competitor-scraper
     fallback_agent: null
-    requires_inputs: [competitor_url, our_product, focus_areas]
+    requires_inputs: [competitors, focus_areas]
     produces_outputs: [competitor_intelligence_report, feature_matrix, pricing_data]
     memory_keys_written: [competitor_data, feature_comparison]
     requires_pinchtab: true
@@ -500,7 +500,7 @@ capabilities:
     owned_by: growth_revenue_lead
     skill: k52-lead-enricher
     fallback_agent: null
-    requires_inputs: [company_name, enrichment_fields]
+    requires_inputs: [lead_list, enrichment_depth]
     produces_outputs: [enriched_lead_profile, company_info, contact_data]
     memory_keys_written: [lead_profiles, enrichment_data]
     requires_pinchtab: true
@@ -510,7 +510,7 @@ capabilities:
     owned_by: social_media_lead
     skill: k53-social-poster
     fallback_agent: narrative_content_lead
-    requires_inputs: [platform, content]
+    requires_inputs: [topic, platform]
     produces_outputs: [published_post_confirmation, post_url, screenshot_evidence]
     memory_keys_written: [published_posts]
     requires_pinchtab: true
@@ -521,7 +521,7 @@ capabilities:
     owned_by: operations_lead
     skill: k54-review-monitor
     fallback_agent: null
-    requires_inputs: [dashboard_url, metrics_to_extract]
+    requires_inputs: [review_data, product_name]
     produces_outputs: [dashboard_metrics_report, metric_values, trend_analysis]
     memory_keys_written: [dashboard_metrics]
     requires_pinchtab: true
@@ -539,69 +539,69 @@ capabilities:
   global_state:
     owned_by: executive_operator
     skill: rev-20-global-state-engine
-    requires_inputs: [system_state, metrics]
+    requires_inputs: [state_update, collection]
     produces_outputs: [state_snapshot, anomalies]
 
   priority_management:
     owned_by: executive_operator
     skill: rev-21-priority-engine
-    requires_inputs: [task_queue, urgency_signals]
+    requires_inputs: [pending_tasks, current_pipeline]
     produces_outputs: [priority_ranking, execution_order]
 
   auto_business_launch:
     owned_by: executive_operator
     skill: rev-22-auto-business-launcher
-    requires_inputs: [business_concept, resources]
+    requires_inputs: [demand_signal, budget_limit]
     produces_outputs: [launch_plan, deployed_assets]
 
   failure_recovery:
     owned_by: executive_operator
     skill: ops-01-failure-recovery-engine
     fallback_agent: operations_lead
-    requires_inputs: [failure_context, system_state]
+    requires_inputs: [failure_context, severity]
     produces_outputs: [recovery_plan, root_cause]
 
   # ── Sales & Outreach Lead (Hassan) ────────────────────────────────────────
   multi_touch_sequences:
     owned_by: sales_outreach_lead
     skill: out-01-multi-touch-sequence-builder
-    requires_inputs: [prospect_data, campaign_goals]
+    requires_inputs: [prospect_profile, value_prop]
     produces_outputs: [sequence_plan, touchpoint_schedule]
 
   email_execution:
     owned_by: sales_outreach_lead
     skill: out-02-email-executor
-    requires_inputs: [email_content, recipient_list]
+    requires_inputs: [email_spec, sequence_context]
     produces_outputs: [send_confirmation, delivery_metrics]
 
   linkedin_planning:
     owned_by: sales_outreach_lead
     skill: out-03-linkedin-action-planner
-    requires_inputs: [target_profiles, engagement_goals]
+    requires_inputs: [prospect_linkedin, approach]
     produces_outputs: [action_plan, connection_strategy]
 
   follow_up_intelligence:
     owned_by: sales_outreach_lead
     skill: out-04-follow-up-intelligence
-    requires_inputs: [prospect_history, engagement_data]
+    requires_inputs: [conversation_history, deal_stage]
     produces_outputs: [follow_up_plan, timing_recommendations]
 
   outreach_personalization:
     owned_by: sales_outreach_lead
     skill: out-05-outreach-personalization-engine
-    requires_inputs: [prospect_data, message_templates]
+    requires_inputs: [template, lead_context]
     produces_outputs: [personalized_messages, personalization_scores]
 
   whatsapp_messaging:
     owned_by: sales_outreach_lead
     skill: out-07-whatsapp-message-composer
-    requires_inputs: [contact_info, message_context]
+    requires_inputs: [recipient_context, language]
     produces_outputs: [message_content, delivery_status]
 
   comment_conversion:
     owned_by: sales_outreach_lead
     skill: out-08-comment-conversion-engine
-    requires_inputs: [comment_data, conversion_goals]
+    requires_inputs: [monitored_accounts, response_tone]
     produces_outputs: [response_strategy, conversion_actions]
 
   autonomous_sales_closing:
@@ -613,31 +613,31 @@ capabilities:
   lead_qualification:
     owned_by: sales_outreach_lead
     skill: rev-02-lead-qualification-engine
-    requires_inputs: [lead_data, qualification_criteria]
+    requires_inputs: [lead_data, icp_criteria]
     produces_outputs: [qualification_score, next_action]
 
   deal_progression:
     owned_by: sales_outreach_lead
     skill: rev-07-deal-progression-tracker
-    requires_inputs: [deal_data, pipeline_stage]
+    requires_inputs: [deals_data, stale_threshold_days]
     produces_outputs: [progression_plan, blockers]
 
   deal_pipeline_tracking:
     owned_by: sales_outreach_lead
     skill: k40-deal-pipeline-tracker
-    requires_inputs: [pipeline_data, stage_definitions]
+    requires_inputs: [pipeline_data, time_period]
     produces_outputs: [pipeline_report, stalled_deals]
 
   lead_scoring:
     owned_by: sales_outreach_lead
     skill: k47-lead-scoring-engine
-    requires_inputs: [lead_attributes, scoring_model]
+    requires_inputs: [lead_data, icp_criteria]
     produces_outputs: [lead_scores, priority_ranking]
 
   intent_scoring:
     owned_by: sales_outreach_lead
     skill: int-06-intent-scoring-engine
-    requires_inputs: [behavioral_signals, content_engagement]
+    requires_inputs: [raw_signals]
     produces_outputs: [intent_scores, hot_leads]
 
   proposal_generation:
@@ -650,93 +650,93 @@ capabilities:
   ad_campaigns:
     owned_by: marketing_campaigns_lead
     skill: k41-ad-campaign-builder
-    requires_inputs: [campaign_goals, budget, target_audience]
+    requires_inputs: [campaign_goal, budget, platform]
     produces_outputs: [campaign_plan, ad_creatives, targeting_config]
 
   landing_page_optimization:
     owned_by: marketing_campaigns_lead
     skill: k42-landing-page-optimizer
-    requires_inputs: [page_url, conversion_goals]
+    requires_inputs: [page_content, target_action]
     produces_outputs: [optimization_recommendations, a_b_test_plan]
 
   email_campaign_design:
     owned_by: marketing_campaigns_lead
     skill: k44-email-campaign-designer
-    requires_inputs: [campaign_goals, audience_segments]
+    requires_inputs: [campaign_brief, num_emails]
     produces_outputs: [email_sequence, subject_lines, send_schedule]
 
   budget_allocation:
     owned_by: marketing_campaigns_lead
     skill: k45-budget-allocator
-    requires_inputs: [total_budget, channel_performance]
+    requires_inputs: [channel_performance, total_budget]
     produces_outputs: [allocation_plan, expected_roi]
 
   newsletter_composition:
     owned_by: marketing_campaigns_lead
     skill: k49-newsletter-composer
-    requires_inputs: [content_items, audience]
+    requires_inputs: [newsletter_brief, audience]
     produces_outputs: [newsletter_html, subject_line]
 
   campaign_optimization:
     owned_by: marketing_campaigns_lead
     skill: out-06-campaign-performance-optimizer
-    requires_inputs: [campaign_metrics, optimization_goals]
+    requires_inputs: [campaign_data, min_sample_size]
     produces_outputs: [optimization_actions, projected_improvement]
 
   growth_experiments:
     owned_by: marketing_campaigns_lead
     skill: scl-06-growth-experiment-designer
-    requires_inputs: [hypothesis, test_parameters]
+    requires_inputs: [growth_goal, constraints]
     produces_outputs: [experiment_design, success_criteria]
 
   cross_channel_scheduling:
     owned_by: marketing_campaigns_lead
     skill: scl-07-cross-channel-scheduler
-    requires_inputs: [content_calendar, platform_rules]
+    requires_inputs: [content_queue, timezone]
     produces_outputs: [schedule, optimal_times]
 
   # ── Client Success Lead (Amira) ───────────────────────────────────────────
   client_onboarding:
     owned_by: client_success_lead
     skill: biz-04-client-onboarding-sequence
-    requires_inputs: [client_info, service_package]
+    requires_inputs: [client_info, service_type]
     produces_outputs: [onboarding_plan, welcome_sequence]
 
   client_health_monitoring:
     owned_by: client_success_lead
     skill: biz-05-client-health-monitor
-    requires_inputs: [client_data, engagement_metrics]
+    requires_inputs: [client_data, threshold]
     produces_outputs: [health_score, risk_flags]
 
   upsell_detection:
     owned_by: client_success_lead
     skill: biz-06-upsell-opportunity-detector
-    requires_inputs: [client_usage, service_catalog]
+    requires_inputs: [client_usage_data, service_catalog]
     produces_outputs: [upsell_opportunities, timing_recommendations]
 
   social_proof:
     owned_by: client_success_lead
     skill: biz-08-social-proof-engine
-    requires_inputs: [client_results, testimonial_prompts]
+    requires_inputs: [client_results, output_formats]
     produces_outputs: [social_proof_assets, case_study_briefs]
 
   review_monitoring:
     owned_by: client_success_lead
     skill: k54-review-monitor
-    requires_inputs: [review_sources, brand_name]
+    requires_inputs: [review_data, product_name]
     produces_outputs: [review_report, sentiment_analysis]
 
   case_study_writing:
     owned_by: client_success_lead
     skill: k46-case-study-writer
     fallback_agent: narrative_content_lead
-    requires_inputs: [client_story, results_data]
+    requires_inputs: [client_context, tone]
     produces_outputs: [case_study, key_metrics]
 
   follow_up_enforcement:
     owned_by: client_success_lead
     skill: rev-11-follow-up-enforcer
-    requires_inputs: [follow_up_queue, priority_rules]
+    requires_inputs: [deal_context, days_since_contact]
     produces_outputs: [enforcement_actions, completion_status]
 
   # ── Social Media Lead (Zara) ──────────────────────────────────────────────
@@ -749,62 +749,62 @@ capabilities:
   instagram_reels:
     owned_by: social_media_lead
     skill: cnt-02-instagram-reel-script-writer
-    requires_inputs: [topic, target_audience]
+    requires_inputs: [topic, cta_goal]
     produces_outputs: [reel_script, visual_directions]
 
   tiktok_content:
     owned_by: social_media_lead
     skill: cnt-03-tiktok-content-engine
-    requires_inputs: [trend_data, brand_context]
+    requires_inputs: [niche, batch_size]
     produces_outputs: [tiktok_scripts, hashtag_strategy]
 
   content_repurposing:
     owned_by: social_media_lead
     skill: cnt-04-content-repurposer
-    requires_inputs: [source_content, target_platforms]
+    requires_inputs: [source_content, target_formats]
     produces_outputs: [repurposed_content, platform_adaptations]
 
   youtube_scripts:
     owned_by: social_media_lead
     skill: cnt-05-youtube-script-writer
-    requires_inputs: [video_topic, target_audience]
+    requires_inputs: [video_topic, video_length]
     produces_outputs: [youtube_script, thumbnail_concept]
 
   content_calendar:
     owned_by: social_media_lead
     skill: cnt-06-content-calendar-builder
-    requires_inputs: [content_strategy, posting_frequency]
+    requires_inputs: [business_context, channels]
     produces_outputs: [content_calendar, theme_schedule]
 
   content_analytics:
     owned_by: social_media_lead
     skill: cnt-07-content-performance-analyzer
-    requires_inputs: [content_metrics, platform_data]
+    requires_inputs: [content_metrics, period]
     produces_outputs: [performance_report, optimization_suggestions]
 
   content_distribution:
     owned_by: social_media_lead
     skill: cnt-08-cross-channel-distributor
-    requires_inputs: [content_items, channel_strategy]
+    requires_inputs: [content_piece, channels]
     produces_outputs: [distribution_plan, scheduling]
 
   social_execution:
     owned_by: social_media_lead
     skill: cnt-09-social-posting-executor
-    requires_inputs: [post_content, platform, schedule]
+    requires_inputs: [post_content, platform]
     produces_outputs: [post_confirmation, engagement_tracking]
 
   viral_analysis:
     owned_by: social_media_lead
     skill: cnt-10-viral-pattern-analyzer
-    requires_inputs: [content_performance, viral_benchmarks]
+    requires_inputs: [platform_data, niche]
     produces_outputs: [viral_patterns, replication_strategy]
 
   biz_competitive_intel:
     owned_by: social_media_lead
     skill: biz-07-competitive-intelligence-monitor
     fallback_agent: strategy_lead
-    requires_inputs: [competitor_socials, tracking_criteria]
+    requires_inputs: [competitors, focus_areas]
     produces_outputs: [competitive_social_report, gap_analysis]
 
   agent_self_promotion:
