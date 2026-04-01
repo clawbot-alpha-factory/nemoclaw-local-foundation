@@ -1,0 +1,170 @@
+name: k61-weekly-client-reporter
+version: 1.0.0
+display_name: "Weekly Client Reporter"
+description: >
+  Automated weekly client report generation — metrics aggregation, progress summary, next steps. Produces professional client-ready reports with executive summary, detailed metrics, and recommendations.
+author: NemoClaw Factory
+created: 2026-04-02
+language: en
+
+family: "61"
+domain: K
+tag: client-success
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 6
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are an expert client success manager who produces clear, data-driven weekly reports that demonstrate value and build client confidence.
+
+inputs:
+  - name: client_data
+    type: string
+    required: true
+    description: "Client name, services, KPIs, recent activity"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: report_period
+    type: string
+    required: true
+    description: "Report time period"
+    default: "last 7 days"
+    validation:
+      max_length: 100
+  - name: include_sections
+    type: string
+    required: false
+    description: "Which sections to include"
+    default: "all"
+    validation:
+      max_length: 500
+  - name: tone
+    type: string
+    required: false
+    description: "Report tone"
+    default: "professional"
+    validation:
+      max_length: 50
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/k61-weekly-client-reporter/outputs/
+  filename_pattern: "k61-weekly-client-reporter_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "k61-weekly-client-reporter_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse Client Data"
+    step_type: local
+    task_class: general_short
+    description: "Validate inputs, extract client parameters, prepare context."
+    input_source: inputs
+    output_key: step_1_output
+    failure:
+      strategy: halt
+      retry_count: 0
+
+  - id: step_2
+    name: "Generate Executive Summary"
+    step_type: llm
+    task_class: moderate
+    description: "Generate 2-3 paragraph executive summary — what was delivered, key wins, any issues, overall health."
+    input_source: step_1.output
+    output_key: step_2_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_3
+    name: "Generate Detailed Metrics"
+    step_type: llm
+    task_class: moderate
+    description: "Generate detailed metrics section — tasks completed, skills executed, costs, revenue attributed, SLA compliance, engagement."
+    input_source: step_2.output
+    output_key: step_3_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_4
+    name: "Generate Next Steps"
+    step_type: llm
+    task_class: moderate
+    description: "Generate next steps and recommendations — upcoming deliverables, optimization opportunities, expansion suggestions, risk flags."
+    input_source: step_3.output
+    output_key: step_4_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_5
+    name: "Quality Review"
+    step_type: critic
+    task_class: moderate
+    description: "Score output on clarity, completeness, client-readiness, and strategic value."
+    input_source: step_4.output
+    output_key: step_5_output
+    failure:
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_6
+
+  - id: step_6
+    name: "Write Artifact"
+    step_type: local
+    task_class: general_short
+    description: "Write markdown artifact and JSON envelope."
+    input_source: __final_output__
+    output_key: artifact_path
+    failure:
+      strategy: halt
+      retry_count: 0
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "client_success_generator_output"
+  can_feed_into: []
+  accepts_input_from: []
+
+metadata:
+  generated_by: "skill-factory"
+  factory_version: "E-5"
+  quality_score: null
+  approved_by: null
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

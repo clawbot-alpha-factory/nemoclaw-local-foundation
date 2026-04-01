@@ -1,0 +1,161 @@
+name: k59-subscription-manager
+version: 1.0.0
+display_name: "Subscription Manager"
+description: >
+  Subscription lifecycle management — renewals, upgrades, downgrades, churn prediction, plan changes. Analyzes subscription health and generates actionable recommendations.
+author: NemoClaw Factory
+created: 2026-04-02
+language: en
+
+family: "59"
+domain: K
+tag: revenue
+skill_type: executor
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 6
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are an expert subscription revenue analyst specializing in SaaS lifecycle management, churn prediction, and revenue optimization.
+
+inputs:
+  - name: subscription_data
+    type: string
+    required: true
+    description: "JSON of current subscriptions, plans, usage"
+    validation:
+      min_length: 20
+      max_length: 5000
+  - name: action
+    type: string
+    required: true
+    description: "Action to perform"
+    validation:
+      allowed_values:
+        - renewal_check
+        - churn_prediction
+        - upgrade_recommendation
+        - plan_optimization
+  - name: customer_id
+    type: string
+    required: false
+    description: "Optional customer identifier"
+    validation:
+      max_length: 200
+  - name: lookback_days
+    type: string
+    required: false
+    description: "Number of days to look back for analysis"
+    default: "30"
+    validation:
+      max_length: 10
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/k59-subscription-manager/outputs/
+  filename_pattern: "k59-subscription-manager_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "k59-subscription-manager_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse Subscription Data"
+    step_type: local
+    task_class: general_short
+    description: "Validate inputs, extract subscription parameters, prepare context."
+    input_source: inputs
+    output_key: step_1_output
+    failure:
+      strategy: halt
+      retry_count: 0
+
+  - id: step_2
+    name: "Analyze Patterns"
+    step_type: llm
+    task_class: moderate
+    description: "Analyze subscription health — MRR trends, churn signals, usage patterns, payment history, engagement decay."
+    input_source: step_1.output
+    output_key: step_2_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_3
+    name: "Generate Recommendations"
+    step_type: llm
+    task_class: moderate
+    description: "Generate specific actions — renewal timing, upsell opportunities, at-risk interventions, plan optimization, pricing adjustment recommendations."
+    input_source: step_2.output
+    output_key: step_3_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_4
+    name: "Quality Review"
+    step_type: critic
+    task_class: moderate
+    description: "Score output on analytical depth, actionability, revenue impact, and strategic value."
+    input_source: step_3.output
+    output_key: step_4_output
+    failure:
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_5
+
+  - id: step_5
+    name: "Write Artifact"
+    step_type: local
+    task_class: general_short
+    description: "Write markdown artifact and JSON envelope."
+    input_source: __final_output__
+    output_key: artifact_path
+    failure:
+      strategy: halt
+      retry_count: 0
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "revenue_executor_output"
+  can_feed_into: []
+  accepts_input_from: []
+
+metadata:
+  generated_by: "skill-factory"
+  factory_version: "E-5"
+  quality_score: null
+  approved_by: null
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

@@ -1,0 +1,161 @@
+name: k57-nda-generator
+version: 1.0.0
+display_name: "NDA Generator"
+description: >
+  Generate NDA (Non-Disclosure Agreement) documents from party details. Supports mutual and unilateral NDAs with MENA-aware legal terms.
+author: NemoClaw Factory
+created: 2026-04-02
+language: en
+
+family: K57
+domain: K
+tag: legal
+skill_type: generator
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 6
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are a legal document specialist focusing on NDA drafting. Create clear, enforceable non-disclosure agreements with appropriate protections for all parties.
+
+inputs:
+  - name: disclosing_party
+    type: string
+    required: true
+    description: "Disclosing party name and details"
+    validation:
+      min_length: 5
+      max_length: 2000
+  - name: receiving_party
+    type: string
+    required: true
+    description: "Receiving party name and details"
+    validation:
+      min_length: 5
+      max_length: 2000
+  - name: jurisdiction
+    type: string
+    required: false
+    description: "Legal jurisdiction for the NDA"
+    default: "Jordan"
+    validation:
+      max_length: 200
+  - name: nda_type
+    type: string
+    required: false
+    description: "Type of NDA: mutual or unilateral"
+    default: "mutual"
+    validation:
+      max_length: 20
+  - name: confidential_scope
+    type: string
+    required: false
+    description: "Scope of confidential information covered"
+    validation:
+      max_length: 2000
+  - name: duration_months
+    type: string
+    required: false
+    description: "Duration of NDA in months"
+    default: "24"
+    validation:
+      max_length: 10
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/k57-nda-generator/outputs/
+  filename_pattern: "k57-nda-generator_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "k57-nda-generator_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse Parties"
+    step_type: local
+    task_class: general_short
+    description: "Validate inputs, extract party details, prepare NDA context."
+    input_source: inputs
+    output_key: step_1_output
+    failure:
+      strategy: halt
+      retry_count: 0
+
+  - id: step_2
+    name: "Draft NDA"
+    step_type: llm
+    task_class: moderate
+    description: "Draft complete NDA document with all standard clauses and party-specific terms."
+    input_source: step_1.output
+    output_key: step_2_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_3
+    name: "Legal Review"
+    step_type: critic
+    task_class: moderate
+    description: "Score NDA on legal completeness, enforceability, clarity, and jurisdiction compliance."
+    input_source: step_2.output
+    output_key: step_3_output
+    failure:
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_4
+
+  - id: step_4
+    name: "Write Artifact"
+    step_type: local
+    task_class: general_short
+    description: "Write markdown artifact and JSON envelope."
+    input_source: __final_output__
+    output_key: artifact_path
+    failure:
+      strategy: halt
+      retry_count: 0
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "legal_generator_output"
+  can_feed_into: []
+  accepts_input_from: []
+
+metadata:
+  generated_by: "skill-factory"
+  factory_version: "E-5"
+  quality_score: null
+  approved_by: null
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback

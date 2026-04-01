@@ -846,3 +846,50 @@ capabilities:
     skill: cnt-16-screen-capture-video
     requires_inputs: [task_description, agent_id, narration_text]
     produces_outputs: [video_path, duration_seconds]
+
+  # ── SEO & Legal Skills (Priority Gap Fixes) ──────────────────────────
+  seo_keyword_research:
+    owned_by: marketing_campaigns_lead
+    skill: k55-seo-keyword-researcher
+    fallback_agent: strategy_lead
+    requires_inputs: [niche, target_audience]
+    produces_outputs: [keyword_clusters, content_strategy, serp_analysis]
+
+  seo_technical_audit:
+    owned_by: marketing_campaigns_lead
+    skill: k56-seo-technical-auditor
+    requires_inputs: [website_url, focus_areas]
+    produces_outputs: [audit_report, recommendations, priority_fixes]
+
+  nda_generation:
+    owned_by: growth_revenue_lead
+    skill: k57-nda-generator
+    fallback_agent: client_success_lead
+    requires_inputs: [disclosing_party, receiving_party]
+    produces_outputs: [nda_document, key_terms]
+
+  contract_templates:
+    owned_by: growth_revenue_lead
+    skill: k58-contract-template-engine
+    requires_inputs: [contract_type, provider_info, client_info, service_description]
+    produces_outputs: [contract_document, compliance_notes]
+
+  subscription_management:
+    owned_by: growth_revenue_lead
+    skill: k59-subscription-manager
+    fallback_agent: client_success_lead
+    requires_inputs: [subscription_data, action]
+    produces_outputs: [recommendations, churn_risk, action_items]
+
+  refund_dispute_handling:
+    owned_by: growth_revenue_lead
+    skill: k60-refund-dispute-handler
+    requires_inputs: [dispute_context, dispute_type, client_info]
+    produces_outputs: [resolution_recommendation, client_communication, prevention_measures]
+
+  weekly_client_reporting:
+    owned_by: client_success_lead
+    skill: k61-weekly-client-reporter
+    fallback_agent: operations_lead
+    requires_inputs: [client_data, report_period]
+    produces_outputs: [executive_summary, detailed_metrics, next_steps]

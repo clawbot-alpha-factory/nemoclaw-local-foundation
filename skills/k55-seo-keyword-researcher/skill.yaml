@@ -1,0 +1,167 @@
+name: k55-seo-keyword-researcher
+version: 1.0.0
+display_name: "SEO Keyword Researcher"
+description: >
+  SEO keyword research, SERP analysis, and content gap identification. Produces prioritized keyword clusters with search volume estimates, difficulty scores, and content strategy recommendations.
+author: NemoClaw Factory
+created: 2026-04-02
+language: en
+
+family: K55
+domain: K
+tag: marketing
+skill_type: analyzer
+
+schema_version: 2
+runner_version_required: ">=4.0.0"
+routing_system_version_required: ">=3.0.0"
+max_loop_iterations: 6
+
+context_requirements:
+  - workflow_id
+  - budget_state
+  - step_history
+
+execution_role: >
+  You are an expert SEO strategist and keyword researcher specializing in competitive analysis, search intent mapping, and content gap identification.
+
+inputs:
+  - name: niche
+    type: string
+    required: true
+    description: "Target niche or industry for keyword research"
+    validation:
+      min_length: 10
+      max_length: 2000
+  - name: competitor_urls
+    type: string
+    required: false
+    description: "Comma-separated competitor URLs for competitive analysis"
+    validation:
+      max_length: 2000
+  - name: target_audience
+    type: string
+    required: false
+    description: "Target audience persona for intent matching"
+    validation:
+      max_length: 1000
+  - name: content_goals
+    type: string
+    required: false
+    description: "Content marketing goals (traffic, leads, authority, etc.)"
+    validation:
+      max_length: 1000
+
+outputs:
+  - name: result
+    type: string
+    description: "The generated output"
+  - name: result_file
+    type: file_path
+    description: "Path to the markdown artifact"
+  - name: envelope_file
+    type: file_path
+    description: "Path to the JSON envelope for skill chaining"
+
+artifacts:
+  storage_location: skills/k55-seo-keyword-researcher/outputs/
+  filename_pattern: "k55-seo-keyword-researcher_{workflow_id}_{timestamp}.md"
+  envelope_pattern: "k55-seo-keyword-researcher_{workflow_id}_{timestamp}_envelope.json"
+  format: markdown
+  committed_to_repo: false
+  gitignored: true
+
+steps:
+  - id: step_1
+    name: "Parse Niche"
+    step_type: local
+    task_class: general_short
+    description: "Validate inputs, extract niche parameters, prepare context for keyword research."
+    input_source: inputs
+    output_key: step_1_output
+    failure:
+      strategy: halt
+      retry_count: 0
+
+  - id: step_2
+    name: "Research Keywords"
+    step_type: llm
+    task_class: moderate
+    description: "Research primary keywords, long-tail keywords, search volume estimates, keyword difficulty, and search intent."
+    input_source: step_1.output
+    output_key: step_2_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_3
+    name: "Analyze Competition"
+    step_type: llm
+    task_class: moderate
+    description: "Analyze top 10 SERP results for target keywords, identify content gaps, find low-competition opportunities."
+    input_source: step_2.output
+    output_key: step_3_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_4
+    name: "Generate Strategy"
+    step_type: llm
+    task_class: moderate
+    description: "Generate SEO content strategy with prioritized keyword clusters, content calendar recommendations, on-page optimization checklist."
+    input_source: step_3.output
+    output_key: step_4_output
+    failure:
+      strategy: retry
+      retry_count: 2
+
+  - id: step_5
+    name: "Quality Review"
+    step_type: critic
+    task_class: moderate
+    description: "Score output on keyword relevance, research depth, actionability, and strategic value."
+    input_source: step_4.output
+    output_key: step_5_output
+    failure:
+      strategy: fallback
+      retry_count: 1
+      fallback_step: step_6
+
+  - id: step_6
+    name: "Write Artifact"
+    step_type: local
+    task_class: general_short
+    description: "Write markdown artifact and JSON envelope."
+    input_source: __final_output__
+    output_key: artifact_path
+    failure:
+      strategy: halt
+      retry_count: 0
+
+routing:
+  default_alias: moderate
+  allow_override: false
+
+composable:
+  output_type: "marketing_analyzer_output"
+  can_feed_into: []
+  accepts_input_from: []
+
+metadata:
+  generated_by: "skill-factory"
+  factory_version: "E-5"
+  quality_score: null
+  approved_by: null
+
+quality_gate:
+  min_quality_score: 9.0
+  retry_on_fail: true
+  max_retries: 4
+  escalate_below: 5.0
+
+critic_loop:
+  enabled: true
+  min_score: 9.0
+  max_iterations: 4
+  escalation: retry_with_feedback
