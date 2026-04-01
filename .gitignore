@@ -232,3 +232,8 @@ command-center/backend/data/
 *.cc3-backup
 *.swp
 command-center/backend/app_backup_*/
+
+# Voice engine (large files)
+assets/voices/references/**/*.wav
+assets/voices/generated/
+tools/fish-speech/
