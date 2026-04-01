@@ -189,7 +189,7 @@ def _extract_voiceover(script_path):
 # PHASE 3: HEYGEN VIDEO GENERATION
 # ═══════════════════════════════════════════════════════════════
 
-def phase_heygen():
+def phase_heygen(agent_ids=None, limit=None):
     log.info("═══ PHASE 3: HEYGEN VIDEO PRODUCTION ═══")
     log.info("Time to make my agents STARS! Each one gets their own animated video. — Zara")
 
@@ -201,12 +201,28 @@ def phase_heygen():
     headers = {"X-Api-Key": key, "Content-Type": "application/json"}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Cache voice and avatar lookups
-    voice_cache = {}
-    avatar_cache = {}
-    video_ids = {}
+    # Load OUR avatar and voice mapping — NOT stock
+    mapping_path = REPO / "config/content-factory/heygen-avatar-ids.json"
+    if mapping_path.exists():
+        mapping = json.load(open(mapping_path))
+        our_avatars = mapping.get("avatars", {})
+        our_voices = mapping.get("voices", {})
+    else:
+        log.error("No avatar mapping found at config/content-factory/heygen-avatar-ids.json")
+        return False
 
-    for agent_id, agent in AGENTS.items():
+    # Fallback voice for agents without cloned voice (Khalid, Faisal, Amira)
+    fallback_male_voice = None
+    fallback_female_voice = None
+
+    video_ids = {}
+    agents_to_do = {k: v for k, v in AGENTS.items() if agent_ids is None or k in agent_ids}
+
+    if limit:
+        agents_to_do = dict(list(agents_to_do.items())[:limit])
+        log.info(f"  Limited to {limit} videos: {list(agents_to_do.keys())}")
+
+    for agent_id, agent in agents_to_do.items():
         script_path = SCRIPTS_DIR / f"{agent_id}_script.md"
         if not script_path.exists():
             log.warning(f"  {agent['name']}: No script, skipping")
@@ -217,27 +233,39 @@ def phase_heygen():
             log.warning(f"  {agent['name']}: Script too short ({len(voiceover)} chars)")
             continue
 
-        # Get voice
-        vkey = (agent["voice_name"], agent["gender"])
-        if vkey not in voice_cache:
-            voice_cache[vkey] = _get_voice_id(agent["voice_name"], agent["gender"])
-        voice_id = voice_cache[vkey]
+        # Use OUR avatar — the one we uploaded to HeyGen
+        avatar_id = our_avatars.get(agent_id)
+        if not avatar_id:
+            log.error(f"  {agent['name']}: No avatar ID in mapping! Upload avatar to HeyGen first.")
+            continue
 
-        # Get avatar
-        if agent["gender"] not in avatar_cache:
-            avatar_cache[agent["gender"]] = _get_avatar_id(agent["gender"])
-        avatar_id = avatar_cache[agent["gender"]]
+        # Use OUR cloned voice — fall back to HeyGen stock only if not cloned
+        voice_id = our_voices.get(agent_id)
+        if not voice_id:
+            if not fallback_male_voice or not fallback_female_voice:
+                r = requests.get("https://api.heygen.com/v2/voices", headers={"X-Api-Key": key})
+                for v in r.json().get("data", {}).get("voices", []):
+                    if v.get("language", "").startswith("en"):
+                        if v.get("gender") == "male" and not fallback_male_voice:
+                            fallback_male_voice = v["voice_id"]
+                        elif v.get("gender") == "female" and not fallback_female_voice:
+                            fallback_female_voice = v["voice_id"]
+            voice_id = fallback_male_voice if agent["gender"] == "male" else fallback_female_voice
+            log.warning(f"  {agent['name']}: Using fallback voice (clone missing in HeyGen)")
 
-        log.info(f"  {agent['name']}: Generating video (voice={voice_id[:12]}..., avatar={avatar_id[:20]}...)")
+        log.info(f"  {agent['name']}: Generating video")
+        log.info(f"    Avatar: OUR character {avatar_id[:16]}...")
+        log.info(f"    Voice: {'OUR clone' if our_voices.get(agent_id) else 'fallback'} {voice_id[:16]}...")
         log.info(f"    Script: {voiceover[:80]}...")
 
         payload = {
             "title": f"NemoClaw - {agent['name']} ({agent['title']}) Intro",
             "video_inputs": [{
                 "character": {
-                    "type": "avatar",
-                    "avatar_id": avatar_id,
-                    "avatar_style": "normal"
+                    "type": "talking_photo",
+                    "talking_photo_id": avatar_id,
+                    "talking_style": "expressive",
+                    "expression": "default"
                 },
                 "voice": {
                     "type": "text",
@@ -261,7 +289,7 @@ def phase_heygen():
             video_ids[agent_id] = vid
             log.info(f"    ✓ Video queued: {vid}")
         else:
-            log.error(f"    ✗ FAILED: {r.status_code} — {r.text[:100]}")
+            log.error(f"    ✗ FAILED: {r.status_code} — {r.text[:150]}")
 
     # Save video IDs for download phase
     ids_path = OUTPUT_DIR / "video_ids.json"
@@ -325,6 +353,8 @@ def main():
     parser = argparse.ArgumentParser(description="Zara's Video Production")
     parser.add_argument("--all", action="store_true", help="Run phases 1-3")
     parser.add_argument("--phase", choices=["research", "scripts", "heygen", "download"])
+    parser.add_argument("--limit", type=int, help="Limit number of videos to generate")
+    parser.add_argument("--agents", nargs="+", help="Specific agent IDs to process")
     args = parser.parse_args()
 
     log.info("═══════════════════════════════════════════════════")
@@ -337,7 +367,7 @@ def main():
     if args.phase == "scripts" or args.all:
         phase_scripts()
     if args.phase == "heygen" or args.all:
-        phase_heygen()
+        phase_heygen(agent_ids=args.agents, limit=args.limit)
     if args.phase == "download":
         phase_download()
 

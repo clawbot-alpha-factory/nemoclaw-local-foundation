@@ -1,1 +1,28 @@
-{}
+{
+  "avatars": {
+    "zara": "a2c5dfb440dc4b089558bc8d03317e24",
+    "yasmin": "329cdd83793f470e9b6beb484de4e85d",
+    "rania": "d27e1f7e58204d0cbbe7b61a57863cd6",
+    "omar": "950cfa8d3841409497a2951d84d64395",
+    "nadia": "15428764ea504b62aae666466e9706a5",
+    "layla": "c6ab27128c7048caac94e783d11095a9",
+    "khalid": "409756adf1d04d7f955d6cbf0f364357",
+    "hassan": "19d9bb5b3d254d81b72cb3c6876770d0",
+    "faisal": "f6c7c427e4c24f2c9d8fbeb09ca329c5",
+    "tariq": "f4776384c6524e09bb5bdc37c8a66756",
+    "amira": "c03c49e6656444bc9e3415601a1a0b29"
+  },
+  "voices": {
+    "tariq": "c65bd88dd28f4ae2b6cb6d8676a41c03",
+    "nadia": "yLlcUbVkQukgrjn7ZJAK",
+    "khalid": null,
+    "layla": "8VMILm6slNXHujKoIzCM",
+    "omar": "zEMbpjtFJcCHzEOMe6fN",
+    "yasmin": "VOyA3HsfkjuLXTHlor2t",
+    "faisal": null,
+    "hassan": "grjOleIW9VmFKar1TSnx",
+    "rania": "hfj85LsJaYz5ZgOFWuNs",
+    "amira": null,
+    "zara": "UpzcXQuHBTOMGQNlR2X7"
+  }
+}

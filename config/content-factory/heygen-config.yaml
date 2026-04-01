@@ -1,0 +1,179 @@
+# NemoClaw HeyGen Integration — Locked Features Registry
+# Plan: Creator ($24/mo)
+# Locked: 2026-04-01
+
+plan:
+  name: Creator
+  cost_monthly: 24.00
+  currency: USD
+
+# ═══════════════════════════════════════════════════════════════
+# LOCKED FEATURES (available for any agent/skill to use)
+# ═══════════════════════════════════════════════════════════════
+
+features:
+  # Core Video Generation
+  avatar_iv:
+    description: "Latest avatar engine — animates photos/cartoons with gestures, expressions, lip sync"
+    use_cases:
+      - "Agent intro videos (cartoon avatars talking and moving)"
+      - "Product demos with AI presenter"
+      - "Client-facing explainer videos"
+      - "Social media content (TikTok/Reels/Shorts)"
+      - "Weekly agent self-promotion videos"
+      - "Employee of the Month celebration videos"
+    locked: true
+
+  photo_avatars_unlimited:
+    description: "Upload ANY image → animated talking video. Works with cartoon characters."
+    use_cases:
+      - "All 11 agent cartoon avatars as animated presenters"
+      - "Custom characters for specific campaigns"
+      - "Meme-style talking images for viral content"
+    locked: true
+
+  stock_digital_twins:
+    count: 700+
+    description: "Pre-built realistic human avatars"
+    use_cases:
+      - "Client-facing professional presentations"
+      - "Testimonial-style videos"
+      - "Industry expert persona videos"
+    locked: true
+
+  custom_digital_twin:
+    description: "Create a persistent custom avatar from video recording"
+    use_cases:
+      - "Company spokesperson avatar"
+      - "Recurring character for series content"
+    locked: true
+
+  voice_cloning:
+    description: "Clone any voice from audio sample"
+    use_cases:
+      - "Upgrade agent voices to HeyGen quality (vs fish-speech)"
+      - "Create consistent brand voice across all content"
+      - "Arabic + English voice cloning for MENA content"
+    locked: true
+
+  languages:
+    count: 175+
+    arabic_support: true
+    use_cases:
+      - "Arabic content for MENA market"
+      - "Multi-language versions of same video"
+      - "Localized agent intros for different markets"
+    locked: true
+
+  video_translation_lip_sync:
+    description: "Translate existing video to new language with lip sync adjustment"
+    use_cases:
+      - "English → Arabic versions of all content"
+      - "Expand to French, Spanish for global reach"
+      - "One video → 10 language versions automatically"
+    locked: true
+
+  video_agent:
+    description: "Latest AI model for autonomous video generation"
+    use_cases:
+      - "Fully autonomous video creation from text prompt"
+      - "Content factory daily production"
+    locked: true
+
+  avatar_looks_generation:
+    description: "Generate new looks/outfits for avatars"
+    use_cases:
+      - "Seasonal/themed agent appearances"
+      - "Professional vs casual variants"
+      - "Special event outfits (Ramadan, holidays)"
+    locked: true
+
+  advanced_ai_models:
+    description: "Image and video generation models"
+    use_cases:
+      - "Background generation for videos"
+      - "Scene creation"
+      - "Visual effects"
+    locked: true
+
+  brand_kit:
+    description: "Consistent branding across all videos"
+    use_cases:
+      - "NemoClaw logo, colors, fonts in every video"
+      - "Agent-specific color themes"
+      - "Jordanian nashmi design elements"
+    locked: true
+
+  video_specs:
+    max_duration_minutes: 30
+    resolution: "1080p"
+    watermark: false
+    processing: fast
+
+# ═══════════════════════════════════════════════════════════════
+# API CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+api:
+  base_url: "https://api.heygen.com"
+  version: "v2"
+  key_env_var: "HEYGEN_API_KEY"
+  endpoints:
+    create_video: "/v2/video/generate"
+    check_status: "/v1/video_status.get"
+    list_avatars: "/v2/avatars"
+    upload_photo_avatar: "/v2/photo_avatar"
+    list_voices: "/v2/voices"
+    upload_audio: "/v1/audio/upload"
+
+# ═══════════════════════════════════════════════════════════════
+# AGENT AVATAR MAPPING
+# ═══════════════════════════════════════════════════════════════
+# Each agent's cartoon avatar will be uploaded as a Photo Avatar
+# HeyGen Avatar IV animates them with talking, gestures, expressions
+
+agent_avatars:
+  tariq:
+    source_image: "assets/avatars/tariq.png"
+    heygen_avatar_id: null  # filled after upload
+    voice_source: "assets/voices/generated/tariq_voice.wav"
+  nadia:
+    source_image: "assets/avatars/nadia.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/nadia_voice.wav"
+  khalid:
+    source_image: "assets/avatars/khalid.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/khalid_voice.wav"
+  layla:
+    source_image: "assets/avatars/layla.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/layla_voice.wav"
+  omar:
+    source_image: "assets/avatars/omar.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/omar_voice.wav"
+  yasmin:
+    source_image: "assets/avatars/yasmin.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/yasmin_voice.wav"
+  faisal:
+    source_image: "assets/avatars/faisal.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/faisal_voice.wav"
+  hassan:
+    source_image: "assets/avatars/hassan.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/hassan_voice.wav"
+  rania:
+    source_image: "assets/avatars/rania.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/rania_voice.wav"
+  amira:
+    source_image: "assets/avatars/amira.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/amira_voice.wav"
+  zara:
+    source_image: "assets/avatars/zara.png"
+    heygen_avatar_id: null
+    voice_source: "assets/voices/generated/zara_voice.wav"
