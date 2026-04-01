@@ -173,11 +173,33 @@ class MetricsCollector:
 
     # ── QUALITY EVENTS ──
 
+    # Consecutive quality tracking for 9/10 plateau warning
+    _consecutive_scores = {}
+
     def record_review_score(self, agent_id, score, max_score=10.0):
-        """Record from MA-11 peer review (normalized to 0-1)."""
+        """Record from MA-11 peer review (normalized to 0-1).
+        Tracks consecutive 9/10 scores — warns after 3 in a row (should exceed, not plateau)."""
         normalized = score / max_score
         self.record(agent_id, "quality", normalized, "MA-11",
                      {"raw_score": score, "max": max_score})
+
+        # Track consecutive 9.0 plateau (meeting minimum but not exceeding)
+        key = f"plateau_{agent_id}"
+        if score == 9.0:
+            self._consecutive_scores[key] = self._consecutive_scores.get(key, 0) + 1
+            if self._consecutive_scores[key] >= 3:
+                import logging
+                logging.getLogger("nemoclaw.quality").warning(
+                    f"QUALITY PLATEAU WARNING: {agent_id} produced 9/10 three times in a row. "
+                    f"Should be pushing ABOVE 10/10. Constant improvement is mandatory."
+                )
+                self.record(agent_id, "quality", 0.85, "plateau_warning",
+                             {"consecutive_9s": self._consecutive_scores[key],
+                              "message": "Agent plateauing at minimum — must improve"})
+        elif score > 9.0:
+            self._consecutive_scores[key] = 0  # Reset — agent is exceeding
+        else:
+            self._consecutive_scores[key] = 0  # Reset — below minimum, already handled by retry
 
     def record_decision_outcome(self, agent_id, outcome_score, max_score=10.0,
                                   confidence=None, predicted_score=None):

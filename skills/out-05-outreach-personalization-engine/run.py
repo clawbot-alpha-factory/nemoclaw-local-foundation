@@ -97,7 +97,7 @@ def step_3_critic(state):
     if "- " in output or "1." in output: score += 0.5
     if len(output) > 1000: score += 0.5
     feedback = ""
-    if score < 7.0:
+    if score < 9.5:
         try:
             from langchain_anthropic import ChatAnthropic
             from lib.routing import resolve_alias as _ra
@@ -114,7 +114,7 @@ def step_3_critic(state):
     return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
 
 def should_retry(state):
-    if state.get("quality_score", 0) < 6.0 and state.get("retry_count", 0) < 1: return "retry"
+    if state.get("quality_score", 0) < 9.0 and state.get("retry_count", 0) < 4: return "retry"
     return "accept"
 
 def step_retry(state): return {**state, "retry_count": state.get("retry_count", 0) + 1}

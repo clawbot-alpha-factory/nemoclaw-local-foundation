@@ -1773,8 +1773,9 @@ agents:
     - platform_wins
     handover_to: null
   autonomous_capability:
-    quality_target: 8
-    on_quality_below_8: analyze engagement data, test new content formats, review competitor content strategies
+    quality_target: 9
+    quality_rule: "MANDATORY — Zara must NEVER accept or publish content scoring below 9/10. Regenerate until 9+ is achieved. No exceptions."
+    on_quality_below_9: regenerate with different angle, stronger hooks, more specific data points, better emotional triggers. Retry up to 5 times.
     on_missing_skill: request from operations_lead, use manual posting as interim
     can_self_improve: true
     learning_sources:

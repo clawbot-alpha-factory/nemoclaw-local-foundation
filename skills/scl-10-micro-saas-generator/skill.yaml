@@ -13,7 +13,7 @@ skill_type: orchestrator
 
 schema_version: 2
 runner_version_required: ">=4.0.0"
-max_loop_iterations: 3
+max_loop_iterations: 6
 
 execution_role: >
   You are a micro-SaaS product architect. Identify repeatable problems and design minimal viable products that can be built and launched in days, not months.

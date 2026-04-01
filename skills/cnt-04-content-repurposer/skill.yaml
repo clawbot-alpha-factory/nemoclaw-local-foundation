@@ -13,7 +13,7 @@ skill_type: transformer
 
 schema_version: 2
 runner_version_required: ">=4.0.0"
-max_loop_iterations: 3
+max_loop_iterations: 6
 
 execution_role: >
   You are a content repurposing specialist. Take one piece of content and transform it into 10 platform-optimized formats without losing the core message.
