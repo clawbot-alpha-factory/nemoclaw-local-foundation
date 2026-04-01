@@ -1,0 +1,1 @@
+{"inputs": {"agent_id": "sales_outreach_lead", "performance_data": "{\"name\": \"Hassan\", \"wins\": [\"Closed 3 deals worth $4,500\", \"Booked 12 meetings this week\", \"Response rate up 23%\"], \"metrics\": {\"pipeline_value\": 45000, \"deals_closed\": 3, \"meetings_booked\": 12}, \"milestones\": [\"First $10K month\"], \"character\": \"SpongeBob SquarePants\"}"}}

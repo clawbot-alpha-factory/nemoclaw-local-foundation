@@ -844,6 +844,170 @@ def run_tests():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GAMIFICATION ENGINE (Employee of the Month, Leaderboard, Achievements)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+GAMIFICATION_DIR = Path.home() / ".nemoclaw" / "gamification"
+GAMIFICATION_DIR.mkdir(parents=True, exist_ok=True)
+LEADERBOARD_PATH = GAMIFICATION_DIR / "leaderboard.json"
+AWARDS_PATH_G = GAMIFICATION_DIR / "awards.jsonl"
+ACHIEVEMENTS_PATH = GAMIFICATION_DIR / "achievements.json"
+
+ACHIEVEMENT_DEFS = {
+    "first_task": {"name": "First Steps", "description": "Completed first task", "threshold": 1, "metric": "tasks_completed"},
+    "ten_tasks": {"name": "Getting Warmed Up", "description": "Completed 10 tasks", "threshold": 10, "metric": "tasks_completed"},
+    "hundred_tasks": {"name": "Centurion", "description": "Completed 100 tasks", "threshold": 100, "metric": "tasks_completed"},
+    "quality_king": {"name": "Quality King", "description": "Achieved 95%+ quality score", "threshold": 0.95, "metric": "quality_score"},
+    "speed_demon": {"name": "Speed Demon", "description": "Achieved 95%+ speed score", "threshold": 0.95, "metric": "speed_score"},
+    "cost_master": {"name": "Cost Master", "description": "Achieved 95%+ cost efficiency", "threshold": 0.95, "metric": "cost_score"},
+    "zero_defects": {"name": "Zero Defects", "description": "10+ tasks with no violations", "threshold": 10, "metric": "clean_streak"},
+    "revenue_champion": {"name": "Revenue Champion", "description": "Generated $1K+ revenue", "threshold": 1000, "metric": "revenue_generated"},
+    "first_10k": {"name": "Five Figures", "description": "Generated $10K+ revenue", "threshold": 10000, "metric": "revenue_generated"},
+    "employee_of_month": {"name": "Employee of the Month", "description": "Won monthly performance award", "threshold": 1, "metric": "monthly_wins"},
+}
+
+
+class GamificationEngine:
+    """Employee of the Month, leaderboard, achievements, and rivalry tracking."""
+
+    def __init__(self, performance_manager):
+        self.pm = performance_manager
+        self.leaderboard = self._load_leaderboard()
+        self.achievements = self._load_achievements()
+
+    def _load_leaderboard(self):
+        if LEADERBOARD_PATH.exists():
+            return json.loads(LEADERBOARD_PATH.read_text())
+        return {"rankings": [], "last_updated": None, "employee_of_month": None, "monthly_scores": {}}
+
+    def _save_leaderboard(self):
+        LEADERBOARD_PATH.write_text(json.dumps(self.leaderboard, indent=2))
+
+    def _load_achievements(self):
+        if ACHIEVEMENTS_PATH.exists():
+            return json.loads(ACHIEVEMENTS_PATH.read_text())
+        return {}
+
+    def _save_achievements(self):
+        ACHIEVEMENTS_PATH.write_text(json.dumps(self.achievements, indent=2))
+
+    def _log_award(self, agent_id, award_type, details):
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "agent_id": agent_id,
+            "award_type": award_type,
+            "details": details,
+        }
+        with open(AWARDS_PATH_G, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def update_rankings(self, org_goal="balanced"):
+        """Refresh the leaderboard from current performance data."""
+        rankings = self.pm.scorer.rank_agents(org_goal)
+        self.leaderboard["rankings"] = rankings
+        self.leaderboard["last_updated"] = datetime.now(timezone.utc).isoformat()
+        self._save_leaderboard()
+        return rankings
+
+    def determine_employee_of_month(self, org_goal="balanced"):
+        """Select the top performer over the current period."""
+        rankings = self.update_rankings(org_goal)
+        if not rankings:
+            return None
+
+        winner = rankings[0]
+        agent_id = winner["agent_id"]
+        score = winner["composite_score"]
+
+        month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+        prev = self.leaderboard.get("employee_of_month")
+
+        self.leaderboard["employee_of_month"] = {
+            "agent_id": agent_id,
+            "score": score,
+            "month": month_key,
+            "awarded_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Track monthly scores for historical comparison
+        if "monthly_scores" not in self.leaderboard:
+            self.leaderboard["monthly_scores"] = {}
+        self.leaderboard["monthly_scores"][month_key] = {
+            r["agent_id"]: r["composite_score"] for r in rankings
+        }
+
+        self._save_leaderboard()
+        self._log_award(agent_id, "employee_of_month", {"score": score, "month": month_key})
+
+        # Grant achievement
+        self.grant_achievement(agent_id, "employee_of_month")
+
+        return self.leaderboard["employee_of_month"]
+
+    def grant_achievement(self, agent_id, achievement_id):
+        """Grant an achievement badge to an agent."""
+        if agent_id not in self.achievements:
+            self.achievements[agent_id] = {}
+        if achievement_id not in self.achievements[agent_id]:
+            defn = ACHIEVEMENT_DEFS.get(achievement_id, {})
+            self.achievements[agent_id][achievement_id] = {
+                "name": defn.get("name", achievement_id),
+                "description": defn.get("description", ""),
+                "granted_at": datetime.now(timezone.utc).isoformat(),
+            }
+            self._save_achievements()
+            self._log_award(agent_id, "achievement", {"achievement": achievement_id, "name": defn.get("name", "")})
+            return True
+        return False  # Already has it
+
+    def check_achievements(self, agent_id, metrics):
+        """Check and grant any newly earned achievements for an agent."""
+        newly_granted = []
+        for ach_id, defn in ACHIEVEMENT_DEFS.items():
+            if agent_id in self.achievements and ach_id in self.achievements.get(agent_id, {}):
+                continue  # Already earned
+            metric_val = metrics.get(defn["metric"], 0)
+            if metric_val >= defn["threshold"]:
+                self.grant_achievement(agent_id, ach_id)
+                newly_granted.append(ach_id)
+        return newly_granted
+
+    def get_rivalry(self, agent_a, agent_b):
+        """Get head-to-head comparison between two agents."""
+        report_a = self.pm.get_agent_report(agent_a)
+        report_b = self.pm.get_agent_report(agent_b)
+        if not report_a or not report_b:
+            return None
+
+        comparison = {"agent_a": agent_a, "agent_b": agent_b, "dimensions": {}}
+        for dim in ["quality", "speed", "cost_efficiency", "reliability", "compliance"]:
+            score_a = report_a.get("dimensions", {}).get(dim, {}).get("score", 0) or 0
+            score_b = report_b.get("dimensions", {}).get(dim, {}).get("score", 0) or 0
+            comparison["dimensions"][dim] = {
+                agent_a: score_a, agent_b: score_b,
+                "winner": agent_a if score_a > score_b else (agent_b if score_b > score_a else "tie")
+            }
+        comp_a = report_a.get("composite_score", 0) or 0
+        comp_b = report_b.get("composite_score", 0) or 0
+        comparison["overall"] = {
+            agent_a: comp_a, agent_b: comp_b,
+            "winner": agent_a if comp_a > comp_b else (agent_b if comp_b > comp_a else "tie")
+        }
+        return comparison
+
+    def get_dashboard(self, org_goal="balanced"):
+        """Full gamification dashboard."""
+        rankings = self.update_rankings(org_goal)
+        return {
+            "leaderboard": rankings,
+            "employee_of_month": self.leaderboard.get("employee_of_month"),
+            "achievements": self.achievements,
+            "total_achievements_granted": sum(len(a) for a in self.achievements.values()),
+            "last_updated": self.leaderboard.get("last_updated"),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════════
 

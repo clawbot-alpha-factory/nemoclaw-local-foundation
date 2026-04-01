@@ -5,13 +5,17 @@ pinchtab:
   memory_limit_mb: 1024  # total across all instances
 
   profiles:
-    strategic_oversight_lead: {headless: false, persist: true}
+    strategy_lead: {headless: false, persist: true}
     growth_revenue_lead: {headless: true, persist: true}
-    product_delivery_lead: {headless: true, persist: true}
+    product_architect: {headless: true, persist: true}
     narrative_content_lead: {headless: true, persist: true}
-    intelligence_research_lead: {headless: true, persist: true}
-    operations_systems_lead: {headless: true, persist: true}
-    quality_validation_lead: {headless: true, persist: false}
+    operations_lead: {headless: true, persist: true}
+    engineering_lead: {headless: true, persist: true}
+    executive_operator: {headless: false, persist: false}
+    sales_outreach_lead: {headless: true, persist: true}
+    marketing_campaigns_lead: {headless: true, persist: true}
+    client_success_lead: {headless: true, persist: true}
+    social_media_lead: {headless: true, persist: true}
 
   rate_limits:
     navigations_per_hour: 100

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NemoClaw Local Foundation is a LangGraph-based AI skill execution and multi-agent orchestration system running locally on macOS. It combines a Python backend (FastAPI) with a Next.js frontend dashboard ("Command Center"), 30+ composable skills, 7 autonomous agents with a 3-tier authority hierarchy, and 20 multi-agent subsystems (MA-1 through MA-20).
+NemoClaw Local Foundation is a LangGraph-based AI skill execution and multi-agent orchestration system running locally on macOS. It combines a Python backend (FastAPI) with a Next.js frontend dashboard ("Command Center"), 115+ composable skills, 11 autonomous agents with a 4-tier authority hierarchy, and 20 multi-agent subsystems (MA-1 through MA-20).
 
 ## Common Commands
 
@@ -132,8 +132,8 @@ All implemented in `scripts/` as Python modules:
 - **MA-19** Access Control — 7 domains with role-based permissions
 - **MA-20** Integration Test — validates all 19 systems end-to-end
 
-### 7 Agents
-Defined in `config/agents/agent-schema.yaml` with skill-to-agent mapping in `config/agents/capability-registry.yaml`. Authority levels: L1 (executive_operator), L2 (strategy_lead, operations_lead), L3 (specialists). Each agent has `owns`/`forbidden` domain boundaries.
+### 11 Agents
+Defined in `config/agents/agent-schema.yaml` with skill-to-agent mapping in `config/agents/capability-registry.yaml`. Authority levels: L1 (Tariq/executive_operator), L2 (Nadia/strategy_lead, Khalid/operations_lead), L3 (Layla/product_architect, Omar/growth_revenue_lead, Yasmin/narrative_content_lead, Faisal/engineering_lead), L4 (Hassan/sales_outreach_lead, Rania/marketing_campaigns_lead, Amira/client_success_lead, Zara/social_media_lead). Each agent has `owns`/`forbidden` domain boundaries, Jordanian identity with cartoon character persona, self-promotion system, skill library access, and autonomous self-improvement capability.
 
 ### Browser Automation
 PinchTab integration (`config/pinchtab-config.yaml`) at `localhost:9867`. Per-agent browser profiles, rate limits, blocked domains (banking/gov/payment). Script bridge: `scripts/web_browser.py`.

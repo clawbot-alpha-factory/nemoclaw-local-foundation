@@ -1,0 +1,50 @@
+name: Agent Self-Promotion Generator
+id: cnt-11-agent-self-promo-generator
+version: 1.0.0
+schema_version: 2
+family: "11"
+domain: C
+tag: social-media
+type: generator
+runner_version_required: ">=4.0.0"
+description: "Generates weekly self-promotion briefs for each agent. Collects performance data, recent wins, milestone progress, and formats into social media content briefs for the social_media_lead (Zara) to turn into viral content."
+inputs:
+  agent_id:
+    type: string
+    required: true
+    description: "The agent ID to generate a promotion brief for"
+  performance_data:
+    type: string
+    required: true
+    description: "JSON string of agent performance metrics, recent wins, milestones"
+outputs:
+  result:
+    type: string
+    description: "Self-promotion brief with talking points, suggested hooks, visual ideas"
+  result_file:
+    type: string
+    description: "Path to the output artifact"
+  envelope_file:
+    type: string
+    description: "Path to the chaining envelope"
+artifacts:
+  storage_location: outputs
+  filename_pattern: "promo-brief-{timestamp}.md"
+  envelope_pattern: "envelope-{timestamp}.json"
+routing:
+  default_alias: moderate
+composable:
+  output_type: markdown
+steps:
+  - name: Parse Agent Data
+    step_type: local
+    description: "Parse performance data and extract key metrics, wins, milestones"
+  - name: Generate Promotion Brief
+    step_type: llm
+    description: "Create a compelling self-promotion brief with hooks, talking points, and visual ideas in FRIENDS-show narrative style"
+  - name: Quality Review
+    step_type: critic
+    description: "Evaluate brief quality, engagement potential, and brand consistency"
+  - name: Write Artifact
+    step_type: local
+    description: "Write final brief to output file"
