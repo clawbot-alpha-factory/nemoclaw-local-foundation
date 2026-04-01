@@ -1,0 +1,69 @@
+# NemoClaw Voice Engine — Fish Speech Local Configuration
+# Self-hosted TTS using fish-speech 2.0.0 (open source, $0/mo)
+# GitHub: https://github.com/fishaudio/fish-speech
+
+engine: fish-speech
+version: "2.0.0"
+install_path: tools/fish-speech
+venv_path: tools/fish-speech/.venv
+model: fish-speech-1.5
+checkpoints_path: tools/fish-speech/checkpoints/fish-speech-1.5
+
+# Server configuration (runs locally)
+server:
+  # Local macOS cannot run S2 Pro (needs 24GB VRAM, Mac has 16GB)
+  # Options: rent GPU (Vast.ai $0.20/hr) or use Fish Audio cloud ($9.99/mo)
+  host: "127.0.0.1"
+  port: 8763
+  backend: gpu  # Requires 24GB VRAM (RTX 4090/A100/A10)
+  workers: 1
+
+  # Remote GPU deployment (when renting)
+  remote_gpu:
+    provider: vast_ai  # or runpod, lambda_labs
+    gpu_type: "RTX 4090"
+    min_vram_gb: 24
+    docker_image: "fishaudio/fish-speech:latest"
+    estimated_cost_per_hour: 0.20
+
+  # Cloud API fallback (no GPU needed)
+  cloud_fallback:
+    provider: fish_audio
+    api_url: "https://api.fish.audio/v1/tts"
+    cost_per_minute: 0.05
+    monthly_plan: 9.99  # 200 minutes included
+
+# Voice reference samples (to be recorded per agent)
+# Each agent needs 10-30 seconds of reference audio in their character STYLE
+# NOT impressions — original voices capturing the CHARACTER ENERGY
+references_dir: assets/voices/references
+
+# Output configuration
+output:
+  format: wav
+  sample_rate: 44100
+  quality: high
+
+# Language support
+languages:
+  primary: en
+  secondary: ar
+  supported: [en, ar, zh, ja, ko, fr, de, es]
+
+# Integration with NemoClaw
+integration:
+  # Which contexts trigger voice generation
+  voice_triggers:
+    - self_promotion_briefs    # weekly agent promo content
+    - social_media_content     # TikTok/Reels voiceovers
+    - agent_chat               # inter-agent banter (optional)
+    - celebration_announcements # Employee of Month, achievements
+    - client_presentations     # voiceover for client-facing content
+
+  # Cost tracking
+  cost_per_generation: 0.00  # self-hosted = free
+  monthly_cost: 0.00
+
+  # Quality settings
+  min_quality_score: 7.0  # regenerate if below this
+  max_retries: 2
