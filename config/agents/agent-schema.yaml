@@ -933,6 +933,7 @@ agents:
         - cnt-08-cross-channel-distributor
         - cnt-09-social-posting-executor
         - cnt-10-viral-pattern-analyzer
+        - cnt-11-agent-self-promo-generator
       future:
         - meme-generator
         - influencer-outreach

@@ -90,6 +90,21 @@ python3 scripts/orchestrator.py --list-skills
 - **Per-provider budget enforcement** at $30 each (configured in `config/routing/budget-config.yaml`)
 - API keys loaded from `config/.env`
 
+### Shared Routing Module
+- **`lib/routing.py`** (v1.1.0) — All LLM calls route through this module (enforces L-003)
+  - `resolve_alias(task_class)` → (provider, model, cost) from `routing-config.yaml`
+  - `call_llm(messages, task_class, max_tokens)` → routes to correct provider
+  - Thread-safe caching, error handling for missing config, defensive fallbacks
+  - Loaded by all 115 skill `run.py` files via `from lib.routing import call_llm`
+
+### Gamification System
+- **`scripts/agent_performance.py`** — GamificationEngine class
+  - Employee of the Month: highest 30-day composite score
+  - 10 achievement badges (Revenue Champion, Quality King, Speed Demon, etc.)
+  - Rivalry tracking: head-to-head agent comparisons
+  - Leaderboard: real-time ranking of all 11 agents
+  - Persistence: `~/.nemoclaw/gamification/` (leaderboard.json, awards.jsonl, achievements.json)
+
 ### Core Execution Flow
 1. `skills/skill-runner.py` (v4.0) reads `skill.yaml` and builds a LangGraph StateGraph
 2. Steps are dispatched by `step_type`: `llm`/`critic` make LLM calls, `local` does not

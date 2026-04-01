@@ -729,6 +729,9 @@ Defer enterprise features (SSO, compliance, custom vocabulary) to version 2.
              isinstance(GamificationEngine(pm), GamificationEngine))
 
         ge = GamificationEngine(pm)
+        # Clear stale state for clean test
+        ge.achievements = {}
+        ge.leaderboard = {"rankings": [], "last_updated": None, "employee_of_month": None, "monthly_scores": {}}
 
         # Test rankings
         rankings = ge.update_rankings()

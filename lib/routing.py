@@ -7,7 +7,6 @@ Enforces architecture lock L-003: never hardcode provider/model in skills.
 
 import logging
 import os
-import sys
 import threading
 from pathlib import Path
 

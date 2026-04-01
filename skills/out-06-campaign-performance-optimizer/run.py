@@ -118,7 +118,8 @@ def step_3_critic(state):
                 llm_score = data.get("score", 5); feedback = data.get("feedback", "")
                 score = (score + llm_score) / 2
                 state = {**state, "cost": state.get("cost", 0) + 0.008}
-        except Exception: pass
+        except Exception as _critic_err:
+            import logging; logging.getLogger("nemoclaw.critic").warning(f"Critic call failed: {_critic_err}")
     return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
 
 def should_retry(state):

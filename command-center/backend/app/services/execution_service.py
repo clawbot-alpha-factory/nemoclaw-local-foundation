@@ -59,16 +59,11 @@ def _resolve_tier_routing():
             provider, model, _ = resolve_alias(task_class)
             routing[tier] = {"CC_LLM_PROVIDER": provider, "CC_LLM_MODEL": model}
 
-        fallback_aliases = ["general_short", "moderate"]
-        fallback = []
-        for alias in fallback_aliases:
-            p, m, _ = resolve_alias(alias)
-            fallback.append({"CC_LLM_PROVIDER": p, "CC_LLM_MODEL": m})
-        return routing, fallback
+        return routing
     except Exception:
-        return {}, []
+        return {}
 
-TIER_ROUTING, FALLBACK_CHAIN = _resolve_tier_routing()
+TIER_ROUTING = _resolve_tier_routing()
 
 
 class ExecutionService:

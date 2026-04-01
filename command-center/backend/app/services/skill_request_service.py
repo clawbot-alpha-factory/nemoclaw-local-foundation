@@ -12,7 +12,6 @@ The request goes through a corporate approval process:
 
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
