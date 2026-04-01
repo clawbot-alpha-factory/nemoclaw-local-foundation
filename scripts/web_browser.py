@@ -88,6 +88,16 @@ class PinchTabClient:
         self.max_eval_js_per_task = safety.get("max_eval_js_per_task", 5)
         self._eval_count = 0
 
+        # Auth token from PinchTab config
+        self._token = None
+        try:
+            import json as _json
+            pt_config = Path.home() / ".pinchtab" / "config.json"
+            if pt_config.exists():
+                self._token = _json.load(open(pt_config)).get("server", {}).get("token", "")
+        except Exception:
+            pass
+
         # Ensure log directory
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -130,10 +140,17 @@ class PinchTabClient:
         except Exception:
             pass  # Never crash on logging failure
 
+    def _headers(self) -> dict:
+        """Auth headers for PinchTab API."""
+        h = {}
+        if self._token:
+            h["Authorization"] = f"Bearer {self._token}"
+        return h
+
     def _get(self, path: str, params: dict = None) -> tuple:
         """HTTP GET, returns (success: bool, data_or_error)."""
         try:
-            r = requests.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
+            r = requests.get(f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=self.timeout)
             if r.status_code >= 400:
                 return (False, f"HTTP {r.status_code}: {r.text[:500]}")
             return (True, r.json())
@@ -150,7 +167,7 @@ class PinchTabClient:
             r = requests.post(
                 f"{self.base_url}{path}",
                 json=data or {},
-                headers={"Content-Type": "application/json"},
+                headers={**self._headers(), "Content-Type": "application/json"},
                 timeout=self.timeout,
             )
             if r.status_code >= 400:
@@ -166,7 +183,7 @@ class PinchTabClient:
     def _get_binary(self, path: str, params: dict = None) -> tuple:
         """HTTP GET returning binary content, returns (success, bytes_or_error)."""
         try:
-            r = requests.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
+            r = requests.get(f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=self.timeout)
             if r.status_code >= 400:
                 return (False, f"HTTP {r.status_code}: {r.text[:500]}")
             return (True, r.content)
