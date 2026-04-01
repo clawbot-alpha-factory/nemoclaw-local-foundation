@@ -212,7 +212,7 @@ def step_3_critic(state):
         llm_score, feedback = call_cheap_critic(output, state.get("step_1_output", ""))
         cost = estimate_cost()
         state["context"]["budget_state"]["remaining"] -= cost
-        score = (score + llm_score) / 2  # Average heuristic + LLM
+        score = llm_score  # LLM critic score replaces heuristic  # Average heuristic + LLM
         state = {**state, "cost": state.get("cost", 0) + cost}
         print(f"    [critic] LLM score: {llm_score:.1f}, combined: {score:.1f}")
     

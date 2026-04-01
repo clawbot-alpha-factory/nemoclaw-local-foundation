@@ -127,7 +127,7 @@ def step_4_critic(state):
             if "{" in text:
                 data = json.loads(text[text.index("{"):text.rindex("}") + 1])
                 llm_score = data.get("score", 5); feedback = data.get("feedback", "")
-                score = (score + llm_score) / 2
+                score = llm_score  # LLM critic score replaces heuristic
                 state = {**state, "cost": state.get("cost", 0) + 0.008}
         except Exception as _e:
             import logging; logging.getLogger("nemoclaw.critic").warning(f"Critic call failed: {_e}")
