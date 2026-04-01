@@ -481,6 +481,7 @@ Rules:
 - Order tasks logically
 """
 
+    import sys; sys.path.insert(0, str(REPO))
     from lib.routing import resolve_alias
     _, _td_model, _ = resolve_alias("general_short")
     resp = client.chat.completions.create(

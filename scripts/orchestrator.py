@@ -369,6 +369,7 @@ Rules:
 - Max 5 steps
 """
 
+    import sys; sys.path.insert(0, str(REPO))
     from lib.routing import resolve_alias
     _, _orch_model, _ = resolve_alias("general_short")
     resp = client.chat.completions.create(
