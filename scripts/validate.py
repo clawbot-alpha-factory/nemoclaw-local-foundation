@@ -248,12 +248,19 @@ def c5_enforcer_runs():
     if rc != 0:
         return FAIL, f"budget-enforcer.py failed: {err[:80]}"
     try:
-        data = json.loads(out)
+        data = _extract_json(out)
         if "alias" in data:
             return PASS, f"alias={data['alias']}"
     except Exception:
         pass
     return FAIL, f"Unexpected output: {out[:80]}"
+
+def _extract_json(out):
+    """Extract JSON object from enforcer output (may have budget warnings before it)."""
+    idx = out.find("{")
+    if idx >= 0:
+        return json.loads(out[idx:])
+    return json.loads(out)
 
 def c5_general_short_routing():
     enforcer = os.path.join(REPO, "scripts/budget-enforcer.py")
@@ -261,7 +268,7 @@ def c5_general_short_routing():
     if rc != 0:
         return FAIL, "enforcer failed"
     try:
-        data = json.loads(out)
+        data = _extract_json(out)
         if data.get("alias") == "cheap_openai":
             return PASS, "general_short → cheap_openai ✓"
         return FAIL, f"Expected cheap_openai — got {data.get('alias')}"
@@ -274,7 +281,7 @@ def c5_complex_reasoning_routing():
     if rc != 0:
         return FAIL, "enforcer failed"
     try:
-        data = json.loads(out)
+        data = _extract_json(out)
         alias = data.get("alias")
         if alias in ("reasoning_claude", "fallback_openai"):
             return PASS, f"complex_reasoning → {alias} ✓"
@@ -288,7 +295,7 @@ def c5_premium_routing():
     if rc != 0:
         return FAIL, "enforcer failed"
     try:
-        data = json.loads(out)
+        data = _extract_json(out)
         alias = data.get("alias")
         if alias in ("premium_claude", "fallback_openai"):
             return PASS, f"premium → {alias} ✓"
@@ -302,7 +309,7 @@ def c5_strategic_routing():
     if rc != 0:
         return FAIL, "enforcer failed"
     try:
-        data = json.loads(out)
+        data = _extract_json(out)
         alias = data.get("alias")
         if alias in ("premium_claude", "fallback_openai"):
             return PASS, f"strategic → {alias} ✓"

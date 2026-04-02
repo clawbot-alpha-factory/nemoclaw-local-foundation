@@ -24,5 +24,23 @@
     "rania": "hfj85LsJaYz5ZgOFWuNs",
     "amira": null,
     "zara": "UpzcXQuHBTOMGQNlR2X7"
+  },
+  "avatar_poses": {
+    "tariq": {
+      "01_standing_neutral": "fd6dafc9c0964e26a64488af286957cb",
+      "02_sitting": "055942eac74a4d889d05c733a9399a0f",
+      "03_walking": "fa5618adb77045a1b8c6367bd90442a7",
+      "04_pointing_forward": "aa9b9e76a29a43fd88cc199dd2254f09",
+      "05_arms_crossed": "f92d2573c39245c7a39fc8446c6c4f26",
+      "06_thinking": "1c46d74f37fa4a4e9e0576f61356191e",
+      "07_presenting": "42ef3aaafa024a9e91632317dcada935",
+      "08_gesturing_both_hands": "ef7a2103fa2d483c83f275df4fd168af",
+      "11_waving": "6f3aaf37884f48a7bf6944d322e26a08",
+      "12_thumbs_up": "b63cdbbde52c4456a4bd5ff30b0e1357",
+      "13_looking_at_device": "c469edc6cc674444a3c1aa3114b9a6d6",
+      "14_writing_typing": "22752048028a4156a487fc444ad32ae1",
+      "15_explaining_open_palms": "37fc4b06d9c54c0f907faa0e8781e00c",
+      "16_confident_hands_on_hips": "5cce58a802cc4204a485c1c172f58818"
+    }
   }
 }
