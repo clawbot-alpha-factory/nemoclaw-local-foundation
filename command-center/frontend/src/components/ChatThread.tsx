@@ -71,6 +71,9 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
   const [input, setInput] = useState('');
   const [msgType, setMsgType] = useState<MessageType>('chat');
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -109,6 +112,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
   // Handle incoming WS messages
   useEffect(() => {
     function handleWsMessage(event: CustomEvent<CommsMessage>) {
+      if (!event.detail?.lane_id) return;
       const msg = event.detail;
       if (msg.lane_id === lane.id) {
         setMessages((prev) => {
@@ -354,6 +358,15 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
               />
             </div>
 
+            {/* Assign Task button */}
+            <button
+              onClick={() => setShowTaskForm(!showTaskForm)}
+              className="flex-shrink-0 p-2 rounded-lg bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-amber-400 transition-colors"
+              title="Assign Task"
+            >
+              <span className="text-sm">📋</span>
+            </button>
+
             {/* Send button */}
             <button
               onClick={handleSend}
@@ -401,6 +414,67 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
               )}
             </button>
           </div>
+
+          {/* Assign Task form */}
+          {showTaskForm && (
+            <div className="mt-2 p-3 bg-zinc-800/60 rounded-lg border border-zinc-700/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-400">📋 Assign Task</span>
+                <button
+                  onClick={() => setShowTaskForm(false)}
+                  className="text-xs text-zinc-500 hover:text-zinc-400"
+                >
+                  ✕
+                </button>
+              </div>
+              <input
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Task title..."
+                className="w-full bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none placeholder:text-zinc-500"
+              />
+              <textarea
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="Description (optional)..."
+                rows={2}
+                className="w-full bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none resize-none placeholder:text-zinc-500"
+              />
+              <button
+                onClick={async () => {
+                  if (!taskTitle.trim()) return;
+                  const content = `**Task:** ${taskTitle.trim()}${taskDescription.trim() ? `\n${taskDescription.trim()}` : ''}`;
+                  try {
+                    const result = await sendMessage(lane.id, content, 'task');
+                    if (result.user_message) {
+                      setMessages((prev) => {
+                        if (prev.some((m) => m.id === result.user_message.id)) return prev;
+                        return [...prev, result.user_message];
+                      });
+                      onNewMessage?.(result.user_message);
+                    }
+                    if (result.agent_message) {
+                      setMessages((prev) => {
+                        if (prev.some((m) => m.id === result.agent_message!.id)) return prev;
+                        return [...prev, result.agent_message!];
+                      });
+                      onNewMessage?.(result.agent_message);
+                    }
+                    setTaskTitle('');
+                    setTaskDescription('');
+                    setShowTaskForm(false);
+                  } catch (e) {
+                    console.error('Failed to assign task:', e);
+                  }
+                }}
+                disabled={!taskTitle.trim() || sending}
+                className="w-full text-xs px-3 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-500/80 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Send Task
+              </button>
+            </div>
+          )}
 
           {/* Type indicator */}
           {msgType !== 'chat' && (

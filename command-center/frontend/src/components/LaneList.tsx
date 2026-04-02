@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Lane } from '@/lib/comms-types';
 import { fetchLanes } from '@/lib/comms-api';
+
+const POLL_INTERVAL = 10000;
 
 interface LaneListProps {
   activeLaneId: string | null;
@@ -50,25 +52,29 @@ export default function LaneList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const fetched = await fetchLanes();
-        if (mounted) {
-          onLanesLoaded(fetched);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (mounted) {
-          setError(e instanceof Error ? e.message : 'Failed to load lanes');
-          setLoading(false);
-        }
-      }
+  const loadLanes = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const fetched = await fetchLanes();
+      onLanesLoaded(fetched);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load lanes');
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { mounted = false; };
-  }, []);
+  }, [onLanesLoaded]);
+
+  // Initial load
+  useEffect(() => {
+    loadLanes(true);
+  }, [loadLanes]);
+
+  // Poll every 10s
+  useEffect(() => {
+    const interval = setInterval(() => loadLanes(false), POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [loadLanes]);
 
   if (loading) {
     return (
@@ -101,10 +107,19 @@ export default function LaneList({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-700/50">
+      <div className="px-4 py-3 border-b border-zinc-700/50 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-200 tracking-wide uppercase">
           Team Chat
         </h2>
+        <button
+          onClick={() => loadLanes(false)}
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          title="Refresh lanes"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
       </div>
 
       {/* Lane groups */}

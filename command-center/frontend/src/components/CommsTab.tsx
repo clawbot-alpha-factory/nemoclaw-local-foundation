@@ -5,12 +5,14 @@ import type { Lane, CommsMessage } from '@/lib/comms-types';
 import type { ConversationType } from '@/lib/store';
 import LaneList from './LaneList';
 import ChatThread from './ChatThread';
+import { ErrorBoundary } from './ErrorBoundary';
 import ConversationTypeSelector from './comms/ConversationTypeSelector';
 import DebateView from './comms/DebateView';
 import BrainstormView from './comms/BrainstormView';
 import ProtocolInbox from './comms/ProtocolInbox';
 import StartDebateModal from './comms/StartDebateModal';
 import StartBrainstormModal from './comms/StartBrainstormModal';
+import { sendMessage } from '@/lib/comms-api';
 
 export default function CommsTab() {
   const [lanes, setLanes] = useState<Lane[]>([]);
@@ -19,6 +21,9 @@ export default function CommsTab() {
   const [showStartDebate, setShowStartDebate] = useState(false);
   const [showStartBrainstorm, setShowStartBrainstorm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showQuickTask, setShowQuickTask] = useState(false);
+  const [quickTaskText, setQuickTaskText] = useState('');
+  const [quickTaskSending, setQuickTaskSending] = useState(false);
 
   const activeLane = lanes.find((l) => l.id === activeLaneId) || null;
 
@@ -109,10 +114,66 @@ export default function CommsTab() {
   // Should we show the lane list?
   const showLaneList = conversationType === 'dm' || conversationType === 'group';
 
+  const handleQuickTask = async () => {
+    if (!quickTaskText.trim() || !activeLaneId || quickTaskSending) return;
+    setQuickTaskSending(true);
+    try {
+      await sendMessage(activeLaneId, quickTaskText.trim(), 'task');
+      setQuickTaskText('');
+      setShowQuickTask(false);
+    } catch (e) {
+      console.error('Quick task failed:', e);
+    } finally {
+      setQuickTaskSending(false);
+    }
+  };
+
   return (
+    <ErrorBoundary fallbackLabel="Communications failed to load">
     <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700/50">
-      {/* Conversation type selector */}
-      <ConversationTypeSelector active={conversationType} onChange={handleConversationTypeChange} />
+      {/* Conversation type selector + Quick Task */}
+      <div className="flex items-center">
+        <div className="flex-1">
+          <ConversationTypeSelector active={conversationType} onChange={handleConversationTypeChange} />
+        </div>
+        {activeLaneId && (
+          <button
+            onClick={() => setShowQuickTask(!showQuickTask)}
+            className="mr-3 px-2.5 py-1.5 text-xs rounded-lg bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 transition-colors"
+            title="Quick Task"
+          >
+            📋 Quick Task
+          </button>
+        )}
+      </div>
+
+      {/* Quick Task inline form */}
+      {showQuickTask && activeLaneId && (
+        <div className="px-4 py-2 border-b border-zinc-700/50 flex gap-2 items-center bg-zinc-800/40">
+          <input
+            type="text"
+            value={quickTaskText}
+            onChange={(e) => setQuickTaskText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleQuickTask(); }}
+            placeholder="Describe the task..."
+            className="flex-1 bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none placeholder:text-zinc-500"
+            autoFocus
+          />
+          <button
+            onClick={handleQuickTask}
+            disabled={!quickTaskText.trim() || quickTaskSending}
+            className="text-xs px-3 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-500/80 text-white font-medium transition-colors disabled:opacity-50"
+          >
+            {quickTaskSending ? '...' : 'Send'}
+          </button>
+          <button
+            onClick={() => setShowQuickTask(false)}
+            className="text-xs text-zinc-500 hover:text-zinc-400 px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0">
         {/* Lane list — left panel (only for DM/Group views) */}
@@ -153,5 +214,6 @@ export default function CommsTab() {
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }

@@ -100,7 +100,7 @@ export function useWebSocket(): UseWebSocketReturn {
         }
 
         // State update
-        if (msg.type === 'state_update' && msg.payload) {
+        if (msg?.type === 'state_update' && msg?.payload) {
           const incoming = msg.payload as unknown as SystemState;
           if (incoming.state_version >= lastVersion.current) {
             lastVersion.current = incoming.state_version;
@@ -108,7 +108,8 @@ export function useWebSocket(): UseWebSocketReturn {
             setLastUpdate(new Date());
           }
         }
-      } catch {
+      } catch (e) {
+        console.error('WS parse error:', e);
       }
     };
 
@@ -152,7 +153,8 @@ export function useWebSocket(): UseWebSocketReturn {
             new CustomEvent('cc-chat-message', { detail: data.data })
           );
         }
-      } catch {
+      } catch (e) {
+        console.error('WS parse error:', e);
       }
     };
 
@@ -167,7 +169,9 @@ export function useWebSocket(): UseWebSocketReturn {
       }, chatReconnectDelay.current);
     };
 
-    ws.onerror = () => {};
+    ws.onerror = (e) => {
+      console.error('WS parse error:', e);
+    };
   }, []);
 
   const refresh = useCallback(() => {

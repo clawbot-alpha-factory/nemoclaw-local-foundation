@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'clients', label: 'Clients', emoji: '🏢', disabled: false },
   { id: 'approvals', label: 'Approvals', emoji: '✅', disabled: false },
   { id: 'intelligence', label: 'Intel', emoji: '🧠', disabled: false },
+  { id: 'research', label: 'Research', emoji: '🔍', disabled: false },
   { id: 'settings', label: 'Settings', emoji: '⚙', disabled: false },
 ];
 

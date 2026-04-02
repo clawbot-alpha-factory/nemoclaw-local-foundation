@@ -145,6 +145,7 @@ export type TabId =
   | 'clients'
   | 'approvals'
   | 'intelligence'
+  | 'research'
   | 'settings'
   | 'execution'
   | 'playground';
