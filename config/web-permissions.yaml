@@ -1,116 +1,25 @@
 # Per-agent web capabilities for NemoClaw Browser Autonomy Layer
-# Integrates with MA-19 access control
+# ALL RESTRICTIONS DISABLED — agents have full autonomy (2026-04-02)
+# Every agent gets: all actions, all domains, purchases, account creation, unlimited steps
+
+_full_autonomy: &full_autonomy
+  allowed_actions: [navigate, click, fill, screenshot, autonomous_task, login, upload_file, drag_drop, right_click, keyboard_shortcut, wait_for_element, iframe, captcha, oauth]
+  allowed_domains: ["*"]
+  can_create_accounts: true
+  can_make_purchases: true
+  max_autonomous_steps: 99999
 
 agent_permissions:
-  strategy_lead:
-    allowed_actions: [navigate, click, fill, screenshot, autonomous_task, login]
-    allowed_domains: ["*"]  # Strategic oversight — all domains
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 100
+  strategy_lead: *full_autonomy
+  growth_revenue_lead: *full_autonomy
+  product_architect: *full_autonomy
+  narrative_content_lead: *full_autonomy
+  operations_lead: *full_autonomy
+  engineering_lead: *full_autonomy
+  executive_operator: *full_autonomy
+  sales_outreach_lead: *full_autonomy
+  marketing_campaigns_lead: *full_autonomy
+  client_success_lead: *full_autonomy
+  social_media_lead: *full_autonomy
 
-  growth_revenue_lead:
-    allowed_actions: [navigate, click, fill, login, autonomous_task, upload_file]
-    allowed_domains:
-      - "*.instantly.ai"
-      - "*.apollo.io"
-      - "*.hubspot.com"
-      - "*.lemonsqueezy.com"
-      - "*.stripe.com"
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 100
-
-  product_architect:
-    allowed_actions: [navigate, click, fill, screenshot, autonomous_task]
-    allowed_domains: ["*"]
-    can_create_accounts: false
-    can_make_purchases: false
-    max_autonomous_steps: 50
-
-  narrative_content_lead:
-    allowed_actions: [navigate, click, fill, login, upload_file, drag_drop, screenshot, autonomous_task]
-    allowed_domains:
-      - "*.heygen.com"
-      - "*.canva.com"
-      - "*.youtube.com"
-      - "*.instagram.com"
-      - "*.tiktok.com"
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 75
-
-  operations_lead:
-    allowed_actions: [navigate, click, fill, screenshot, autonomous_task]
-    allowed_domains: ["*"]
-    can_create_accounts: false
-    can_make_purchases: false
-    max_autonomous_steps: 50
-
-  engineering_lead:
-    allowed_actions: [navigate, click, fill, screenshot, autonomous_task, login]
-    allowed_domains: ["*"]
-    can_create_accounts: false
-    can_make_purchases: false
-    max_autonomous_steps: 50
-
-  executive_operator:
-    allowed_actions: [navigate, click, fill, login, autonomous_task, upload_file, drag_drop, screenshot]
-    allowed_domains: ["*"]
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 150
-
-  sales_outreach_lead:
-    allowed_actions: [navigate, click, fill, login, autonomous_task]
-    allowed_domains:
-      - "*.linkedin.com"
-      - "*.instantly.ai"
-      - "*.apollo.io"
-      - "*.hubspot.com"
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 75
-
-  marketing_campaigns_lead:
-    allowed_actions: [navigate, click, fill, login, autonomous_task, upload_file, screenshot]
-    allowed_domains:
-      - "*.meta.com"
-      - "*.facebook.com"
-      - "*.instagram.com"
-      - "*.google.com"
-      - "*.canva.com"
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 75
-
-  client_success_lead:
-    allowed_actions: [navigate, click, fill, login, autonomous_task, screenshot]
-    allowed_domains:
-      - "*.hubspot.com"
-      - "*.instantly.ai"
-      - "*.lemonsqueezy.com"
-    can_create_accounts: false
-    can_make_purchases: false
-    max_autonomous_steps: 50
-
-  social_media_lead:
-    allowed_actions: [navigate, click, fill, login, autonomous_task, upload_file, drag_drop, screenshot]
-    allowed_domains:
-      - "*.instagram.com"
-      - "*.tiktok.com"
-      - "*.youtube.com"
-      - "*.linkedin.com"
-      - "*.facebook.com"
-      - "*.twitter.com"
-      - "*.canva.com"
-      - "*.heygen.com"
-    can_create_accounts: true
-    can_make_purchases: false
-    max_autonomous_steps: 100
-
-  defaults:
-    can_create_accounts: true       # Allowed but MA-16 approval gate required each time
-    can_make_purchases: false       # MA-8 rule: blocked
-    max_autonomous_steps: 50
-    allowed_actions: [navigate, click, fill, screenshot]
+  defaults: *full_autonomy
