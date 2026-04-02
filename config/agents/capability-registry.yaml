@@ -1169,3 +1169,15 @@ tool_bridges:
     agents: [narrative_content_lead, social_media_lead, marketing_campaigns_lead]
     skills: [cnt-13-thumbnail-generator, cnt-12-video-composer]
     status: connected
+
+  youtube:
+    bridge: scripts/social_publish_bridge.py
+    agents: [social_media_lead, narrative_content_lead, marketing_campaigns_lead]
+    skills: [cnt-09-social-posting-executor, cnt-12-video-composer]
+    status: connected
+
+  tiktok:
+    bridge: scripts/social_publish_bridge.py
+    agents: [social_media_lead, narrative_content_lead, marketing_campaigns_lead]
+    skills: [cnt-09-social-posting-executor, cnt-11-agent-self-promo-generator, k53-social-poster]
+    status: configured

@@ -32,11 +32,18 @@ def _load_env():
 
 
 class SocialPublisher:
+    SUPPORTED_BACKENDS = ["pinchtab", "zernio", "youtube", "tiktok"]
+
     def __init__(self, backend: str = "pinchtab"):
         self.env = _load_env()
         self.backend = backend
         self.zernio_key = self.env.get("ZERNIO_API_KEY", "") or os.environ.get("ZERNIO_API_KEY", "")
         self.pinchtab_url = self.env.get("PINCHTAB_URL", "http://localhost:9867")
+        self.yt_client_id = self.env.get("YOUTUBE_CLIENT_ID", "") or os.environ.get("YOUTUBE_CLIENT_ID", "")
+        self.yt_client_secret = self.env.get("YOUTUBE_CLIENT_SECRET", "") or os.environ.get("YOUTUBE_CLIENT_SECRET", "")
+        self.yt_api_key = self.env.get("YOUTUBE_API_KEY", "") or os.environ.get("YOUTUBE_API_KEY", "")
+        self.tiktok_client_key = self.env.get("TIKTOK_CLIENT_KEY", "") or os.environ.get("TIKTOK_CLIENT_KEY", "")
+        self.tiktok_client_secret = self.env.get("TIKTOK_CLIENT_SECRET", "") or os.environ.get("TIKTOK_CLIENT_SECRET", "")
         self.timeout = 30
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -86,6 +93,107 @@ class SocialPublisher:
         except Exception as e:
             return (False, str(e))
 
+    def _post_youtube(self, text, media_paths=None, title=None, privacy="private", category_id="22"):
+        """Upload a video to YouTube via Data API v3 (resumable upload).
+        Requires OAuth 2.0 token stored at ~/.nemoclaw/youtube_token.json.
+        """
+        try:
+            import requests
+            if not media_paths or not media_paths[0]:
+                return (False, "YouTube upload requires a video file path in media_paths")
+            video_path = media_paths[0]
+            if not os.path.exists(video_path):
+                return (False, f"Video file not found: {video_path}")
+            token_path = Path.home() / ".nemoclaw" / "youtube_token.json"
+            if not token_path.exists():
+                return (False, "OAuth token not found at ~/.nemoclaw/youtube_token.json — run OAuth flow first")
+            with open(token_path) as f:
+                token_data = json.load(f)
+            access_token = token_data.get("access_token", "")
+            if not access_token:
+                return (False, "No access_token in youtube_token.json")
+            video_title = title or text[:100] or "NemoClaw Upload"
+            metadata = {
+                "snippet": {"title": video_title, "description": text, "categoryId": category_id},
+                "status": {"privacyStatus": privacy}
+            }
+            headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+            init_resp = requests.post(
+                "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+                json=metadata, headers=headers, timeout=self.timeout
+            )
+            if init_resp.status_code not in (200, 308):
+                return (False, f"YouTube init upload failed: HTTP {init_resp.status_code}: {init_resp.text[:300]}")
+            upload_url = init_resp.headers.get("Location")
+            if not upload_url:
+                return (False, "No upload URL returned from YouTube")
+            with open(video_path, "rb") as vf:
+                upload_resp = requests.put(
+                    upload_url, data=vf,
+                    headers={"Content-Type": "video/*"},
+                    timeout=600
+                )
+            if upload_resp.status_code >= 400:
+                return (False, f"YouTube upload failed: HTTP {upload_resp.status_code}: {upload_resp.text[:300]}")
+            return (True, upload_resp.json())
+        except ImportError:
+            return (False, "requests package not installed")
+        except Exception as e:
+            return (False, str(e))
+
+    def _post_tiktok(self, text, media_paths=None):
+        """Post a video to TikTok via Content Posting API (direct post).
+        Requires OAuth access token stored at ~/.nemoclaw/tiktok_token.json.
+        """
+        try:
+            import requests
+            if not media_paths or not media_paths[0]:
+                return (False, "TikTok posting requires a video file path in media_paths")
+            video_path = media_paths[0]
+            if not os.path.exists(video_path):
+                return (False, f"Video file not found: {video_path}")
+            if not self.tiktok_client_key or self.tiktok_client_key.startswith("PENDING"):
+                return (False, "TikTok client key not configured — register app at developers.tiktok.com")
+            token_path = Path.home() / ".nemoclaw" / "tiktok_token.json"
+            if not token_path.exists():
+                return (False, "OAuth token not found at ~/.nemoclaw/tiktok_token.json — run OAuth flow first")
+            with open(token_path) as f:
+                token_data = json.load(f)
+            access_token = token_data.get("access_token", "")
+            if not access_token:
+                return (False, "No access_token in tiktok_token.json")
+            # Step 1: Init upload
+            file_size = os.path.getsize(video_path)
+            init_payload = {
+                "post_info": {"title": text[:150], "privacy_level": "SELF_ONLY"},
+                "source_info": {"source": "FILE_UPLOAD", "video_size": file_size, "chunk_size": file_size}
+            }
+            headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+            init_resp = requests.post(
+                "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/",
+                json=init_payload, headers=headers, timeout=self.timeout
+            )
+            if init_resp.status_code >= 400:
+                return (False, f"TikTok init failed: HTTP {init_resp.status_code}: {init_resp.text[:300]}")
+            init_data = init_resp.json().get("data", {})
+            upload_url = init_data.get("upload_url")
+            if not upload_url:
+                return (False, "No upload_url returned from TikTok init")
+            # Step 2: Upload video
+            with open(video_path, "rb") as vf:
+                upload_headers = {
+                    "Content-Type": "video/mp4",
+                    "Content-Range": f"bytes 0-{file_size - 1}/{file_size}"
+                }
+                upload_resp = requests.put(upload_url, data=vf, headers=upload_headers, timeout=600)
+            if upload_resp.status_code >= 400:
+                return (False, f"TikTok upload failed: HTTP {upload_resp.status_code}: {upload_resp.text[:300]}")
+            return (True, {"publish_id": init_data.get("publish_id", "unknown"), "status": "uploaded"})
+        except ImportError:
+            return (False, "requests package not installed")
+        except Exception as e:
+            return (False, str(e))
+
     def post(self, platforms, text, media_paths=None, schedule_date=None, account_id="nemoclaw_company"):
         if isinstance(platforms, str):
             platforms = [platforms]
@@ -93,6 +201,10 @@ class SocialPublisher:
             ok, r = self._post_pinchtab(platforms, text, media_paths, account_id)
         elif self.backend == "zernio":
             ok, r = self._post_zernio(platforms, text, media_paths, schedule_date)
+        elif self.backend == "youtube":
+            ok, r = self._post_youtube(text, media_paths)
+        elif self.backend == "tiktok":
+            ok, r = self._post_tiktok(text, media_paths)
         else:
             ok, r = (False, f"Unknown backend: {self.backend}")
         result = {"post_id": str(uuid.uuid4())[:8], "platforms_posted": platforms,
@@ -207,6 +319,35 @@ def _run_tests():
         assert isinstance(ok, bool)
     test("List accounts returns tuple", t10)
 
+    def t11():
+        p = SocialPublisher(backend="youtube")
+        ok, r = p.post(["youtube"], "Test video", media_paths=None)
+        assert not ok  # No media_paths → should fail
+    test("YouTube requires media_paths", t11)
+
+    def t12():
+        p = SocialPublisher(backend="youtube")
+        ok, r = p.post(["youtube"], "Test video", media_paths=["/nonexistent/video.mp4"])
+        assert not ok  # File not found → should fail
+    test("YouTube file not found", t12)
+
+    def t13():
+        p = SocialPublisher(backend="tiktok")
+        ok, r = p.post(["tiktok"], "Test video", media_paths=None)
+        assert not ok  # No media_paths → should fail
+    test("TikTok requires media_paths", t13)
+
+    def t14():
+        p = SocialPublisher(backend="tiktok")
+        ok, r = p.post(["tiktok"], "Test video", media_paths=["/nonexistent/video.mp4"])
+        assert not ok  # File not found → should fail
+    test("TikTok file not found", t14)
+
+    def t15():
+        assert "youtube" in SocialPublisher.SUPPORTED_BACKENDS
+        assert "tiktok" in SocialPublisher.SUPPORTED_BACKENDS
+    test("Supported backends include youtube and tiktok", t15)
+
     print(f"\n  {'=' * 50}"); print(f"  Social Publishing Bridge: {'PASS' if passed == total else 'FAIL'}")
     print(f"  Passed: {passed}/{total}"); print(f"  {'=' * 50}")
     return passed == total
@@ -221,7 +362,7 @@ if __name__ == "__main__":
     p.add_argument("--platform", default="tiktok")
     p.add_argument("--text", default="")
     p.add_argument("--media", help="Media file path")
-    p.add_argument("--backend", default="pinchtab", choices=["pinchtab", "zernio"])
+    p.add_argument("--backend", default="pinchtab", choices=["pinchtab", "zernio", "youtube", "tiktok"])
     p.add_argument("--test", action="store_true")
     args = p.parse_args()
     if args.post:
