@@ -258,15 +258,25 @@ class ProjectService:
     VALID_STATUSES = {"planning", "active", "paused", "completed"}
     VALID_MILESTONE_STATUSES = {"pending", "in_progress", "completed", "skipped"}
 
-    def __init__(self, repo_root: Path, skill_service: Any = None) -> None:
-        """Initialize ProjectService with repo root and optional skill service reference.
+    def __init__(
+        self,
+        repo_root: Path,
+        skill_service: Any = None,
+        planning_service: Any = None,
+        notification_service: Any = None,
+    ) -> None:
+        """Initialize ProjectService with repo root and optional service references.
 
         Args:
             repo_root: Root path of the repository.
             skill_service: Reference to the SkillService for skill lookups and suggestions.
+            planning_service: Reference to PlanningService for auto-planning on milestones.
+            notification_service: Reference to AgentNotificationService for agent alerts.
         """
         self.repo_root = Path(repo_root)
         self.skill_service = skill_service
+        self.planning_service = planning_service
+        self.notification_service = notification_service
         self.data_dir: Path = self.repo_root / "command-center" / "backend" / "data"
         self.data_file: Path = self.data_dir / "projects.json"
         self.projects: dict[str, dict[str, Any]] = {}
@@ -907,6 +917,11 @@ class ProjectService:
                     "Updated milestone '%s' in project '%s'",
                     milestone_id, project_id,
                 )
+
+                # Hook: trigger follow-up planning when milestone completes
+                if updates.get("status") == "completed":
+                    self._on_milestone_complete(project_id, milestone)
+
                 return milestone
 
         return None
@@ -1074,6 +1089,143 @@ class ProjectService:
             "agent_assignments": dict(sorted(all_agents.items(), key=lambda x: x[1], reverse=True)),
             "tag_counts": dict(sorted(all_tags.items(), key=lambda x: x[1], reverse=True)),
         }
+
+    # ── Lifecycle Hooks ────────────────────────────────────────────────────
+
+    def _on_milestone_complete(
+        self, project_id: str, milestone: dict[str, Any]
+    ) -> None:
+        """Hook called when a milestone is marked completed.
+
+        Triggers PlanningService.create_followup_tasks() to auto-queue next steps.
+        """
+        if not self.planning_service:
+            return
+        try:
+            result = self.planning_service.create_followup_tasks(project_id, milestone)
+            created = result.get("created", [])
+            log.info(
+                "on_milestone_complete: %d follow-up tasks created for project %s",
+                len(created), project_id,
+            )
+        except Exception as exc:
+            log.error("on_milestone_complete failed for project %s: %s", project_id, exc)
+
+    def on_project_pause(self, project_id: str) -> Optional[dict[str, Any]]:
+        """Pause a project and notify all assigned agents.
+
+        Returns:
+            Updated project dict or None if not found.
+        """
+        project = self.projects.get(project_id)
+        if not project:
+            return None
+
+        project["status"] = "paused"
+        project["updated_at"] = self._now()
+        self._save()
+
+        # Notify assigned agents
+        agents = project.get("assigned_agents", [])
+        if self.notification_service and agents:
+            for agent_id in agents:
+                try:
+                    self.notification_service.notify_user(
+                        agent_id=agent_id,
+                        category="blocker",
+                        message=(
+                            f"Project '{project.get('name', project_id)}' has been paused. "
+                            f"All pending tasks are on hold."
+                        ),
+                        priority="high",
+                    )
+                except Exception as exc:
+                    log.error("Failed to notify agent %s on pause: %s", agent_id, exc)
+
+        log.info("Project '%s' paused, notified %d agents", project_id, len(agents))
+        return project
+
+    def on_project_resume(self, project_id: str) -> Optional[dict[str, Any]]:
+        """Resume a paused project and re-queue pending tasks.
+
+        Returns:
+            Updated project dict or None if not found.
+        """
+        project = self.projects.get(project_id)
+        if not project:
+            return None
+
+        project["status"] = "active"
+        project["updated_at"] = self._now()
+        self._save()
+
+        # Collect pending milestones to signal re-activation
+        pending = [
+            m for m in project.get("milestones", [])
+            if m.get("status") in ("pending", "in_progress")
+        ]
+
+        # Notify assigned agents
+        agents = project.get("assigned_agents", [])
+        if self.notification_service and agents:
+            for agent_id in agents:
+                try:
+                    self.notification_service.notify_user(
+                        agent_id=agent_id,
+                        category="task_complete",
+                        message=(
+                            f"Project '{project.get('name', project_id)}' has resumed. "
+                            f"{len(pending)} pending milestones are re-queued."
+                        ),
+                        priority="normal",
+                    )
+                except Exception as exc:
+                    log.error("Failed to notify agent %s on resume: %s", agent_id, exc)
+
+        log.info(
+            "Project '%s' resumed, %d pending milestones, notified %d agents",
+            project_id, len(pending), len(agents),
+        )
+        return project
+
+    def on_project_cancel(self, project_id: str) -> Optional[dict[str, Any]]:
+        """Cancel/archive a project and notify the team.
+
+        Returns:
+            Updated project dict or None if not found.
+        """
+        project = self.projects.get(project_id)
+        if not project:
+            return None
+
+        project["status"] = "completed"
+        project["updated_at"] = self._now()
+        # Mark all non-completed milestones as skipped
+        for m in project.get("milestones", []):
+            if m.get("status") in ("pending", "in_progress"):
+                m["status"] = "skipped"
+                m["updated_at"] = project["updated_at"]
+        self._save()
+
+        # Notify assigned agents
+        agents = project.get("assigned_agents", [])
+        if self.notification_service and agents:
+            for agent_id in agents:
+                try:
+                    self.notification_service.notify_user(
+                        agent_id=agent_id,
+                        category="task_failed",
+                        message=(
+                            f"Project '{project.get('name', project_id)}' has been cancelled. "
+                            f"All pending milestones are now skipped."
+                        ),
+                        priority="high",
+                    )
+                except Exception as exc:
+                    log.error("Failed to notify agent %s on cancel: %s", agent_id, exc)
+
+        log.info("Project '%s' cancelled, notified %d agents", project_id, len(agents))
+        return project
 
     # ── Reload ─────────────────────────────────────────────────────────────
 
