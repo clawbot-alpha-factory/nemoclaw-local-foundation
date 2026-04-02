@@ -301,7 +301,7 @@ ANTI-FABRICATION RULES:
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 
@@ -450,7 +450,7 @@ Return ONLY valid JSON (no markdown fences):
 
     content, error = call_resolved(messages, context, max_tokens=1500)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=1500)
+        content, error = call_openai(messages, max_tokens=1500)
     if error:
         return None, error
 
@@ -638,7 +638,7 @@ Output the complete improved report in markdown format."""
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 

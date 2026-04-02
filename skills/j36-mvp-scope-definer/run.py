@@ -357,7 +357,7 @@ CRITICAL RULES:
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 
@@ -469,7 +469,7 @@ Return ONLY valid JSON (no markdown fences, no commentary):
 
     content, error = call_resolved(messages, context, max_tokens=2000)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=2000)
+        content, error = call_openai(messages, max_tokens=2000)
     if error:
         return None, error
 
@@ -636,7 +636,7 @@ REVISION RULES:
 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
-        content, error = call_openai(messages, model="gpt-4.1-mini", max_tokens=token_budget)
+        content, error = call_openai(messages, max_tokens=token_budget)
     if error:
         return None, error
 

@@ -310,7 +310,7 @@ Write the complete script now. Be precise with timing, specific with visual dire
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
         content, error = call_openai(
-            messages, model="gpt-4.1-mini", max_tokens=token_budget
+            messages, max_tokens=token_budget
         )
     if error:
         return None, error
@@ -485,7 +485,7 @@ Return ONLY a JSON object with this exact structure:
     content, error = call_resolved(messages, context, max_tokens=3000)
     if error:
         content, error = call_openai(
-            messages, model="gpt-4.1-mini", max_tokens=3000
+            messages, max_tokens=3000
         )
     if error:
         return None, error
@@ -684,7 +684,7 @@ Output the COMPLETE revised script in the same markdown format. Do not truncate 
     content, error = call_resolved(messages, context, max_tokens=token_budget)
     if error:
         content, error = call_openai(
-            messages, model="gpt-4.1-mini", max_tokens=token_budget
+            messages, max_tokens=token_budget
         )
     if error:
         return None, error
