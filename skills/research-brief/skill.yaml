@@ -246,3 +246,16 @@ critic_loop:
   max_improvements: 5
   counter_name: critic_loop
   fallback_final_step: step_5
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.35

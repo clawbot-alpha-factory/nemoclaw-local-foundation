@@ -168,3 +168,16 @@ critic_loop:
   min_score: 10.0
   max_iterations: 5
   escalation: retry_with_feedback
+
+contracts:
+  machine_validated:
+    output_format: markdown
+    required_fields:
+      - result
+    quality:
+      min_length: 800
+      max_length: 20000
+      min_quality_score: 7
+    sla:
+      max_execution_seconds: 120
+      max_cost_usd: 0.35
