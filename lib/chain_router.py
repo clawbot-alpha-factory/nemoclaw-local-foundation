@@ -346,6 +346,24 @@ def _execute_step(step_info, messages, max_tokens=4000):
 
 # ── Chain Execution ──────────────────────────────────────────────────────────
 
+def _estimate_confidence(output: str) -> float:
+    """Estimate output confidence based on structure and length heuristics."""
+    score = 0.5
+    if len(output) > 200:
+        score += 0.1
+    if len(output) > 500:
+        score += 0.05
+    if "##" in output:
+        score += 0.1
+    if "- " in output or "1." in output:
+        score += 0.05
+    if len(output) > 1000:
+        score += 0.05
+    if any(w in output.lower() for w in ["conclusion", "summary", "recommendation"]):
+        score += 0.05
+    return min(score, 1.0)
+
+
 def call_chain(messages, task_class="premium", task_domain=None, max_tokens=4000):
     """Execute a chain-routed LLM call for tier 3/4 tasks.
 
@@ -415,6 +433,11 @@ def call_chain(messages, task_class="premium", task_domain=None, max_tokens=4000
             original_content += str(m) + "\n"
 
     for i, step_info in enumerate(chain_steps):
+        # Confidence gating: skip steps marked by previous gating
+        if step_info.get("_skipped"):
+            logger.info(f"  [chain] step {i+1} ({step_info['role']}) SKIPPED (confidence gate)")
+            continue
+
         role = step_info["role"]
         prompt_prefix = step_info["prompt_prefix"]
         ref = step_info["ref"]
@@ -503,14 +526,31 @@ def call_chain(messages, task_class="premium", task_domain=None, max_tokens=4000
 
         if err:
             logger.error(f"  [chain] step {i+1} failed: {err}")
-            # If generator fails, abort chain
             if role == "generator":
                 return None, {"tier": tier, "chain_used": True, "steps": step_results}, err
-            # If non-generator fails, use last good output
             logger.warning(f"  [chain] continuing with last good output after {role} failure")
             continue
 
         current_output = response
+
+        # ── Confidence gating: skip unnecessary steps ─────────────────
+        if response and role in ("generator", "reviewer"):
+            confidence = _estimate_confidence(response)
+            step_result["confidence"] = confidence
+            remaining_roles = [s["role"] for s in chain_steps[i+1:]]
+            if confidence >= 0.85 and role == "generator" and "reviewer" in remaining_roles:
+                logger.info(f"  [chain] confidence {confidence:.2f} — skipping reviewer")
+                skip_next = True
+                for j in range(i+1, len(chain_steps)):
+                    if chain_steps[j]["role"] == "reviewer":
+                        chain_steps[j]["_skipped"] = True
+                        break
+            elif confidence >= 0.90 and role == "reviewer" and "critic" in remaining_roles:
+                logger.info(f"  [chain] confidence {confidence:.2f} — skipping critic")
+                for j in range(i+1, len(chain_steps)):
+                    if chain_steps[j]["role"] == "critic":
+                        chain_steps[j]["_skipped"] = True
+                        break
 
     elapsed = time.time() - t0
 

@@ -499,3 +499,75 @@ def validate_output(
             warnings.append(f"PII check error: {e}")
 
     return text, warnings
+
+
+# ---------------------------------------------------------------------------
+# Token estimation (tiktoken)
+# ---------------------------------------------------------------------------
+
+_CONTEXT_WINDOWS = {
+    "gpt-5.4-mini": 128000, "gpt-4.1-mini": 128000, "gpt-4o-mini": 128000,
+    "gpt-4o": 128000, "o3-mini": 128000,
+    "claude-opus-4-6": 200000, "claude-sonnet-4-6": 200000,
+    "claude-haiku-4-5-20251001": 200000,
+    "gemini-2.5-pro": 1000000, "gemini-2.5-flash": 1000000,
+}
+
+
+def estimate_tokens(messages, model: str = "gpt-5.4-mini") -> int:
+    """Estimate token count for messages using tiktoken (or heuristic fallback)."""
+    text = ""
+    for m in messages:
+        if isinstance(m, dict):
+            text += m.get("content", "") + " "
+        elif isinstance(m, (list, tuple)) and len(m) >= 2:
+            text += str(m[1]) + " "
+        else:
+            text += getattr(m, "content", str(m)) + " "
+    try:
+        import tiktoken
+        enc = tiktoken.encoding_for_model(model) if "gpt" in model else tiktoken.get_encoding("cl100k_base")
+        return len(enc.encode(text))
+    except Exception:
+        return len(text) // 4  # heuristic: ~4 chars per token
+
+
+def check_token_limit(messages, model: str, max_tokens: int) -> tuple:
+    """Check if messages + max_tokens fits within model context. Returns (ok, estimated, limit)."""
+    estimated = estimate_tokens(messages, model)
+    limit = _CONTEXT_WINDOWS.get(model, 128000)
+    ok = (estimated + max_tokens) <= limit
+    if not ok:
+        logger.warning(f"Token limit exceeded: {estimated}+{max_tokens} > {limit} for {model}")
+    return ok, estimated, limit
+
+
+# ---------------------------------------------------------------------------
+# Streaming LLM responses
+# ---------------------------------------------------------------------------
+
+def call_llm_stream(messages, task_class="moderate", max_tokens=4000):
+    """Stream LLM response chunks. Yields (chunk_text, None) or (None, error).
+
+    Usage:
+        for text, err in call_llm_stream(messages):
+            if err: handle_error(err)
+            if text: print(text, end="", flush=True)
+    """
+    provider, model, cost = resolve_from_env_or_config(task_class)
+    api_key = get_api_key(provider)
+
+    if not api_key:
+        yield None, f"{provider.upper()} API key not found"
+        return
+
+    try:
+        lc_messages = _to_lc_messages(messages)
+        llm = _build_llm(provider, model, api_key, max_tokens)
+
+        for chunk in llm.stream(lc_messages):
+            content = chunk.content if hasattr(chunk, "content") else str(chunk)
+            if content:
+                yield content, None
+    except Exception as e:
+        yield None, str(e)
