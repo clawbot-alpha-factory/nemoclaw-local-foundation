@@ -141,11 +141,41 @@ def validate_inputs(spec):
 def step_1_parse(state):
     competitors = spec["inputs"].get("competitors", "")
     focus_areas = spec["inputs"].get("focus_areas", "pricing,features,positioning")
-    
+
+    # ── Browser-powered competitor scraping (ecosystem wiring) ────────
+    web_data = ""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from web_browser import PinchTabClient
+        browser = PinchTabClient(agent_id="growth_revenue_lead")
+
+        if browser.is_running():
+            # Parse competitor names/URLs
+            comp_list = [c.strip() for c in competitors.split(",") if c.strip()]
+            urls = []
+            for comp in comp_list[:5]:
+                if "http" in comp:
+                    urls.append(comp)
+                else:
+                    urls.append(f"https://www.google.com/search?q={comp.replace(' ', '+')}+{focus_areas.split(',')[0]}")
+
+            if urls:
+                results = browser.batch_navigate_and_extract(urls)
+                for r in results:
+                    if r.get("success") and r.get("text"):
+                        web_data += f"\n\n--- {r['url']} ---\n{r['text'][:2000]}"
+                print(f"    [browser] Scraped {len([r for r in results if r.get('success')])} competitor pages")
+        else:
+            print("    [browser] PinchTab not running, LLM-only analysis")
+    except Exception as e:
+        print(f"    [browser] Competitor scraping failed, falling back to LLM: {e}")
+
     context = f"""Task: Competitor Scraper
 - competitors: {competitors}
 - focus_areas: {focus_areas}"""
-    
+    if web_data:
+        context += f"\n\n## Live Competitor Data (scraped from web):\n{web_data[:8000]}"
+
     return {**state, "step_1_output": context}
 
 

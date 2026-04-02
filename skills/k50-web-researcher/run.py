@@ -141,24 +141,66 @@ def validate_inputs(spec):
 def step_1_parse(state):
     research_query = spec["inputs"].get("research_query", "")
     depth = spec["inputs"].get("depth", "standard")
-    
+    urls = spec["inputs"].get("urls", "")  # Optional: specific URLs to research
+
+    # ── Browser-powered web research (ecosystem wiring) ──────────────
+    web_data = ""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from web_browser import PinchTabClient
+        browser = PinchTabClient(agent_id="strategy_lead")
+
+        if browser.is_running():
+            # If specific URLs provided, extract from those
+            if urls:
+                url_list = [u.strip() for u in urls.split(",") if u.strip()]
+                results = browser.batch_navigate_and_extract(url_list[:5])
+                for r in results:
+                    if r.get("success") and r.get("text"):
+                        web_data += f"\n\n--- Source: {r['url']} ---\n{r['text'][:2000]}"
+                print(f"    [browser] Extracted {len([r for r in results if r.get('success')])} pages")
+            else:
+                # Use LLM to generate search URLs, then extract
+                url_messages = [
+                    ("system", "Return ONLY a comma-separated list of 3-5 URLs to research this topic. No explanation."),
+                    ("human", f"Research topic: {research_query}"),
+                ]
+                url_text, url_err = call_llm(url_messages, max_tokens=200)
+                if url_text and not url_err:
+                    url_list = [u.strip() for u in url_text.split(",") if "http" in u][:5]
+                    if url_list:
+                        results = browser.batch_navigate_and_extract(url_list)
+                        for r in results:
+                            if r.get("success") and r.get("text"):
+                                web_data += f"\n\n--- Source: {r['url']} ---\n{r['text'][:2000]}"
+                        print(f"    [browser] Extracted {len([r for r in results if r.get('success')])} pages via LLM URLs")
+        else:
+            print("    [browser] PinchTab not running, LLM-only research")
+    except Exception as e:
+        print(f"    [browser] Browser research failed, falling back to LLM: {e}")
+
     context = f"""Task: Web Researcher
 - research_query: {research_query}
 - depth: {depth}"""
-    
+    if web_data:
+        context += f"\n\n## Web Research Data (extracted from live pages):\n{web_data[:8000]}"
+
     return {**state, "step_1_output": context}
 
 
 def step_2_generate(state):
     context = state["step_1_output"]
     feedback = state.get("critic_feedback", "")
-    
+
     feedback_section = ""
     if feedback:
         feedback_section = f"\n\nPrevious attempt feedback (improve on this):\n{feedback}"
-    
+
+    has_web_data = "Web Research Data" in context
+    source_instruction = "Cite the extracted web sources in your findings." if has_web_data else "Note: No live web data available — analysis based on training knowledge only."
+
     messages = [
-        ("system", """You are a research analyst. Produce structured research briefs with cited findings and analysis."""),
+        ("system", f"""You are a research analyst. Produce structured research briefs with cited findings and analysis. {source_instruction}"""),
         ("human", f"""{context}{feedback_section}
 
 Produce a structured analysis report with these sections:
@@ -173,16 +215,16 @@ Produce a structured analysis report with these sections:
 ## Data Appendix
 (Supporting data points and methodology notes)"""),
     ]
-    
+
     from lib.routing import resolve_from_env_or_config as _resolve
     provider, model, _cost = _resolve("moderate")
     cost = estimate_cost()
-    print(f"    [budget] alias=premium model={model} cost=${cost} remaining=${state['context']['budget_state']['remaining']:.3f}")
-    
+    print(f"    [budget] alias=moderate model={model} cost=${cost} remaining=${state['context']['budget_state']['remaining']:.3f}")
+
     content, error = call_llm(messages)
     if error or not content:
         return {**state, "error": str(error or "Empty LLM response")}
-    
+
     state["context"]["budget_state"]["remaining"] -= cost
     return {**state, "generated_output": content, "cost": state.get("cost", 0) + cost}
 
