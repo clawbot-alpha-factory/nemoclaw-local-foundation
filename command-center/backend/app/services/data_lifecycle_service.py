@@ -107,7 +107,7 @@ class DataLifecycleService:
         """Remove skill outputs older than 30 days."""
         cleaned = 0
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.ARCHIVE_DAYS)
-        skills_dir = Path.home() / "nemoclaw-local-foundation" / "skills"
+        skills_dir = Path(os.environ.get("CC_REPO_ROOT", str(Path.home() / "nemoclaw-local-foundation"))) / "skills"
         if not skills_dir.exists():
             return 0
 

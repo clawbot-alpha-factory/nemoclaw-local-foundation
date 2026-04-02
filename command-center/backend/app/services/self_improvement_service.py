@@ -10,7 +10,7 @@ This is what makes the system self-improving.
 NEW FILE: command-center/backend/app/services/self_improvement_service.py
 """
 from __future__ import annotations
-import json, logging, time
+import json, logging, os, time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -237,4 +237,4 @@ class SelfImprovementService:
             "avg_score": round(sum(a.score for a in self._audits) / max(len(self._audits), 1), 1),
         }
 
-REPO = Path.home() / "nemoclaw-local-foundation"
+REPO = Path(os.environ.get("CC_REPO_ROOT", str(Path.home() / "nemoclaw-local-foundation")))

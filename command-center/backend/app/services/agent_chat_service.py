@@ -195,6 +195,13 @@ class AgentChatService:
             ]
         )
 
+        # Check CC_REPO_ROOT (set in Docker/Railway)
+        import os
+        repo_root = os.environ.get("CC_REPO_ROOT")
+        if repo_root:
+            candidates.append(Path(repo_root) / "config/agents/agent-schema.yaml")
+            candidates.append(Path(repo_root) / "config/agent-schema.yaml")
+
         # Absolute fallback
         home = Path.home()
         candidates.append(home / "nemoclaw-local-foundation/config/agents/agent-schema.yaml")

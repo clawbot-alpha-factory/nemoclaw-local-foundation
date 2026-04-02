@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -226,7 +227,7 @@ class SkillChainWiringService:
 
     async def execute_skill(self, skill_id: str, inputs: dict[str, Any]) -> dict[str, Any]:
         """Execute a skill via subprocess."""
-        repo = Path.home() / "nemoclaw-local-foundation"
+        repo = Path(os.environ.get("CC_REPO_ROOT", str(Path.home() / "nemoclaw-local-foundation")))
         skill_dir = repo / "skills" / skill_id
         run_py = skill_dir / "run.py"
 
