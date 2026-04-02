@@ -341,7 +341,7 @@ class AgentChatService:
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                max_tokens=DEFAULT_MAX_TOKENS,
+                max_completion_tokens=DEFAULT_MAX_TOKENS,
                 temperature=0.7,
             )
             return response.choices[0].message.content
@@ -391,7 +391,7 @@ Reply with ONLY the agent ID (e.g., "agent-01"). Nothing else."""
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=[{"role": "user", "content": selection_prompt}],
-                max_tokens=20,
+                max_completion_tokens=20,
                 temperature=0.0,
             )
             selected = response.choices[0].message.content.strip().strip('"').strip("'")
