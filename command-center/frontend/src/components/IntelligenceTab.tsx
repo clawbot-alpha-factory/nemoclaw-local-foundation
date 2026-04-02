@@ -296,7 +296,8 @@ export default function IntelligenceTab() {
   useEffect(() => {
     // Fetch current state for health view
     const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-    fetch('http://127.0.0.1:8100/api/state', {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8100';
+    fetch(`${apiBase}/api/state`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.json())

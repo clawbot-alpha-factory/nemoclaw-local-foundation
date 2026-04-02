@@ -17,7 +17,8 @@ import {
   type AuditTrailResponse,
 } from '../lib/approvals-api';
 
-const API = 'http://127.0.0.1:8100/api/approvals';
+import { API_BASE } from '../lib/config';
+const API = `${API_BASE}/api/approvals`;
 
 function headers(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
@@ -170,7 +171,7 @@ export default function ApprovalsTab() {
 
   const loadEngineApprovals = useCallback(async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8100/api/engine/approvals/pending', { headers: headers() });
+      const res = await fetch(`${API_BASE}/api/engine/approvals/pending`, { headers: headers() });
       if (res.ok) {
         const data = await res.json();
         const normalized = (data.items || data || []).map((item: any) => ({

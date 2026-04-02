@@ -612,6 +612,75 @@ export default function SettingsTab() {
     </div>
   );
 
+  const renderNvidiaNim = () => {
+    const freeModels = [
+      { name: 'Nemotron Embed 1B v2', type: 'Embedding', status: 'active', desc: '26-language semantic embeddings (2048 dim, 8192 tokens)', endpoint: 'integrate.api.nvidia.com/v1/embeddings', cost: 'Free tier' },
+      { name: 'Nemotron Rerank 1B v2', type: 'Reranking', status: 'active', desc: 'Cross-encoder reranking for search quality', endpoint: 'integrate.api.nvidia.com/v1/ranking', cost: 'Free tier' },
+      { name: 'Content Safety 4B', type: 'Safety', status: 'active', desc: 'Policy-aware content safety classification', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
+      { name: 'GLiNER PII Detection', type: 'PII', status: 'active', desc: 'Regex fallback active. NIM container needed for full 55+ entity detection.', endpoint: 'Self-hosted NIM or regex fallback', cost: 'Free (regex) / NIM container' },
+      { name: 'Nemotron Nano 9B v2', type: 'Chat LLM', status: 'active', desc: 'Hybrid Mamba-Transformer, Tier 1 routing candidate', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
+      { name: 'Nemotron 3 Nano 30B A3B', type: 'Chat LLM', status: 'active', desc: '30B MoE (3.5B active), 1M context, Tier 2 candidate', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
+    ];
+    const futureModels = [
+      { name: 'NVIDIA AI Enterprise', type: 'Platform', status: 'planned', desc: 'Production-grade NIM hosting, no rate limits', cost: '$4,500/GPU/year', needed: 'When free tier 40 RPM becomes bottleneck' },
+      { name: 'NeMo Guardrails (self-hosted)', type: 'Safety', status: 'planned', desc: 'Full guardrails pipeline with custom policies', cost: 'Free (self-hosted)', needed: 'When outbound volume exceeds free API limits' },
+      { name: 'Nemotron 3 Super 120B', type: 'Chat LLM', status: 'planned', desc: '120B MoE (12B active), premium reasoning tier', cost: 'Paid NIM API', needed: 'When quality needs exceed Sonnet/GPT-5.4' },
+      { name: 'NVIDIA Riva (ASR/TTS)', type: 'Voice', status: 'planned', desc: 'Real-time speech recognition + synthesis', cost: 'AI Enterprise license', needed: 'When live voice agent interactions needed' },
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-nc-text">NVIDIA NIM — Free Tier (Active)</h3>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">6 models connected</span>
+          </div>
+          <p className="text-sm text-nc-text-secondary mb-1">Endpoint: integrate.api.nvidia.com/v1</p>
+          <p className="text-sm text-nc-text-secondary mb-4">Limits: 5,000 credits / 40 RPM / Trial service</p>
+          <div className="space-y-3">
+            {freeModels.map((m) => (
+              <div key={m.name} className="flex items-center justify-between p-3 bg-nc-surface-2 rounded-lg border border-nc-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <div>
+                    <span className="text-sm font-medium text-nc-text">{m.name}</span>
+                    <span className="ml-2 px-2 py-0.5 rounded text-xs bg-nc-accent/10 text-nc-accent">{m.type}</span>
+                    <p className="text-xs text-nc-text-secondary mt-0.5">{m.desc}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-green-400 font-medium">{m.cost}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-nc-text">Upgrade Path — Future Subscriptions</h3>
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Not yet needed</span>
+          </div>
+          <p className="text-sm text-nc-text-secondary mb-4">These become relevant as NemoClaw scales beyond free tier limits.</p>
+          <div className="space-y-3">
+            {futureModels.map((m) => (
+              <div key={m.name} className="flex items-center justify-between p-3 bg-nc-surface-2 rounded-lg border border-nc-border/50 opacity-60">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                  <div>
+                    <span className="text-sm font-medium text-nc-text">{m.name}</span>
+                    <span className="ml-2 px-2 py-0.5 rounded text-xs bg-yellow-500/10 text-yellow-400">{m.type}</span>
+                    <p className="text-xs text-nc-text-secondary mt-0.5">{m.desc}</p>
+                    <p className="text-xs text-yellow-400/70 mt-0.5">Trigger: {m.needed}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-yellow-400 font-medium">{m.cost}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAbout = () => (
     <div className="space-y-6">
       <div className="bg-nc-surface border border-nc-border rounded-xl p-8 text-center">
@@ -906,6 +975,8 @@ export default function SettingsTab() {
         return renderModelLibrary();
       case 'Tools & Bridges':
         return renderToolsBridges();
+      case 'NVIDIA NIM':
+        return renderNvidiaNim();
       case 'Theme':
         return renderTheme();
       case 'Brain Settings':

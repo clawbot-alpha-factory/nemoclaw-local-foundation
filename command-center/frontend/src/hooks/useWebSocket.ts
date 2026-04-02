@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 // CC-2: AI Brain
 import { useStore } from '../lib/store';
-import type { SystemState, WSMessage } from '@/lib/types';
+import type { SystemState } from '@/lib/types';
+import { WS_BASE } from '@/lib/config';
 
-const WS_URL = 'ws://127.0.0.1:8100/ws';
-const WS_CHAT_URL = 'ws://127.0.0.1:8100/ws/chat';
+const WS_URL = `${WS_BASE}/ws`;
+const WS_CHAT_URL = `${WS_BASE}/ws/chat`;
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_DELAY = 30000;
 

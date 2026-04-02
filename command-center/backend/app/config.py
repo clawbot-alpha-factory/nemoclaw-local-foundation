@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     # ── Server ─────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
     port: int = 8100
-    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]  # Override via CC_CORS_ORIGINS env var for production
 
     # ── Auth ───────────────────────────────────────────────────────────
     auth_token: str = ""  # Set via CC_AUTH_TOKEN env var or generated on first run

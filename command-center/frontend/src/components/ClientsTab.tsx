@@ -12,7 +12,8 @@ import type {
   Project,
 } from '../lib/clients-api';
 
-const API = 'http://127.0.0.1:8100/api/clients';
+import { API_BASE } from '../lib/config';
+const API = `${API_BASE}/api/clients`;
 
 function headers(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
