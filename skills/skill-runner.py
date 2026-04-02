@@ -711,7 +711,7 @@ def make_node(skill, skill_dir, step):
             # Only increment when critic says quality is below threshold
             if quality is not None:
                 try:
-                    if float(quality) < cl.get("acceptance_score", 8):
+                    if float(quality) < cl.get("acceptance_score", 10):
                         counters[cn] = counters.get(cn, 0) + 1
                 except (ValueError, TypeError):
                     counters[cn] = counters.get(cn, 0) + 1
@@ -724,9 +724,9 @@ def make_node(skill, skill_dir, step):
 
         # Also check critic loop override
         if cl.get("enabled") and step_id == cl.get("critic_step"):
-            if quality is not None and quality >= cl.get("acceptance_score", 8):
+            if quality is not None and quality >= cl.get("acceptance_score", 10):
                 is_final = False  # Goes to final step, not END directly
-            elif counters.get(cl.get("counter_name", "critic_loop"), 0) >= cl.get("max_improvements", 2):
+            elif counters.get(cl.get("counter_name", "critic_loop"), 0) >= cl.get("max_improvements", 5):
                 is_final = False  # Goes to final step, not END directly
 
         # Artifact write for final step
@@ -801,10 +801,10 @@ def make_router(skill, step):
         if cl.get("enabled") and step_id == cl.get("critic_step"):
             sp = cl.get("score_field", "")
             score, found = resolve_path(ctx, sp)
-            acc = cl.get("acceptance_score", 8)
+            acc = cl.get("acceptance_score", 10)
             cn = cl.get("counter_name", "critic_loop")
             count = ctx.get("loop_counters", {}).get(cn, 0)
-            mx = cl.get("max_improvements", 2)
+            mx = cl.get("max_improvements", 5)
 
             if found and score is not None:
                 try:

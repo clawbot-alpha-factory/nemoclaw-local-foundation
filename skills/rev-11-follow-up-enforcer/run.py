@@ -95,7 +95,7 @@ def step_3_critic(state):
     if "- " in output or "1." in output: score += 0.5
     if len(output) > 1000: score += 0.5
     feedback = ""
-    if score < 9.5:
+    if score < 10.5:
         try:
             from lib.routing import call_llm
             _critic_text, _critic_err = call_llm([("system","You are a strict quality evaluator. Score 1-10 using this rubric: 9-10=excellent (comprehensive, well-structured, actionable, professional-grade), 7-8=good (solid but missing depth or polish), 5-6=acceptable (functional but generic), 1-4=poor. Be generous with well-structured, detailed outputs. Return JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Follow-Up Enforcer\n\nOutput:\n{output[:2000]}")], "structured_short", 300)
@@ -110,7 +110,7 @@ def step_3_critic(state):
     return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
 
 def should_retry(state):
-    if state.get("quality_score", 0) < 9.0 and state.get("retry_count", 0) < 4: return "retry"
+    if state.get("quality_score", 0) < 10.0 and state.get("retry_count", 0) < 5: return "retry"
     return "accept"
 
 def step_retry(state): return {**state, "retry_count": state.get("retry_count", 0) + 1}

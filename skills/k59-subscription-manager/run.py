@@ -225,7 +225,7 @@ def step_4_critic(state):
     score = min(score, 10.0)
 
     feedback = ""
-    if score < 9.5:
+    if score < 10.5:
         print(f"    [critic] Heuristic score {score:.1f} < 9.5 — running LLM critic")
         llm_score, feedback = call_cheap_critic(output, state.get("step_1_output", ""))
         cost = estimate_cost()

@@ -76,13 +76,13 @@ metadata:
   tier: "G"
 
 quality_gate:
-  min_quality_score: 9.0
+  min_quality_score: 10.0
   retry_on_fail: true
-  max_retries: 4
+  max_retries: 5
   escalate_below: 5.0
 
 critic_loop:
   enabled: true
-  min_score: 9.0
-  max_iterations: 4
+  min_score: 10.0
+  max_iterations: 5
   escalation: retry_with_feedback

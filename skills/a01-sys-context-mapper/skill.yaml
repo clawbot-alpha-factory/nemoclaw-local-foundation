@@ -280,8 +280,8 @@ critic_loop:
   critic_step: step_3
   improve_step: step_4
   score_field: step_3_output.quality_score
-  acceptance_score: 7
-  max_improvements: 2
+  acceptance_score: 10
+  max_improvements: 5
   counter_name: critic_loop
   fallback_final_step: step_5
 
@@ -352,7 +352,7 @@ composable:
     - e12-market-research-analyst
 
 quality_gate:
-  min_quality_score: 9.0
+  min_quality_score: 10.0
   retry_on_fail: true
-  max_retries: 4
+  max_retries: 5
   escalate_below: 5.0
