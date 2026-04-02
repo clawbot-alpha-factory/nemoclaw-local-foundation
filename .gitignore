@@ -237,3 +237,6 @@ command-center/backend/app_backup_*/
 assets/voices/references/**/*.wav
 assets/voices/generated/
 tools/fish-speech/
+
+# Claude Code — local-only (personal machine, not team-shared)
+.claude/settings.local.json
