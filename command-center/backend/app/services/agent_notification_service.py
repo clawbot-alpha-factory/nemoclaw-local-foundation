@@ -47,6 +47,22 @@ AGENT_NAMES = {
 }
 
 
+# Agent → domain mapping (mirrors config/agents/agent-schema.yaml preferred_domains)
+AGENT_DOMAINS = {
+    "executive_operator": ["strategic_reasoning"],
+    "strategy_lead": ["strategic_reasoning", "research", "data_analysis"],
+    "operations_lead": ["coding", "strategic_reasoning", "research"],
+    "product_architect": ["architecture", "coding", "strategic_reasoning"],
+    "growth_revenue_lead": ["sales_revenue", "data_analysis", "strategic_reasoning"],
+    "narrative_content_lead": ["creative_writing", "content", "research"],
+    "engineering_lead": ["coding", "architecture"],
+    "sales_outreach_lead": ["outreach", "sales_revenue"],
+    "marketing_campaigns_lead": ["content", "outreach", "data_analysis"],
+    "client_success_lead": ["outreach", "sales_revenue", "data_analysis"],
+    "social_media_lead": ["content", "multimodal"],
+}
+
+
 class AgentNotificationService:
     """
     Routes proactive notifications between agents and the user.
@@ -62,6 +78,13 @@ class AgentNotificationService:
     ):
         self.message_store = message_store
         self.activity_log = activity_log_service
+        # Ensure the all-hands broadcast lane exists
+        self.message_store.create_lane(
+            lane_id="all-hands",
+            name="All Hands",
+            lane_type=LaneType.BROADCAST,
+            participants=list(AGENT_NAMES.keys()),
+        )
         logger.info("AgentNotificationService initialized")
 
     # ── Public API ────────────────────────────────────────────────────
@@ -132,6 +155,63 @@ class AgentNotificationService:
 
         logger.info("notify_agent: %s → %s [%s]", from_agent, to_agent, intent)
         return {"success": True, "message_id": msg.id}
+
+    def broadcast_all_hands(
+        self,
+        agent_id: str,
+        message: str,
+        priority: str = "normal",
+    ) -> dict[str, Any]:
+        """Broadcast a message to the all-hands lane visible to every agent."""
+        if priority not in PRIORITY_LEVELS:
+            priority = "normal"
+
+        agent_name = AGENT_NAMES.get(agent_id, agent_id)
+        prefix = _priority_prefix(priority)
+        content = f"{prefix}{message}"
+
+        msg = self.message_store.add_message(
+            lane_id="all-hands",
+            sender_id=agent_id,
+            sender_name=agent_name,
+            sender_type=SenderType.AGENT,
+            content=content,
+            message_type=MessageType.ALERT if priority == "urgent" else MessageType.CHAT,
+            metadata={"broadcast": True, "priority": priority},
+        )
+        if not msg:
+            return {"success": False, "reason": "Failed to write to all-hands lane"}
+
+        logger.info("broadcast_all_hands: %s → all-hands [%s]", agent_id, priority)
+        return {"success": True, "message_id": msg.id}
+
+    def notify_domain_peers(
+        self,
+        agent_id: str,
+        domain: str,
+        message: str,
+    ) -> dict[str, Any]:
+        """Send a DM to every agent sharing the same domain (excluding sender)."""
+        peers = [
+            aid for aid, domains in AGENT_DOMAINS.items()
+            if domain in domains and aid != agent_id
+        ]
+        if not peers:
+            return {"success": True, "peers_notified": 0}
+
+        results = []
+        for peer in peers:
+            r = self.notify_agent(
+                from_agent=agent_id,
+                to_agent=peer,
+                intent="domain_peer",
+                message=f"[domain:{domain}] {message}",
+            )
+            results.append(r)
+
+        ok = sum(1 for r in results if r.get("success"))
+        logger.info("notify_domain_peers: %s → %d/%d peers in %s", agent_id, ok, len(peers), domain)
+        return {"success": True, "peers_notified": ok, "total_peers": len(peers)}
 
     def send_daily_digest(self, agent_id: str) -> dict[str, Any]:
         """Summarize today's ActivityLog entries for this agent into system lane."""

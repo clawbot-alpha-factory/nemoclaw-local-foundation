@@ -74,6 +74,7 @@ class ExecutionService:
     - Runner: subprocess via skill-runner.py
     - Dead letter: isolates after max_retries failures
     - Cost tracking: per-execution and daily totals
+    - Delegation: queries skill_agent_mapping for best agent before execution
     """
 
     def __init__(self, repo_root: Path):
@@ -90,6 +91,9 @@ class ExecutionService:
         self.dead_letter: list[DeadLetterEntry] = []
         self.mode: ExecutionMode = ExecutionMode.AGGRESSIVE  # Full autonomy (2026-04-02)
         self._start_time = time.time()
+
+        # Delegation: injected post-init via main.py
+        self.skill_agent_mapping = None  # SkillAgentMappingService (set after E-9 init)
 
         # Concurrency maxed for all modes
         self._concurrency = {
@@ -238,15 +242,43 @@ class ExecutionService:
                 logger.error("Queue processor error: %s", e)
                 await asyncio.sleep(1)  # Fast error recovery
 
+    def _try_delegate(self, execution: TaskExecution) -> bool:
+        """
+        Check if a better agent exists for this skill and delegate if so.
+
+        Returns True if execution was re-queued under a different agent.
+        """
+        if not self.skill_agent_mapping:
+            return False
+
+        best = self.skill_agent_mapping.get_best_agent_for_skill(execution.skill_id)
+        if not best or best == execution.agent_id:
+            return False
+
+        # Best agent differs — delegate (re-queue under the better agent)
+        logger.info(
+            "Delegating %s from %s → %s (best agent for %s)",
+            execution.execution_id[:8],
+            execution.agent_id,
+            best,
+            execution.skill_id,
+        )
+        execution.agent_id = best
+        return False  # Continue execution with updated agent_id
+
     async def _run_execution(self, execution: TaskExecution):
-        """Execute a single skill via subprocess."""
+        """Execute a single skill via subprocess, with optional delegation."""
         execution.status = ExecutionStatus.RUNNING
         execution.started_at = datetime.utcnow()
 
+        # Check for better agent before executing
+        self._try_delegate(execution)
+
         logger.info(
-            "Running execution %s: skill=%s",
+            "Running execution %s: skill=%s agent=%s",
             execution.execution_id[:8],
             execution.skill_id,
+            execution.agent_id,
         )
 
         try:

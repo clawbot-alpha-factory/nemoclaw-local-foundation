@@ -177,12 +177,18 @@ class AgentLoopService:
         scheduler_service=None,
         checkpoint_service=None,
         notification_service=None,
+        event_bus=None,
+        work_log_service=None,
+        skill_agent_mapping=None,
     ):
         self.execution_service = execution_service
         self.memory_service = memory_service
         self.scheduler_service = scheduler_service
         self.checkpoint_service = checkpoint_service
         self.notification_service = notification_service
+        self.event_bus = event_bus
+        self.work_log_service = work_log_service
+        self.skill_agent_mapping = skill_agent_mapping
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
 
@@ -314,6 +320,84 @@ class AgentLoopService:
             "shutdown": self._shutdown,
         }
 
+    # ── Event Bus Integration ─────────────────────────────────────────
+
+    def subscribe_events(self) -> None:
+        """Subscribe to system events via event bus."""
+        if not self.event_bus:
+            return
+        self.event_bus.subscribe("skill_completed", self._on_skill_completed)
+        self.event_bus.subscribe("skill_failed", self._on_skill_failed)
+        self.event_bus.subscribe("demand_detected", self._on_demand_detected)
+        self.event_bus.subscribe("budget_warning", self._on_budget_warning)
+        self.event_bus.subscribe("content_viral", self._on_content_viral)
+        logger.info("AgentLoopService subscribed to 5 event types")
+
+    def _on_skill_completed(self, event) -> None:
+        """Log completed skill to work log."""
+        if not self.work_log_service:
+            return
+        data = event.data
+        self.work_log_service.log_work(
+            agent_id=data.get("agent_id", "system"),
+            project_id=data.get("project_id", "default"),
+            action="skill_completed",
+            details=f"Skill {data.get('skill_id', '?')} completed successfully",
+            artifacts=data.get("artifacts"),
+        )
+
+    def _on_skill_failed(self, event) -> None:
+        """Log failed skill to work log."""
+        if not self.work_log_service:
+            return
+        data = event.data
+        self.work_log_service.log_work(
+            agent_id=data.get("agent_id", "system"),
+            project_id=data.get("project_id", "default"),
+            action="skill_failed",
+            details=f"Skill {data.get('skill_id', '?')} failed: {data.get('error', 'unknown')}",
+        )
+
+    def _on_demand_detected(self, event) -> None:
+        """Queue research task for strategy_lead when demand is detected."""
+        data = event.data
+        logger.info("Demand detected — queuing research for strategy_lead: %s", data.get("signal", ""))
+        if self.execution_service:
+            from app.domain.engine_models import ExecutionRequest, LLMTier
+            request = ExecutionRequest(
+                skill_id=data.get("skill_id", "k55-seo-keyword-researcher"),
+                inputs={"query": data.get("signal", ""), "source": event.source},
+                agent_id="strategy_lead",
+                tier=LLMTier.STANDARD,
+            )
+            self.execution_service.submit(request)
+
+    def _on_budget_warning(self, event) -> None:
+        """Broadcast budget alert to all running agents."""
+        data = event.data
+        msg = f"Budget warning: {data.get('provider', '?')} at {data.get('usage_pct', '?')}% — {data.get('message', '')}"
+        logger.warning(msg)
+        if self.notification_service:
+            for agent_id in list(self.loops.keys()):
+                self.notification_service.notify_user(
+                    agent_id=agent_id,
+                    category="budget_alert",
+                    message=msg,
+                )
+
+    def _on_content_viral(self, event) -> None:
+        """Notify social_media_lead and growth_revenue_lead of viral content."""
+        data = event.data
+        msg = f"Content going viral: {data.get('title', data.get('url', '?'))}"
+        logger.info(msg)
+        if self.notification_service:
+            for agent_id in ["social_media_lead", "growth_revenue_lead"]:
+                self.notification_service.notify_user(
+                    agent_id=agent_id,
+                    category="viral_content",
+                    message=msg,
+                )
+
     # ── Main Loop ──────────────────────────────────────────────────────
 
     async def _run_loop(self, loop: AgentLoop):
@@ -358,13 +442,24 @@ class AgentLoopService:
                         else:
                             loop.tasks_failed += 1
                             loop.last_error = result.get("error", "")
+                            error = result.get("error", "Unknown error")
                             # Send blocker alert on failure
                             if self.notification_service:
-                                error = result.get("error", "Unknown error")
                                 self.notification_service.send_blocker_alert(
                                     agent_id=loop.agent_id,
                                     blocker=f"Task failed: {error}",
                                 )
+                                # Ask domain peers to retry the failed skill
+                                skill_id = action.get("skill_id", "")
+                                if skill_id:
+                                    from app.services.agent_notification_service import AGENT_DOMAINS
+                                    domains = AGENT_DOMAINS.get(loop.agent_id, [])
+                                    for domain in domains[:1]:  # primary domain only
+                                        self.notification_service.notify_domain_peers(
+                                            agent_id=loop.agent_id,
+                                            domain=domain,
+                                            message=f"Skill [{skill_id}] failed — can you retry? Error: {error}",
+                                        )
 
                         loop.current_task = None
                     else:
@@ -471,22 +566,51 @@ class AgentLoopService:
                 if task:
                     task.mark_run()
 
-            return {
+            result = {
                 "success": True,
                 "execution_id": execution.execution_id,
                 "cost": 0.0,  # actual cost tracked by ExecutionService
             }
+            self._emit_skill_event(loop, action, result)
+            return result
 
         elif action_type == "queued":
             # Task already in execution queue — just acknowledge
             return {"success": True, "note": "Task already in execution queue"}
 
-        return {"success": False, "error": f"Unknown action type: {action_type}"}
+        result = {"success": False, "error": f"Unknown action type: {action_type}"}
+        self._emit_skill_event(loop, action, result)
+        return result
+
+    def _emit_skill_event(self, loop: AgentLoop, action: dict[str, Any], result: dict[str, Any]) -> None:
+        """Emit skill_completed or skill_failed event via event bus."""
+        if not self.event_bus:
+            return
+        event_type = "skill_completed" if result.get("success") else "skill_failed"
+        data: dict[str, Any] = {
+            "agent_id": loop.agent_id,
+            "skill_id": action.get("skill_id", ""),
+            "action_type": action.get("type", ""),
+        }
+        if result.get("success"):
+            data["execution_id"] = result.get("execution_id", "")
+        else:
+            data["error"] = result.get("error", "")
+        self.event_bus.emit(event_type, data, source=f"agent_loop:{loop.agent_id}")
+
+    def _is_high_tier_skill(self, skill_id: str) -> bool:
+        """Check if a skill is tier 3/4 (shared across multiple agents)."""
+        if not self.skill_agent_mapping or not skill_id:
+            return False
+        agents = self.skill_agent_mapping.get_skill_agents(skill_id)
+        return len(agents) >= 2
 
     async def _learn(self, loop: AgentLoop, action: dict[str, Any], result: dict[str, Any]):
         """Learn: record outcome for future decisions."""
         if not self.memory_service:
             return
+
+        skill_id = action.get("skill_id", "")
 
         if result.get("success"):
             key = f"success_{action.get('type', 'unknown')}_{loop.ticks}"
@@ -497,6 +621,13 @@ class AgentLoopService:
                 source="loop",
                 importance=0.5,
             )
+            # Broadcast high-tier skill completions to all-hands
+            if self.notification_service and self._is_high_tier_skill(skill_id):
+                self.notification_service.broadcast_all_hands(
+                    agent_id=loop.agent_id,
+                    message=f"Completed tier 3/4 skill [{skill_id}]: {action.get('description', '')}",
+                    priority="normal",
+                )
         else:
             key = f"failure_{action.get('type', 'unknown')}_{loop.ticks}"
             self.memory_service.learn(
@@ -509,8 +640,18 @@ class AgentLoopService:
 
     async def _idle_hunt(self, loop: AgentLoop):
         """Idle: hunt for opportunities when no tasks are pending."""
-        # Log idle behavior — actual hunting with LLM calls deferred to E-4b
         logger.debug(
             "Agent %s idle hunt #%d: %s",
             loop.agent_id, loop.idle_hunts, loop.idle_behavior,
         )
+
+        # Every 5th idle hunt, offer help to domain peers
+        if self.notification_service and loop.idle_hunts % 5 == 0:
+            from app.services.agent_notification_service import AGENT_DOMAINS
+            domains = AGENT_DOMAINS.get(loop.agent_id, [])
+            for domain in domains[:1]:  # primary domain only
+                self.notification_service.notify_domain_peers(
+                    agent_id=loop.agent_id,
+                    domain=domain,
+                    message=f"Idle and available — can pick up overflow work in {domain}",
+                )
