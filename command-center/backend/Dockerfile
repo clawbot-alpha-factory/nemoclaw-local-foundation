@@ -13,4 +13,6 @@ WORKDIR /app/command-center/backend
 
 EXPOSE 8100
 
+ENV CC_REPO_ROOT=/app
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100"]
