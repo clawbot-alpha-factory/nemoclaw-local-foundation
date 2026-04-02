@@ -911,6 +911,10 @@ agents:
     - scl-08-revenue-dashboard-generator
     - scl-09-niche-domination-engine
     - scl-10-micro-saas-generator
+    - k57-nda-generator
+    - k58-contract-template-engine
+    - k59-subscription-manager
+    - k60-refund-dispute-handler
     future:
     - retention-analyzer
   memory_access:
@@ -1428,6 +1432,8 @@ agents:
     - out-06-campaign-performance-optimizer
     - scl-06-growth-experiment-designer
     - scl-07-cross-channel-scheduler
+    - k55-seo-keyword-researcher
+    - k56-seo-technical-auditor
     future:
     - ad-creative-generator
     - creative-fatigue-detector
@@ -1592,6 +1598,7 @@ agents:
     - k54-review-monitor
     - k46-case-study-writer
     - rev-11-follow-up-enforcer
+    - k61-weekly-client-reporter
     future:
     - churn-risk-detector
     - satisfaction-survey-sender
@@ -1764,6 +1771,12 @@ agents:
     - cnt-09-social-posting-executor
     - cnt-10-viral-pattern-analyzer
     - cnt-11-agent-self-promo-generator
+    - cnt-12-video-composer
+    - cnt-13-thumbnail-generator
+    - cnt-14-caption-generator
+    - cnt-15-daily-content-factory
+    - cnt-16-screen-capture-video
+    - biz-07-competitive-intelligence-monitor
     future:
     - meme-generator
     - influencer-outreach

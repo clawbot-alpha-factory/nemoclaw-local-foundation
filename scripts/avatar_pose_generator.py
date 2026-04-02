@@ -129,7 +129,7 @@ def generate_single_pose(agent_id: str, pose_def: dict, character_sheet: dict,
 
         # Use images.edit with reference image for character anchoring
         resp = client.images.edit(
-            model="gpt-image-1",
+            model="gpt-image-1",  # L-003 exception: image generation has no routing alias
             image=open(avatar_path, "rb"),
             prompt=prompt,
             n=1,

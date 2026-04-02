@@ -103,7 +103,7 @@ def _build_browser_use_llm(task_class: str = "moderate", max_tokens: int = 8192)
 
     # Auto-upgrade Haiku to Sonnet for browser-use (Haiku can't handle the schema)
     if provider == "anthropic" and "haiku" in model.lower():
-        model = "claude-sonnet-4-5-20250929"
+        model = "claude-sonnet-4-6"
         logger.info(f"Auto-upgraded browser-use LLM from Haiku to {model}")
 
     api_key = get_api_key(provider)
@@ -121,7 +121,7 @@ def _build_browser_use_llm(task_class: str = "moderate", max_tokens: int = 8192)
         anthropic_key = get_api_key("anthropic")
         if anthropic_key:
             from langchain_anthropic import ChatAnthropic
-            return ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=anthropic_key, max_tokens=max_tokens)
+            return ChatAnthropic(model="claude-sonnet-4-6", api_key=anthropic_key, max_tokens=max_tokens)
         raise ValueError(f"browser-use requires Anthropic or OpenAI provider, got: {provider}")
 
 

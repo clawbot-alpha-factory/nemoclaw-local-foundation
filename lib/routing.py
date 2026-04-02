@@ -10,6 +10,8 @@ v1.2.0 additions:
   - validate_output(): Guardrails AI content validation
 """
 
+import hashlib
+import json
 import logging
 import os
 import threading
@@ -74,11 +76,27 @@ def resolve_from_env_or_config(task_class="moderate"):
 # get_api_key is imported from config_loader at module level
 
 
+def _llm_cache_key(messages, task_class: str, max_tokens: int) -> str:
+    """Build a deterministic cache key from LLM call parameters."""
+    # Normalise messages to dicts for hashing
+    parts = []
+    for m in messages:
+        if isinstance(m, dict):
+            parts.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+        else:
+            parts.append({"role": getattr(m, "type", "human"), "content": getattr(m, "content", "")})
+    raw = json.dumps({"m": parts, "tc": task_class, "mt": max_tokens}, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def call_llm(messages, task_class="moderate", max_tokens=4000):
     """Route an LLM call through the config-driven routing system.
 
     Automatically traces via Langfuse when configured (set LANGFUSE_PUBLIC_KEY
     and LANGFUSE_SECRET_KEY in config/.env). No-op if keys are absent.
+
+    Responses are cached for 600s via lib.cache (llm namespace). Set
+    NEMOCLAW_LLM_CACHE=0 to disable.
 
     Args:
         messages: List of dicts with 'role' and 'content' keys,
@@ -90,6 +108,17 @@ def call_llm(messages, task_class="moderate", max_tokens=4000):
     Returns:
         Tuple of (response_text, error_string_or_None).
     """
+    # ── Check cache first ─────────────────────────────────────────────────
+    use_cache = os.environ.get("NEMOCLAW_LLM_CACHE", "1") != "0"
+    cache_key = None
+    if use_cache:
+        from lib.cache import llm_cache
+        cache_key = _llm_cache_key(messages, task_class, max_tokens)
+        cached = llm_cache.get(cache_key)
+        if cached is not None:
+            logger.debug("LLM cache hit: %s/%s", task_class, cache_key[:12])
+            return cached
+
     provider, model, cost = resolve_from_env_or_config(task_class)
     api_key = get_api_key(provider)
 
@@ -123,6 +152,12 @@ def call_llm(messages, task_class="moderate", max_tokens=4000):
         # Fall back to direct API call for these models.
         if not content and provider == "nvidia":
             content = _nvidia_direct_chat(model, api_key, messages, max_tokens)
+
+        # ── Cache successful response ─────────────────────────────────────
+        if use_cache and cache_key and content:
+            from lib.cache import llm_cache
+            llm_cache.set(cache_key, (content, None))
+
         return content, None
     except Exception as e:
         # ── Fallback chain: try alternate providers on failure ──────────

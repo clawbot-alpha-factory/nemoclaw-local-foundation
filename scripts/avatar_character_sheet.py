@@ -105,7 +105,7 @@ def extract_character_sheet(agent_id: str, api_key: str) -> tuple[bool, dict | s
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4-mini",  # L-003 exception: direct vision call with base64 image
             messages=[{
                 "role": "user",
                 "content": [
