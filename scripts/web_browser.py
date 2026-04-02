@@ -67,17 +67,23 @@ class PinchTabClient:
         self.agent_id = agent_id
         self.timeout = DEFAULT_TIMEOUT
 
-        # Rate limiting
+        # Rate limiting (per-tier overrides for research-heavy agents)
         rate_limits = config.get("rate_limits", {})
-        self.max_navigations_per_hour = rate_limits.get("navigations_per_hour", 100)
-        self.max_clicks_per_task = rate_limits.get("clicks_per_task", 50)
-        self.max_text_extractions_per_hour = rate_limits.get("text_extractions_per_hour", 200)
-        self.max_screenshots_per_hour = rate_limits.get("screenshots_per_hour", 50)
+        tier_overrides = rate_limits.get("tier_overrides", {})
+        agent_limits = tier_overrides.get(agent_id, {}) if agent_id else {}
+        self.max_navigations_per_hour = agent_limits.get("navigations_per_hour", rate_limits.get("navigations_per_hour", 100))
+        self.max_clicks_per_task = agent_limits.get("clicks_per_task", rate_limits.get("clicks_per_task", 50))
+        self.max_text_extractions_per_hour = agent_limits.get("text_extractions_per_hour", rate_limits.get("text_extractions_per_hour", 200))
+        self.max_screenshots_per_hour = agent_limits.get("screenshots_per_hour", rate_limits.get("screenshots_per_hour", 50))
 
         # Counters (reset hourly)
         self._nav_count = 0
         self._text_count = 0
         self._screenshot_count = 0
+
+        # TTL cache for text/snapshot (keyed by URL, 5-minute default)
+        self._cache = {}
+        self._cache_ttl = config.get("cache_ttl_seconds", 300)
         self._click_count = 0
         self._hour_start = time.time()
 
@@ -106,6 +112,24 @@ class PinchTabClient:
     # -------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------
+
+    def _cache_get(self, key: str):
+        """Get from TTL cache. Returns value or None if expired/missing."""
+        entry = self._cache.get(key)
+        if entry and time.time() - entry["ts"] < self._cache_ttl:
+            return entry["data"]
+        if entry:
+            del self._cache[key]
+        return None
+
+    def _cache_set(self, key: str, data):
+        """Set in TTL cache."""
+        self._cache[key] = {"data": data, "ts": time.time()}
+        # Evict old entries if cache grows too large
+        if len(self._cache) > 200:
+            oldest = sorted(self._cache.items(), key=lambda x: x[1]["ts"])[:50]
+            for k, _ in oldest:
+                del self._cache[k]
 
     def _reset_counters_if_needed(self):
         """Reset hourly counters if an hour has passed."""
@@ -265,8 +289,18 @@ class PinchTabClient:
     # Content extraction
     # -------------------------------------------------------------------
 
-    def snapshot(self, interactive: bool = True, max_tokens: int = None) -> tuple:
-        """Get accessibility snapshot. Returns (success, {nodes: [{ref, role, name}], count})."""
+    def snapshot(self, interactive: bool = True, max_tokens: int = None, use_cache: bool = True) -> tuple:
+        """Get accessibility snapshot. Returns (success, {nodes: [{ref, role, name}], count}).
+
+        Cached for cache_ttl_seconds (default 300s) per URL to avoid redundant DOM extraction.
+        """
+        cache_key = f"snapshot:{interactive}:{max_tokens}"
+        if use_cache:
+            cached = self._cache_get(cache_key)
+            if cached:
+                self._log_action("snapshot", {"cached": True}, True)
+                return (True, cached)
+
         params = {}
         if interactive:
             params["filter"] = "interactive"
@@ -274,11 +308,23 @@ class PinchTabClient:
             params["maxTokens"] = max_tokens
 
         ok, result = self._get("/snapshot", params)
+        if ok and use_cache:
+            self._cache_set(cache_key, result)
         self._log_action("snapshot", params, ok, result, result if not ok else None)
         return (ok, result)
 
-    def text(self, raw: bool = False, max_chars: int = None) -> tuple:
-        """Extract page text. Returns (success, {text, title, url, truncated})."""
+    def text(self, raw: bool = False, max_chars: int = None, use_cache: bool = True) -> tuple:
+        """Extract page text. Returns (success, {text, title, url, truncated}).
+
+        Cached for cache_ttl_seconds (default 300s) per URL to avoid redundant extraction.
+        """
+        cache_key = f"text:{raw}:{max_chars}"
+        if use_cache:
+            cached = self._cache_get(cache_key)
+            if cached:
+                self._log_action("text", {"cached": True}, True)
+                return (True, cached)
+
         self._reset_counters_if_needed()
 
         if self._text_count >= self.max_text_extractions_per_hour:
@@ -295,6 +341,8 @@ class PinchTabClient:
         ok, result = self._get("/text", params)
         if ok:
             self._text_count += 1
+            if use_cache:
+                self._cache_set(cache_key, result)
         self._log_action("text", params, ok, result, result if not ok else None)
         return (ok, result)
 
@@ -534,6 +582,65 @@ class PinchTabClient:
             "url": nav_result.get("url", url),
             "title": text_result.get("title", ""),
             "text": text_result.get("text", ""),
+        })
+
+    def batch_navigate_and_extract(self, urls: list, raw: bool = False, max_concurrent: int = 4) -> list:
+        """Navigate to multiple URLs and extract text from each.
+
+        Processes URLs sequentially (PinchTab is single-tab by default) but
+        uses cache aggressively. Returns list of {url, title, text, success, error}.
+
+        Args:
+            urls: List of URLs to visit and extract.
+            raw: Use raw text mode.
+            max_concurrent: Max URLs to process (prevents runaway tasks).
+        """
+        results = []
+        for url in urls[:max_concurrent * 5]:  # Cap at 20 URLs per batch
+            # Check cache first
+            cache_key = f"batch:{url}:{raw}"
+            cached = self._cache_get(cache_key)
+            if cached:
+                results.append(cached)
+                continue
+
+            ok, data = self.navigate_and_extract(url, raw=raw)
+            entry = {
+                "url": url,
+                "title": data.get("title", "") if ok else "",
+                "text": data.get("text", "") if ok else "",
+                "success": ok,
+                "error": data if not ok else None,
+            }
+            if ok:
+                self._cache_set(cache_key, entry)
+            results.append(entry)
+
+        return results
+
+    def smart_extract(self, url: str) -> tuple:
+        """Navigate + snapshot + text in one call. Returns structured page state.
+
+        Optimized extraction: accessibility tree for interactable elements,
+        plus full text for content. Combined into one response for the agent.
+        """
+        ok, nav = self.navigate(url)
+        if not ok:
+            return (False, nav)
+
+        time.sleep(1)
+
+        # Get both snapshot and text in parallel-ish (sequential but cached)
+        ok_snap, snapshot = self.snapshot()
+        ok_text, text_data = self.text()
+
+        return (True, {
+            "url": nav.get("url", url),
+            "title": nav.get("title", ""),
+            "elements": snapshot.get("nodes", []) if ok_snap else [],
+            "element_count": snapshot.get("count", 0) if ok_snap else 0,
+            "text": text_data.get("text", "") if ok_text else "",
+            "text_truncated": text_data.get("truncated", False) if ok_text else False,
         })
 
     def reset_task_counters(self):

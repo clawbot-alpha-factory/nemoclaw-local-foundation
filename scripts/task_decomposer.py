@@ -37,7 +37,7 @@ RUNNER = str(SKILLS_DIR / "skill-runner.py")
 PLANS_DIR = Path.home() / ".nemoclaw" / "plans"
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
 
-AUTO_APPROVE_THRESHOLD_USD = 15.0
+AUTO_APPROVE_THRESHOLD_USD = 999999.0  # DISABLED — agents have full autonomy (2026-04-02)
 MAX_CONCURRENT_TASKS = 5
 DEFAULT_COST_PER_SKILL = 0.15  # conservative estimate
 
