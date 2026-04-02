@@ -1079,3 +1079,93 @@ capabilities:
     fallback_agent: operations_lead
     requires_inputs: [client_data, report_period]
     produces_outputs: [executive_summary, detailed_metrics, next_steps]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TOOL BRIDGE REGISTRY (2026-04-02)
+# Maps external tool bridges to agents. All agents have full autonomy access.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+tool_bridges:
+  apify:
+    bridge: scripts/apify_bridge.py
+    agents: [strategy_lead, social_media_lead, marketing_campaigns_lead, sales_outreach_lead]
+    skills: [int-01-comment-signal-scraper, int-05-cross-platform-scraper, k51-competitor-scraper, k54-review-monitor, cnt-10-viral-pattern-analyzer]
+    status: connected
+
+  supabase:
+    bridge: scripts/supabase_bridge.py
+    agents: [operations_lead, executive_operator, growth_revenue_lead, client_success_lead]
+    skills: [rev-20-global-state-engine, biz-05-client-health-monitor, k47-lead-scoring-engine, k52-lead-enricher]
+    status: connected
+
+  social_publish:
+    bridge: scripts/social_publish_bridge.py
+    agents: [social_media_lead, marketing_campaigns_lead, narrative_content_lead]
+    skills: [cnt-09-social-posting-executor, cnt-11-agent-self-promo-generator, k53-social-poster]
+    status: connected
+
+  meta_ads:
+    bridge: scripts/meta_ads_bridge.py
+    agents: [marketing_campaigns_lead, growth_revenue_lead]
+    skills: [k41-ad-campaign-builder, k42-landing-page-optimizer]
+    status: configured
+
+  google_ads:
+    bridge: scripts/google_ads_bridge.py
+    agents: [marketing_campaigns_lead, growth_revenue_lead]
+    skills: [k41-ad-campaign-builder, k42-landing-page-optimizer]
+    status: configured
+
+  gws:
+    bridge: scripts/gws_bridge.py
+    agents: [executive_operator, operations_lead, client_success_lead, sales_outreach_lead]
+    skills: [out-02-email-executor, biz-04-client-onboarding-sequence, k61-weekly-client-reporter]
+    status: connected
+
+  apollo:
+    bridge: scripts/apollo_bridge.py
+    agents: [sales_outreach_lead, growth_revenue_lead]
+    skills: [k52-lead-enricher, k47-lead-scoring-engine, rev-10-lead-source-engine]
+    status: configured
+
+  hubspot:
+    bridge: scripts/hubspot_bridge.py
+    agents: [sales_outreach_lead, client_success_lead, growth_revenue_lead]
+    skills: [k40-deal-pipeline-tracker, biz-05-client-health-monitor, rev-07-deal-progression-tracker]
+    status: configured
+
+  instantly:
+    bridge: scripts/instantly_bridge.py
+    agents: [sales_outreach_lead]
+    skills: [out-02-email-executor, out-01-multi-touch-sequence-builder]
+    status: connected
+
+  resend:
+    bridge: scripts/resend_bridge.py
+    agents: [sales_outreach_lead, client_success_lead, marketing_campaigns_lead]
+    skills: [out-02-email-executor, biz-04-client-onboarding-sequence]
+    status: connected
+
+  lemonsqueezy:
+    bridge: scripts/lemonsqueezy_bridge.py
+    agents: [growth_revenue_lead, executive_operator]
+    skills: [rev-09-payment-execution-engine, k59-subscription-manager]
+    status: configured
+
+  n8n:
+    bridge: scripts/n8n_bridge.py
+    agents: [operations_lead, engineering_lead]
+    skills: [ops-02-event-bus, rev-06-revenue-orchestrator]
+    status: configured
+
+  whisper:
+    bridge: scripts/whisper_bridge.py
+    agents: [narrative_content_lead, social_media_lead]
+    skills: [cnt-14-caption-generator, cnt-12-video-composer]
+    status: connected
+
+  image_gen:
+    bridge: scripts/image_gen_bridge.py
+    agents: [narrative_content_lead, social_media_lead, marketing_campaigns_lead]
+    skills: [cnt-13-thumbnail-generator, cnt-12-video-composer]
+    status: connected
