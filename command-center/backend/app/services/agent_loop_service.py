@@ -176,11 +176,13 @@ class AgentLoopService:
         memory_service=None,
         scheduler_service=None,
         checkpoint_service=None,
+        notification_service=None,
     ):
         self.execution_service = execution_service
         self.memory_service = memory_service
         self.scheduler_service = scheduler_service
         self.checkpoint_service = checkpoint_service
+        self.notification_service = notification_service
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
 
@@ -345,9 +347,24 @@ class AgentLoopService:
                         if result.get("success"):
                             loop.tasks_executed += 1
                             loop.total_cost += result.get("cost", 0.0)
+                            # Notify user of task completion
+                            if self.notification_service:
+                                summary = action.get("description", "Task completed")
+                                self.notification_service.notify_user(
+                                    agent_id=loop.agent_id,
+                                    category="task_complete",
+                                    message=summary,
+                                )
                         else:
                             loop.tasks_failed += 1
                             loop.last_error = result.get("error", "")
+                            # Send blocker alert on failure
+                            if self.notification_service:
+                                error = result.get("error", "Unknown error")
+                                self.notification_service.send_blocker_alert(
+                                    agent_id=loop.agent_id,
+                                    blocker=f"Task failed: {error}",
+                                )
 
                         loop.current_task = None
                     else:
@@ -355,6 +372,10 @@ class AgentLoopService:
                         loop.state = LoopState.HUNTING
                         loop.idle_hunts += 1
                         await self._idle_hunt(loop)
+
+                    # ── DAILY DIGEST (every 50 ticks) ──
+                    if self.notification_service and loop.ticks % 50 == 0:
+                        self.notification_service.send_daily_digest(loop.agent_id)
 
                     # ── CHECKPOINT ──
                     if self.checkpoint_service and loop.ticks % 10 == 0:
