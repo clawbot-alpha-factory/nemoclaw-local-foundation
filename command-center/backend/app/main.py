@@ -187,10 +187,10 @@ async def lifespan(app: FastAPI):
     token = get_active_token()
     logger.info("=" * 60)
     logger.info("NemoClaw Command Center v1.0.0")
-    logger.info("API:       http://%s:%d", settings.host, settings.port)
-    logger.info("WebSocket: ws://%s:%d/ws", settings.host, settings.port)
-    logger.info("Repo:      %s", settings.repo_root)
-    logger.info("Token:     %s", token)
+    logger.info(f"API:       http://{settings.host}:{settings.port}")
+    logger.info(f"WebSocket: ws://{settings.host}:{settings.port}/ws")
+    logger.info(f"Repo:      {settings.repo_root}")
+    logger.info(f"Token:     {token}")
     logger.info("=" * 60)
 
     # Start background services
