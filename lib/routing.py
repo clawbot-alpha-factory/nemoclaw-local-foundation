@@ -21,70 +21,14 @@ T = TypeVar("T")
 logger = logging.getLogger("nemoclaw.routing")
 
 REPO = Path(__file__).resolve().parents[1]
-ROUTING_CONFIG = REPO / "config" / "routing" / "routing-config.yaml"
-ENV_FILE = REPO / "config" / ".env"
 
-_routing_cache = None
-_env_cache = None
-_cache_lock = threading.Lock()
-
-
-def _load_yaml(path):
-    """Load a YAML file with error handling."""
-    import yaml
-    try:
-        with open(path) as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        logger.error(f"Routing config not found: {path}")
-        raise FileNotFoundError(
-            f"NemoClaw routing config missing: {path}\n"
-            f"Expected at: {ROUTING_CONFIG}\n"
-            f"Run 'python3 scripts/validate.py' to diagnose."
-        )
-    except yaml.YAMLError as e:
-        logger.error(f"Malformed YAML in {path}: {e}")
-        raise ValueError(
-            f"NemoClaw routing config is malformed: {path}\n"
-            f"YAML error: {e}"
-        )
-
-
-def load_routing_config():
-    """Load and cache the routing config from YAML (thread-safe)."""
-    global _routing_cache
-    if _routing_cache is not None:
-        return _routing_cache
-    with _cache_lock:
-        if _routing_cache is not None:
-            return _routing_cache
-        cfg = _load_yaml(ROUTING_CONFIG)
-        if not isinstance(cfg, dict) or "providers" not in cfg:
-            raise ValueError(
-                f"Routing config missing 'providers' key: {ROUTING_CONFIG}"
-            )
-        _routing_cache = cfg
-        return cfg
-
-
-def load_env():
-    """Load API keys from config/.env (thread-safe)."""
-    global _env_cache
-    if _env_cache is not None:
-        return _env_cache
-    with _cache_lock:
-        if _env_cache is not None:
-            return _env_cache
-        keys = {}
-        if ENV_FILE.exists():
-            with open(ENV_FILE) as f:
-                for ln in f:
-                    ln = ln.strip()
-                    if "=" in ln and not ln.startswith("#"):
-                        a, b = ln.split("=", 1)
-                        keys[a.strip()] = b.strip()
-        _env_cache = keys
-        return keys
+# Delegate all config loading to config_loader (mtime-cached, no circular imports)
+from lib.config_loader import (
+    load_routing_config,
+    load_env,
+    get_api_key,
+    ROUTING_CONFIG,
+)
 
 
 def resolve_alias(task_class="moderate"):
@@ -127,17 +71,7 @@ def resolve_from_env_or_config(task_class="moderate"):
     return resolve_alias(task_class)
 
 
-def get_api_key(provider):
-    """Get the API key for a provider."""
-    env = load_env()
-    key_map = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "google": "GOOGLE_API_KEY",
-        "nvidia": "NVIDIA_INFERENCE_API_KEY",
-    }
-    env_var = key_map.get(provider, "")
-    return env.get(env_var, os.environ.get(env_var, ""))
+# get_api_key is imported from config_loader at module level
 
 
 def call_llm(messages, task_class="moderate", max_tokens=4000):
@@ -191,6 +125,31 @@ def call_llm(messages, task_class="moderate", max_tokens=4000):
             content = _nvidia_direct_chat(model, api_key, messages, max_tokens)
         return content, None
     except Exception as e:
+        # ── Fallback chain: try alternate providers on failure ──────────
+        try:
+            cfg = load_routing_config()
+            chain = cfg.get("defaults", {}).get("fallback_chain", [])
+            providers = cfg.get("providers", {})
+            for fb_alias in chain:
+                fb = providers.get(fb_alias)
+                if not fb or fb.get("provider") == provider:
+                    continue  # skip same provider that just failed
+                fb_key = get_api_key(fb["provider"])
+                if not fb_key:
+                    continue
+                try:
+                    logger.info(f"Fallback: {provider}/{model} failed, trying {fb_alias}")
+                    fb_llm = _build_llm(fb["provider"], fb["model"], fb_key, max_tokens)
+                    fb_result = fb_llm.invoke(_to_lc_messages(messages))
+                    fb_content = fb_result.content
+                    if not fb_content and fb["provider"] == "nvidia":
+                        fb_content = _nvidia_direct_chat(fb["model"], fb_key, messages, max_tokens)
+                    if fb_content:
+                        return fb_content, None
+                except Exception:
+                    continue
+        except Exception:
+            pass
         return None, str(e)
 
 
@@ -245,16 +204,33 @@ def call_llm_or_chain(messages, task_class="moderate", task_domain=None, max_tok
         Tuple of (response_text, error_string_or_None).
         Chain metadata is logged but not returned (keeps interface compatible).
     """
+    # Fall back to env var (set by orchestrator) if not passed explicitly
+    if not task_domain:
+        task_domain = os.environ.get("NEMOCLAW_TASK_DOMAIN")
     if not task_domain:
         return call_llm(messages, task_class, max_tokens)
 
     try:
+        _init_langfuse()
         from lib.chain_router import call_chain, get_tier
         tier = get_tier(task_class)
         if tier < 3:
             return call_llm(messages, task_class, max_tokens)
 
-        response, meta, err = call_chain(messages, task_class, task_domain, max_tokens)
+        observe = _get_langfuse_observe()
+        if observe:
+            @observe(name=f"call_chain/{task_class}/{task_domain}")
+            def _traced_chain():
+                return call_chain(messages, task_class, task_domain, max_tokens)
+            response, meta, err = _traced_chain()
+            try:
+                from langfuse import Langfuse
+                Langfuse().flush()
+            except Exception:
+                pass
+        else:
+            response, meta, err = call_chain(messages, task_class, task_domain, max_tokens)
+
         if meta and meta.get("chain_used"):
             logger.info(
                 f"Chain completed: tier={meta['tier']}, domain={task_domain}, "
@@ -376,6 +352,7 @@ def call_llm_structured(
         return None, f"{provider.upper()} API key not found"
 
     try:
+        _init_langfuse()
         import instructor
 
         if provider == "anthropic":
@@ -414,6 +391,15 @@ def call_llm_structured(
                 messages=[{"role": m.get("role", "user"), "content": m["content"]} for m in messages],
                 response_model=response_model,
             )
+
+        # Langfuse trace for structured calls
+        observe = _get_langfuse_observe()
+        if observe:
+            try:
+                from langfuse import Langfuse
+                Langfuse().flush()
+            except Exception:
+                pass
 
         return result, None
     except ImportError:
