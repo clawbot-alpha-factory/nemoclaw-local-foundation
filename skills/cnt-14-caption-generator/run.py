@@ -99,17 +99,36 @@ def step_2_style(state):
         styled = "\n".join(lines)
     return {**state, "step_2_output": styled, "generated_output": styled}
 
-# Step 3: Validate (local)
-def step_3_validate(state):
+# Step 3: Critic (heuristic + LLM)
+def step_3_critic(state):
     output = state.get("generated_output", "")
-    score = 5.0
     if not output or len(output) < 20:
         return {**state, "quality_score": 0.0, "critic_feedback": "No caption output", "final_output": output}
-    if "00:" in output: score += 1.0  # has timestamps
-    if "-->" in output: score += 1.0  # has SRT format
+    score = 5.0
+    if "00:" in output: score += 1.0
+    if "-->" in output: score += 1.0
     if len(output) > 100: score += 0.5
     if "Style" in output: score += 0.5
-    return {**state, "quality_score": min(score, 10.0), "critic_feedback": "", "final_output": output}
+    feedback = ""
+    if score < 10.5:
+        try:
+            from lib.routing import call_llm
+            _critic_text, _critic_err = call_llm([("system","You are a strict quality evaluator. Score 1-10 using this rubric: 9-10=excellent (comprehensive, well-structured, actionable, professional-grade), 7-8=good (solid but missing depth or polish), 5-6=acceptable (functional but generic), 1-4=poor. Be generous with well-structured, detailed outputs. Return JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Caption Generator\n\nOutput:\n{output[:2000]}")], "structured_short", 300)
+            text = _critic_text.strip() if _critic_text else ""
+            if "{" in text:
+                data = json.loads(text[text.index("{"):text.rindex("}")+2])
+                llm_score = data.get("score", 5); feedback = data.get("feedback", "")
+                score = llm_score
+                state = {**state, "cost": state.get("cost", 0) + 0.008}
+        except Exception as _critic_err:
+            import logging; logging.getLogger("nemoclaw.critic").warning(f"Critic call failed: {_critic_err}")
+    return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
+
+def should_retry(state):
+    if state.get("quality_score", 0) < 10.0 and state.get("retry_count", 0) < 5: return "retry"
+    return "accept"
+
+def step_retry(state): return {**state, "retry_count": state.get("retry_count", 0) + 1}
 
 def step_artifact(state):
     output = state.get("final_output", state.get("generated_output", ""))
@@ -128,9 +147,11 @@ def step_artifact(state):
 def build_graph():
     g = StateGraph(SkillState)
     g.add_node("step_1", step_1_transcribe); g.add_node("step_2", step_2_style)
-    g.add_node("step_3", step_3_validate); g.add_node("step_artifact", step_artifact)
+    g.add_node("step_3", step_3_critic); g.add_node("step_retry", step_retry)
+    g.add_node("step_artifact", step_artifact)
     g.set_entry_point("step_1"); g.add_edge("step_1", "step_2"); g.add_edge("step_2", "step_3")
-    g.add_edge("step_3", "step_artifact"); g.add_edge("step_artifact", END)
+    g.add_conditional_edges("step_3", should_retry, {"retry": "step_retry", "accept": "step_artifact"})
+    g.add_edge("step_retry", "step_2"); g.add_edge("step_artifact", END)
     return g
 
 if __name__ == "__main__":
