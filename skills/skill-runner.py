@@ -926,6 +926,28 @@ def run_skill(skill_name, inputs, thread_id=None, resume=False, input_from=None)
     skill = load_skill_yaml(skill_dir)
     skill = adapt_v1_skill(skill)
 
+    # ── Standalone run.py fallback ────────────────────────────────────
+    # 74 skills (biz/cnt/int/ops/out/rev/scl) have their own LangGraph
+    # inside run.py and no `steps` in skill.yaml. Delegate to run.py
+    # directly instead of crashing with KeyError: 'steps'.
+    if "steps" not in skill:
+        run_py = os.path.join(skill_dir, "run.py")
+        if os.path.exists(run_py):
+            import subprocess as _sp
+            cmd = [sys.executable, run_py]
+            if input_from:
+                cmd.extend(["--input-from", input_from])
+            else:
+                for k, v in (inputs or {}).items():
+                    cmd.extend(["--input", k, str(v)])
+            display = skill.get("display_name", skill.get("name", skill_name))
+            print(f"\nStarting skill (standalone): {display}")
+            result = _sp.run(cmd, cwd=os.path.dirname(os.path.dirname(skill_dir)))
+            sys.exit(result.returncode)
+        else:
+            print(f"ERROR: Skill {skill_name} has no steps and no run.py")
+            sys.exit(1)
+
     errors, inputs = validate_inputs(skill, inputs)
     if errors:
         print("ERROR: Input validation failed:\n  " + "\n  ".join(errors))
