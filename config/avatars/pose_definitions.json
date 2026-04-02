@@ -1,0 +1,146 @@
+{
+  "version": "1.0",
+  "framing_note": "All poses use upper-body or three-quarter framing to match existing avatar style",
+  "poses": [
+    {
+      "id": 1,
+      "name": "standing_neutral",
+      "framing": "upper_body",
+      "prompt": "standing upright facing forward, arms relaxed at sides, neutral confident expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 2,
+      "name": "sitting",
+      "framing": "three_quarter",
+      "prompt": "seated on an office chair, hands resting on lap, relaxed professional posture",
+      "difficulty": "medium"
+    },
+    {
+      "id": 3,
+      "name": "walking",
+      "framing": "three_quarter",
+      "prompt": "mid-stride walking pose, one arm slightly forward, dynamic movement",
+      "difficulty": "hard"
+    },
+    {
+      "id": 4,
+      "name": "pointing_forward",
+      "framing": "upper_body",
+      "prompt": "right arm extended forward with index finger pointing at the viewer, assertive expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 5,
+      "name": "arms_crossed",
+      "framing": "upper_body",
+      "prompt": "both arms folded across chest, confident stance, slight smile",
+      "difficulty": "easy"
+    },
+    {
+      "id": 6,
+      "name": "thinking",
+      "framing": "upper_body",
+      "prompt": "one hand on chin in thoughtful pose, eyes looking slightly upward, contemplative expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 7,
+      "name": "presenting",
+      "framing": "upper_body",
+      "prompt": "one arm extended to the side with open palm, presenting or introducing something, friendly expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 8,
+      "name": "gesturing_both_hands",
+      "framing": "upper_body",
+      "prompt": "both hands raised at chest level making expressive gestures, animated speaking pose",
+      "difficulty": "medium"
+    },
+    {
+      "id": 9,
+      "name": "leaning_casual",
+      "framing": "upper_body",
+      "prompt": "slight lean to one side, relaxed casual posture, one hand in pocket or at side, easygoing expression",
+      "difficulty": "medium"
+    },
+    {
+      "id": 10,
+      "name": "celebrating",
+      "framing": "upper_body",
+      "prompt": "both arms raised overhead in celebration, big happy smile, victory pose",
+      "difficulty": "medium"
+    },
+    {
+      "id": 11,
+      "name": "waving",
+      "framing": "upper_body",
+      "prompt": "one hand raised in a friendly wave, warm welcoming smile, open body language",
+      "difficulty": "easy"
+    },
+    {
+      "id": 12,
+      "name": "thumbs_up",
+      "framing": "upper_body",
+      "prompt": "one hand giving a thumbs up, approving smile, positive energy",
+      "difficulty": "easy"
+    },
+    {
+      "id": 13,
+      "name": "looking_at_device",
+      "framing": "upper_body",
+      "prompt": "holding and looking down at a phone or tablet in both hands, focused expression",
+      "difficulty": "medium"
+    },
+    {
+      "id": 14,
+      "name": "writing_typing",
+      "framing": "upper_body",
+      "prompt": "hands positioned as if typing on a keyboard or writing with a pen, concentrating expression",
+      "difficulty": "medium"
+    },
+    {
+      "id": 15,
+      "name": "explaining_open_palms",
+      "framing": "upper_body",
+      "prompt": "both hands open with palms facing up at waist level, explaining or offering gesture, engaged expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 16,
+      "name": "confident_hands_on_hips",
+      "framing": "three_quarter",
+      "prompt": "hands on hips, chest forward, confident powerful stance, determined expression",
+      "difficulty": "medium"
+    },
+    {
+      "id": 17,
+      "name": "listening",
+      "framing": "upper_body",
+      "prompt": "head slightly tilted to one side, attentive listening expression, hands clasped or at sides",
+      "difficulty": "easy"
+    },
+    {
+      "id": 18,
+      "name": "surprised_excited",
+      "framing": "upper_body",
+      "prompt": "wide eyes, open mouth in surprise or excitement, hands raised near face, energetic expression",
+      "difficulty": "medium"
+    },
+    {
+      "id": 19,
+      "name": "nodding_agreeing",
+      "framing": "upper_body",
+      "prompt": "slight forward head nod, warm approving smile, relaxed shoulders, agreeable expression",
+      "difficulty": "easy"
+    },
+    {
+      "id": 20,
+      "name": "power_pose",
+      "framing": "three_quarter",
+      "prompt": "wide stance with arms akimbo, strong authoritative posture, commanding presence",
+      "difficulty": "hard"
+    }
+  ]
+}
