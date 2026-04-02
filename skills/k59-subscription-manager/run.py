@@ -226,7 +226,7 @@ def step_4_critic(state):
 
     feedback = ""
     if score < 10.5:
-        print(f"    [critic] Heuristic score {score:.1f} < 9.5 — running LLM critic")
+        print(f"    [critic] Heuristic score {score:.1f} < 10.5 — running LLM critic")
         llm_score, feedback = call_cheap_critic(output, state.get("step_1_output", ""))
         cost = estimate_cost()
         state["context"]["budget_state"]["remaining"] -= cost
@@ -240,8 +240,8 @@ def step_4_critic(state):
 def should_retry(state):
     score = state.get("quality_score", 0)
     retries = state.get("retry_count", 0)
-    if score < 9.0 and retries < 4:
-        print(f"    [retry] Score {score:.1f} < 9.0, retrying (attempt {retries + 1})")
+    if score < 10.0 and retries < 5:
+        print(f"    [retry] Score {score:.1f} < 10.0, retrying (attempt {retries + 1})")
         return "retry"
     return "accept"
 
