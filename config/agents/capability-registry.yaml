@@ -194,6 +194,7 @@ capabilities:
     skill: int-01-comment-signal-scraper
     requires_inputs: [targets, platforms]
     produces_outputs: [signal_report, sentiment_data]
+    tools: [apify_bridge, pinchtab]
 
   demand_pattern_analysis:
     owned_by: strategy_lead
@@ -218,6 +219,7 @@ capabilities:
     skill: int-05-cross-platform-scraper
     requires_inputs: [targets, platforms]
     produces_outputs: [scraped_data, platform_insights]
+    tools: [apify_bridge, pinchtab]
 
   experiment_decisions:
     owned_by: strategy_lead
@@ -631,6 +633,7 @@ capabilities:
     memory_keys_written: [competitor_data, feature_comparison]
     requires_pinchtab: true
     pinchtab_actions: [navigate, snapshot, text, scroll, click]
+    tools: [apify_bridge, pinchtab]
 
   lead_enrichment:
     owned_by: growth_revenue_lead
@@ -661,6 +664,7 @@ capabilities:
     produces_outputs: [dashboard_metrics_report, metric_values, trend_analysis]
     memory_keys_written: [dashboard_metrics]
     requires_pinchtab: true
+    tools: [apify_bridge, pinchtab]
     pinchtab_actions: [navigate, text, snapshot, click, scroll, screenshot]
 
   # ── Browser Autonomy Capabilities ──────────────────────────────────────────
