@@ -612,14 +612,42 @@ export default function SettingsTab() {
     </div>
   );
 
+  const [nvidiaHealth, setNvidiaHealth] = useState<Record<string, {status: string; code?: number}> | null>(null);
+  const [nvidiaChecking, setNvidiaChecking] = useState(false);
+  const checkNvidiaHealth = useCallback(async () => {
+    setNvidiaChecking(true);
+    try {
+      const token = localStorage.getItem('cc-token') || '';
+      const res = await fetch('/api/settings/nvidia/health', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setNvidiaHealth(data.models || {});
+    } catch {
+      setNvidiaHealth(null);
+    } finally {
+      setNvidiaChecking(false);
+    }
+  }, []);
+
   const renderNvidiaNim = () => {
+    const healthStatus = (key: string) => {
+      if (!nvidiaHealth) return 'unknown';
+      const h = nvidiaHealth[key];
+      return h?.status === 'up' ? 'up' : h?.status === 'error' ? 'error' : 'unknown';
+    };
+    const healthDot = (key: string) => {
+      const s = healthStatus(key);
+      if (s === 'up') return 'bg-green-400';
+      if (s === 'error') return 'bg-red-400';
+      return 'bg-gray-400';
+    };
+
     const freeModels = [
-      { name: 'Nemotron Embed 1B v2', type: 'Embedding', status: 'active', desc: '26-language semantic embeddings (2048 dim, 8192 tokens)', endpoint: 'integrate.api.nvidia.com/v1/embeddings', cost: 'Free tier' },
-      { name: 'Nemotron Rerank 1B v2', type: 'Reranking', status: 'active', desc: 'Cross-encoder reranking for search quality', endpoint: 'integrate.api.nvidia.com/v1/ranking', cost: 'Free tier' },
-      { name: 'Content Safety 4B', type: 'Safety', status: 'active', desc: 'Policy-aware content safety classification', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
-      { name: 'GLiNER PII Detection', type: 'PII', status: 'active', desc: 'Regex fallback active. NIM container needed for full 55+ entity detection.', endpoint: 'Self-hosted NIM or regex fallback', cost: 'Free (regex) / NIM container' },
-      { name: 'Nemotron Nano 9B v2', type: 'Chat LLM', status: 'active', desc: 'Hybrid Mamba-Transformer, Tier 1 routing candidate', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
-      { name: 'Nemotron 3 Nano 30B A3B', type: 'Chat LLM', status: 'active', desc: '30B MoE (3.5B active), 1M context, Tier 2 candidate', endpoint: 'integrate.api.nvidia.com/v1/chat/completions', cost: 'Free tier' },
+      { name: 'Nemotron Embed 1B v2', type: 'Embedding', healthKey: 'embed_1b', desc: '26-language semantic embeddings (2048 dim, 8192 tokens)', cost: 'Free tier' },
+      { name: 'Nemotron Rerank 1B v2', type: 'Reranking', healthKey: 'rerank_1b', desc: 'Cross-encoder reranking for search quality', cost: 'Free tier' },
+      { name: 'Content Safety 4B', type: 'Safety', healthKey: 'safety_4b', desc: 'Policy-aware content safety classification', cost: 'Free tier' },
+      { name: 'GLiNER PII Detection', type: 'PII', healthKey: '', desc: '15-pattern regex active. NIM container for full 55+ entities.', cost: 'Free (regex)' },
+      { name: 'Nemotron Nano 9B v2', type: 'Chat LLM', healthKey: 'nemotron_9b', desc: 'Hybrid Mamba-Transformer, fallback routing', cost: 'Free tier' },
+      { name: 'Nemotron 3 Nano 30B A3B', type: 'Chat LLM', healthKey: 'nemotron_30b', desc: '30B MoE (3.5B active), 1M context, fallback routing', cost: 'Free tier' },
     ];
     const futureModels = [
       { name: 'NVIDIA AI Enterprise', type: 'Platform', status: 'planned', desc: 'Production-grade NIM hosting, no rate limits', cost: '$4,500/GPU/year', needed: 'When free tier 40 RPM becomes bottleneck' },
@@ -636,12 +664,15 @@ export default function SettingsTab() {
             <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">6 models connected</span>
           </div>
           <p className="text-sm text-nc-text-secondary mb-1">Endpoint: integrate.api.nvidia.com/v1</p>
-          <p className="text-sm text-nc-text-secondary mb-4">Limits: 5,000 credits / 40 RPM / Trial service</p>
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-sm text-nc-text-secondary">Limits: 5,000 credits / 40 RPM / Trial service</p>
+            <button onClick={checkNvidiaHealth} disabled={nvidiaChecking} className="px-3 py-1 rounded text-xs font-medium bg-nc-accent/10 text-nc-accent hover:bg-nc-accent/20 disabled:opacity-50">{nvidiaChecking ? 'Checking...' : 'Ping All Models'}</button>
+          </div>
           <div className="space-y-3">
             {freeModels.map((m) => (
               <div key={m.name} className="flex items-center justify-between p-3 bg-nc-surface-2 rounded-lg border border-nc-border/50">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <div className={`w-2 h-2 rounded-full ${m.healthKey ? healthDot(m.healthKey) : 'bg-green-400'}`} />
                   <div>
                     <span className="text-sm font-medium text-nc-text">{m.name}</span>
                     <span className="ml-2 px-2 py-0.5 rounded text-xs bg-nc-accent/10 text-nc-accent">{m.type}</span>

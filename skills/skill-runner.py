@@ -589,6 +589,25 @@ def make_node(skill, skill_dir, step):
                 cost_usd = budget.get("estimated_cost_usd", 0)
                 provider = budget.get("provider", "")
                 model = budget.get("model", "")
+
+                # ── HITL cost gate (MA-5/MA-16 wiring) ─────────────────
+                # If cumulative cost exceeds $15, log approval request
+                cumulative = sum(h.get("cost_usd", 0) for h in state.get("step_history", []))
+                if cumulative + cost_usd > 15.0:
+                    try:
+                        from scripts.human_loop import HumanLoopManager
+                        mgr = HumanLoopManager()
+                        aid, pos = mgr.request_approval(
+                            "cost_override",
+                            f"Skill {skill.get('id', '?')} exceeds $15 threshold",
+                            f"Cumulative: ${cumulative:.2f} + step: ${cost_usd:.2f} = ${cumulative + cost_usd:.2f}",
+                            skill.get("agent_id", "unknown"),
+                            context={"skill_id": skill.get("id"), "cumulative": cumulative, "step_cost": cost_usd},
+                        )
+                        print(f"  [hitl] Cost approval requested: {aid} (${cumulative + cost_usd:.2f})")
+                    except Exception:
+                        pass  # HITL queue unavailable — continue execution
+
             except RuntimeError as e:
                 return {"status": "failed", "error": str(e),
                         "completed_steps": [], "step_history": []}

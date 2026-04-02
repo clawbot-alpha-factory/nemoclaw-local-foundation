@@ -77,7 +77,11 @@ def new_task(title, description, assigned_to, capability, skill, inputs,
 
 
 def _estimate_skill_cost(skill_id):
-    """Estimate cost for running a skill based on routing config."""
+    """Estimate cost for running a skill based on routing config and chain awareness.
+
+    If the skill is tier 3/4 with a task_domain, the cost estimate accounts for
+    multi-step chain routing (3-4 LLM calls per chain step).
+    """
     try:
         rc_path = REPO / "config" / "routing" / "routing-config.yaml"
         with open(rc_path) as f:
@@ -88,18 +92,40 @@ def _estimate_skill_cost(skill_id):
         if skill_yaml.exists():
             with open(skill_yaml) as f:
                 spec = yaml.safe_load(f)
-            # Count steps to estimate total calls (generate + critic + improve + validate)
             steps = spec.get("steps", [])
-            num_llm_steps = max(len(steps) - 1, 3)  # at least 3 LLM calls
+            num_llm_steps = max(len(steps) - 1, 3)
 
-            # Get cost from first step's task_class
             task_class = steps[0].get("task_class", "moderate") if steps else "moderate"
             alias = rcfg.get("routing_rules", {}).get(task_class, "cheap_openai")
             cost_per_call = rcfg.get("providers", {}).get(alias, {}).get("estimated_cost_per_call", 0.06)
+
+            # Check if this skill uses chain routing (tier 3/4 with task_domain)
+            tier = rcfg.get("tier_mapping", {}).get(task_class, 2)
+            task_domain = _get_skill_domain(skill_id)
+            if tier >= 3 and task_domain:
+                # Chain routing: generation step gets chain-routed (3-4 API calls),
+                # other steps (critic, improve) remain single calls.
+                # Estimate: 1 chain + (num_llm_steps - 1) single calls
+                chain_steps = 4 if tier >= 4 else 3
+                chain_cost = cost_per_call * chain_steps  # one chained generation
+                other_cost = cost_per_call * max(num_llm_steps - 1, 0)  # remaining single calls
+                return round(chain_cost + other_cost, 3)
+
             return round(cost_per_call * num_llm_steps, 3)
     except Exception:
         pass
     return DEFAULT_COST_PER_SKILL
+
+
+def _get_skill_domain(skill_id):
+    """Look up task_domain from capability-registry.yaml."""
+    try:
+        reg_path = REPO / "config" / "agents" / "capability-registry.yaml"
+        with open(reg_path) as f:
+            reg = yaml.safe_load(f)
+        return reg.get("skill_domains", {}).get(skill_id)
+    except Exception:
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -57,7 +57,7 @@ providers:
 
   reasoning_google:
     provider: google
-    model: gemini-2.5-pro-preview-03-25
+    model: gemini-2.5-pro
     max_tokens: 16384
     estimated_cost_per_call: 0.008
     notes: Google flagship. Long context, complex reasoning, multimodal.
@@ -68,6 +68,13 @@ providers:
     max_tokens: 8192
     estimated_cost_per_call: 0.0004
     notes: Fallback for any provider failure. Always available.
+
+  fallback_nvidia:
+    provider: nvidia
+    model: nvidia/nvidia-nemotron-nano-9b-v2
+    max_tokens: 8192
+    estimated_cost_per_call: 0.0
+    notes: Free fallback when OpenAI budget exhausted. 40 RPM limit.
 
   # NVIDIA NIM — free tier (40 RPM, trial service)
   cheap_nvidia:
@@ -121,3 +128,6 @@ tier_mapping:
 defaults:
   default_alias: cheap_openai
   active_provider: openai
+  fallback_chain:
+    - fallback_openai
+    - fallback_nvidia   # Free tier: use when OpenAI budget exhausted

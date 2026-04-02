@@ -100,6 +100,58 @@ authority_hierarchy:
     resolution: escalate to reports_to parent of each agent; if parents differ, joint review
     tiebreaker: executive_operator
     logging: mandatory
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROUTING PROFILES (v1.0 — added 2026-04-02)
+# Maps each agent to the task_domains they work with and their max routing tier.
+# Tier 3/4 skills get cross-provider chain routing via model-rankings.yaml.
+# ═══════════════════════════════════════════════════════════════════════════════
+routing_profiles:
+  executive_operator:
+    max_tier: 4
+    preferred_domains: [strategic_reasoning]
+    notes: "Full tier access for override and quality audit"
+  strategy_lead:
+    max_tier: 4
+    preferred_domains: [strategic_reasoning, research, data_analysis]
+    notes: "Strategic decisions get tier 4 chain routing"
+  operations_lead:
+    max_tier: 3
+    preferred_domains: [coding, strategic_reasoning, research]
+    notes: "Orchestration and planning, no tier 4 needed"
+  product_architect:
+    max_tier: 4
+    preferred_domains: [architecture, coding, strategic_reasoning]
+    notes: "Architecture and product specs are high-stakes"
+  growth_revenue_lead:
+    max_tier: 4
+    preferred_domains: [sales_revenue, data_analysis, strategic_reasoning]
+    notes: "Revenue decisions and pricing get full chain review"
+  narrative_content_lead:
+    max_tier: 3
+    preferred_domains: [creative_writing, content, research]
+    notes: "Content creation — tier 3 cross-provider review"
+  engineering_lead:
+    max_tier: 3
+    preferred_domains: [coding, architecture]
+    notes: "Code and CI/CD — tier 3 with code-specialized models"
+  sales_outreach_lead:
+    max_tier: 3
+    preferred_domains: [outreach, sales_revenue]
+    notes: "Outreach sequences and email campaigns"
+  marketing_campaigns_lead:
+    max_tier: 3
+    preferred_domains: [content, outreach, data_analysis]
+    notes: "Campaign design and performance analysis"
+  client_success_lead:
+    max_tier: 3
+    preferred_domains: [outreach, sales_revenue, data_analysis]
+    notes: "Client health and upsell detection"
+  social_media_lead:
+    max_tier: 2
+    preferred_domains: [content, multimodal]
+    notes: "Social posting — fast turnaround, tier 2 sufficient"
+
 domain_boundaries:
   strategy_lead:
     owns:

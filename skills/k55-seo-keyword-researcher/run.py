@@ -57,8 +57,8 @@ class SkillState(TypedDict):
 
 
 def call_llm(messages, max_tokens=4000):
-    from lib.routing import call_llm as _routed_call
-    return _routed_call(messages, task_class="moderate", max_tokens=max_tokens)
+    from lib.routing import call_llm_or_chain
+    return call_llm_or_chain(messages, task_class="moderate", task_domain="research", max_tokens=max_tokens)
 
 
 def call_cheap_critic(output_text, task_description):

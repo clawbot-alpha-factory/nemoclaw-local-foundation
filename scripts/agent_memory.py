@@ -170,14 +170,33 @@ class PrivateMemory:
         self._save()
         return entry["value"]
 
-    def search(self, keyword):
-        """Search private memory by keyword in keys and values."""
+    def search(self, keyword, use_semantic=True):
+        """Search private memory. Uses semantic search by default, keyword fallback."""
+        if use_semantic and len(self.store) > 0:
+            results = self.semantic_search(keyword)
+            if results:
+                return results
         results = {}
         for key, entry in self.store.items():
             val_str = str(entry["value"]).lower()
             if keyword.lower() in key.lower() or keyword.lower() in val_str:
                 results[key] = entry
         return results
+
+    def semantic_search(self, query, top_k=5):
+        """Semantic search over private memory. Falls back to keyword search."""
+        if not self.store:
+            return {}
+        try:
+            from lib.embeddings import semantic_search as _sem
+            keys = list(self.store.keys())
+            texts = [f"{k}: {str(self.store[k].get('value', ''))[:500]}" for k in keys]
+            results, err = _sem(query, texts, top_k=top_k)
+            if err:
+                return self.search(query)
+            return {keys[r["index"]]: self.store[keys[r["index"]]] for r in results if r["index"] < len(keys)}
+        except Exception:
+            return self.search(query)
 
     def lessons(self):
         """Get all entries tagged as 'lesson'."""
@@ -503,8 +522,18 @@ class LongTermMemory:
         self._save()
         return entry["value"]
 
-    def search(self, keyword):
-        """Search long-term memory by keyword."""
+    def search(self, keyword, use_semantic=True):
+        """Search long-term memory. Uses semantic search by default, keyword fallback.
+
+        Args:
+            keyword: Search query string.
+            use_semantic: If True (default), use NVIDIA embed+rerank. Falls back to keyword.
+        """
+        if use_semantic and len(self.store) > 0:
+            results = self.semantic_search(keyword)
+            if results:
+                return results
+        # Keyword fallback
         results = {}
         for key, entry in self.store.items():
             val_str = str(entry.get("value", "")).lower()
@@ -520,6 +549,35 @@ class LongTermMemory:
             if entry_tags & set(tags):
                 results[key] = entry
         return results
+
+    def semantic_search(self, query, top_k=5):
+        """Semantic search over long-term memory via NVIDIA embeddings.
+
+        Falls back to keyword search if NVIDIA API is unavailable.
+        Returns: dict of key → entry, ordered by relevance.
+        """
+        if not self.store:
+            return {}
+        try:
+            from lib.embeddings import semantic_search as _sem_search
+            # Build corpus from memory values
+            keys = list(self.store.keys())
+            texts = [f"{k}: {str(self.store[k].get('value', ''))[:500]}" for k in keys]
+
+            results, err = _sem_search(query, texts, top_k=top_k)
+            if err:
+                return self.search(query)  # fall back to keyword
+
+            ranked = {}
+            for r in results:
+                idx = r["index"]
+                if idx < len(keys):
+                    ranked[keys[idx]] = self.store[keys[idx]]
+            return ranked
+        except ImportError:
+            return self.search(query)
+        except Exception:
+            return self.search(query)
 
     def auto_promote_from_workspace(self, shared_memory, workspace_id):
         """Auto-promote high-confidence entries from shared workspace.

@@ -1,9 +1,145 @@
-# NemoClaw Capability Registry v2.0
+# NemoClaw Capability Registry v2.1
 # MA-1: Explicit skill-to-agent mapping with fallbacks and contracts
 
 schema_version: 2
 created: 2026-03-28
-updated: 2026-04-01
+updated: 2026-04-02
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SKILL-TO-DOMAIN MAPPING (used by chain router, orchestrator, task decomposer)
+# Maps every skill to a task_domain from config/routing/model-rankings.yaml.
+# When a skill runs at tier 3/4, the chain router uses this domain to pick
+# the best-in-class models for each chain step.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+skill_domains:
+  a01-api-surface-designer: architecture
+  a01-arch-spec-writer: architecture
+  a01-sys-context-mapper: architecture
+  b05-bug-fix-impl: coding
+  b05-feature-impl-writer: coding
+  b05-scaffold-gen: coding
+  b05-script-automator: coding
+  b06-cicd-designer: coding
+  b06-release-notes-gen: coding
+  biz-01-proposal-generator: sales_revenue
+  biz-02-contract-drafter: legal_contracts
+  biz-03-invoice-generator: legal_contracts
+  biz-04-client-onboarding-sequence: outreach
+  biz-05-client-health-monitor: data_analysis
+  biz-06-upsell-opportunity-detector: sales_revenue
+  biz-07-competitive-intelligence-monitor: research
+  biz-08-social-proof-engine: content
+  c07-api-doc-gen: creative_writing
+  c07-decision-record-writer: strategic_reasoning
+  c07-runbook-author: creative_writing
+  c07-setup-guide-writer: creative_writing
+  cnt-01-viral-hook-generator: content
+  cnt-02-instagram-reel-script-writer: content
+  cnt-03-tiktok-content-engine: content
+  cnt-04-content-repurposer: content
+  cnt-05-youtube-script-writer: content
+  cnt-06-content-calendar-builder: content
+  cnt-07-content-performance-analyzer: data_analysis
+  cnt-08-cross-channel-distributor: content
+  cnt-09-social-posting-executor: content
+  cnt-10-viral-pattern-analyzer: data_analysis
+  cnt-11-agent-self-promo-generator: content
+  cnt-12-video-composer: multimodal
+  cnt-13-thumbnail-generator: multimodal
+  cnt-14-caption-generator: content
+  cnt-15-daily-content-factory: content
+  cnt-16-screen-capture-video: multimodal
+  d11-copywriting-specialist: creative_writing
+  d11-video-script-writer: creative_writing
+  e08-comp-intel-synth: research
+  e08-kb-article-writer: research
+  e08-meeting-summary-gen: research
+  e12-market-research-analyst: research
+  e12-tech-trend-scanner: research
+  f09-pricing-strategist: strategic_reasoning
+  f09-product-req-writer: strategic_reasoning
+  g25-output-format-enforcer: coding
+  g25-sys-prompt-designer: strategic_reasoning
+  g26-skill-spec-writer: strategic_reasoning
+  g26-skill-template-gen: coding
+  i35-tone-calibrator: creative_writing
+  int-01-comment-signal-scraper: research
+  int-02-demand-pattern-analyzer: data_analysis
+  int-03-opportunity-offer-generator: sales_revenue
+  int-04-reality-check-engine: strategic_reasoning
+  int-05-cross-platform-scraper: research
+  int-06-intent-scoring-engine: data_analysis
+  j36-biz-idea-validator: strategic_reasoning
+  j36-mvp-scope-definer: strategic_reasoning
+  k40-deal-pipeline-tracker: sales_revenue
+  k41-ad-campaign-builder: content
+  k42-landing-page-optimizer: content
+  k43-sales-forecast-modeler: data_analysis
+  k44-email-campaign-designer: outreach
+  k45-budget-allocator: data_analysis
+  k46-case-study-writer: creative_writing
+  k47-lead-scoring-engine: data_analysis
+  k48-blog-post-writer: content
+  k49-newsletter-composer: content
+  k50-web-researcher: research
+  k51-competitor-scraper: research
+  k52-lead-enricher: data_analysis
+  k53-social-poster: content
+  k54-review-monitor: research
+  k55-seo-keyword-researcher: research
+  k56-seo-technical-auditor: coding
+  k57-nda-generator: legal_contracts
+  k58-contract-template-engine: legal_contracts
+  k59-subscription-manager: sales_revenue
+  k60-refund-dispute-handler: legal_contracts
+  k61-weekly-client-reporter: data_analysis
+  ops-01-failure-recovery-engine: coding
+  ops-02-event-bus: coding
+  out-01-multi-touch-sequence-builder: outreach
+  out-02-email-executor: outreach
+  out-03-linkedin-action-planner: outreach
+  out-04-follow-up-intelligence: outreach
+  out-05-outreach-personalization-engine: outreach
+  out-06-campaign-performance-optimizer: data_analysis
+  out-07-whatsapp-message-composer: outreach
+  out-08-comment-conversion-engine: outreach
+  research-brief: research
+  rev-01-autonomous-sales-closer: sales_revenue
+  rev-02-lead-qualification-engine: sales_revenue
+  rev-03-revenue-attribution-analyzer: data_analysis
+  rev-04-offer-optimization-engine: sales_revenue
+  rev-05-funnel-conversion-analyzer: data_analysis
+  rev-06-revenue-orchestrator: strategic_reasoning
+  rev-07-deal-progression-tracker: sales_revenue
+  rev-08-agentic-service-packager: sales_revenue
+  rev-09-payment-execution-engine: sales_revenue
+  rev-10-lead-source-engine: sales_revenue
+  rev-11-follow-up-enforcer: outreach
+  rev-12-risk-capital-allocator: strategic_reasoning
+  rev-13-live-experiment-runner: data_analysis
+  rev-14-revenue-loop-enforcer: strategic_reasoning
+  rev-15-playbook-memory-engine: strategic_reasoning
+  rev-16-speed-to-revenue-optimizer: strategic_reasoning
+  rev-17-demand-signal-miner: research
+  rev-18-instant-offer-launcher: sales_revenue
+  rev-19-system-learning-engine: data_analysis
+  rev-20-global-state-engine: data_analysis
+  rev-21-priority-engine: strategic_reasoning
+  rev-22-auto-business-launcher: strategic_reasoning
+  rev-23-resource-allocator: data_analysis
+  rev-24-auto-deployment-engine: coding
+  rev-25-experiment-decision-engine: strategic_reasoning
+  scl-01-affiliate-program-engine: sales_revenue
+  scl-02-partnership-proposal-writer: sales_revenue
+  scl-03-webinar-funnel-builder: sales_revenue
+  scl-04-podcast-guest-pitch-writer: outreach
+  scl-05-community-growth-engine: content
+  scl-06-growth-experiment-designer: strategic_reasoning
+  scl-07-cross-channel-scheduler: content
+  scl-08-revenue-dashboard-generator: data_analysis
+  scl-09-niche-domination-engine: strategic_reasoning
+  scl-10-micro-saas-generator: strategic_reasoning
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CAPABILITY DEFINITIONS
@@ -526,6 +662,52 @@ capabilities:
     memory_keys_written: [dashboard_metrics]
     requires_pinchtab: true
     pinchtab_actions: [navigate, text, snapshot, click, scroll, screenshot]
+
+  # ── Browser Autonomy Capabilities ──────────────────────────────────────────
+  browser_autonomous_task:
+    owned_by: executive_operator
+    skill: browser-autonomy
+    fallback_agent: strategy_lead
+    requires_inputs: [goal, start_url]
+    produces_outputs: [task_result, steps_taken, errors]
+    requires_browser_use: true
+    browser_actions: [autonomous_task, navigate, click, fill, screenshot]
+
+  browser_auth_login:
+    owned_by: operations_lead
+    skill: browser-autonomy
+    fallback_agent: executive_operator
+    requires_inputs: [service, method]
+    produces_outputs: [session_active, method_used]
+    requires_browser_use: true
+    browser_actions: [login, oauth]
+
+  browser_drag_drop:
+    owned_by: narrative_content_lead
+    skill: browser-autonomy
+    fallback_agent: social_media_lead
+    requires_inputs: [source_selector, target_selector]
+    produces_outputs: [success]
+    requires_browser_use: true
+    browser_actions: [drag_drop]
+
+  browser_file_upload:
+    owned_by: narrative_content_lead
+    skill: browser-autonomy
+    fallback_agent: marketing_campaigns_lead
+    requires_inputs: [input_selector, file_path]
+    produces_outputs: [uploaded_file]
+    requires_browser_use: true
+    browser_actions: [upload_file]
+
+  google_workspace:
+    owned_by: operations_lead
+    skill: gws-bridge
+    fallback_agent: executive_operator
+    requires_inputs: [service, action]
+    produces_outputs: [gws_result]
+    requires_gws: true
+    gws_services: [gmail, drive, sheets, calendar, docs, chat]
 
   # ── Executive Operator (Tariq) ────────────────────────────────────────────
   workflow_orchestration:

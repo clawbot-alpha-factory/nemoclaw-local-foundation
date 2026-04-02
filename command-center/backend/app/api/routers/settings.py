@@ -146,3 +146,51 @@ async def update_brain_interval(
         "previous": old_interval,
         "message": f"Auto-insight interval set to {body.interval}s",
     }
+
+
+@router.get("/nvidia/health")
+async def nvidia_health():
+    """Live health check for NVIDIA NIM API models."""
+    import httpx
+    import sys
+    from pathlib import Path
+
+    # Load NVIDIA API key
+    repo = Path(__file__).resolve().parents[4]
+    sys.path.insert(0, str(repo))
+    try:
+        from lib.routing import get_api_key
+        api_key = get_api_key("nvidia")
+    except Exception:
+        api_key = ""
+
+    if not api_key:
+        return {"status": "no_key", "models": {}}
+
+    models = {
+        "embed_1b": {"url": "https://integrate.api.nvidia.com/v1/embeddings", "model": "nvidia/llama-nemotron-embed-1b-v2", "payload": {"input": ["test"], "model": "nvidia/llama-nemotron-embed-1b-v2", "encoding_format": "float", "input_type": "passage"}},
+        "rerank_1b": {"url": "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-1b-v2/reranking", "model": "nvidia/llama-nemotron-rerank-1b-v2", "payload": {"model": "nvidia/llama-nemotron-rerank-1b-v2", "query": {"text": "test"}, "passages": [{"text": "hello"}]}},
+        "safety_4b": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "model": "nvidia/nemotron-content-safety-reasoning-4b", "payload": {"model": "nvidia/nemotron-content-safety-reasoning-4b", "messages": [{"role": "user", "content": "test"}], "max_tokens": 5}},
+        "nemotron_9b": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "model": "nvidia/nvidia-nemotron-nano-9b-v2", "payload": {"model": "nvidia/nvidia-nemotron-nano-9b-v2", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}},
+        "nemotron_30b": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "model": "nvidia/nemotron-3-nano-30b-a3b", "payload": {"model": "nvidia/nemotron-3-nano-30b-a3b", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}},
+    }
+
+    results = {}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for name, cfg in models.items():
+            try:
+                resp = await client.post(
+                    cfg["url"],
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json=cfg["payload"],
+                )
+                results[name] = {
+                    "status": "up" if resp.status_code == 200 else "error",
+                    "code": resp.status_code,
+                    "model": cfg["model"],
+                }
+            except Exception as e:
+                results[name] = {"status": "down", "error": str(e), "model": cfg["model"]}
+
+    up_count = sum(1 for r in results.values() if r["status"] == "up")
+    return {"status": "healthy" if up_count >= 4 else "degraded", "up": up_count, "total": len(models), "models": results}

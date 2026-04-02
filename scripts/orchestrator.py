@@ -37,6 +37,21 @@ RUNNER = str(SKILLS_DIR / "skill-runner.py")
 WORKFLOWS_DIR = REPO / "workflows"
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
 MEMORY_DIR = Path.home() / ".nemoclaw" / "workspaces"
+CAPABILITY_REGISTRY = REPO / "config" / "agents" / "capability-registry.yaml"
+
+_skill_domains_cache = None
+
+def get_skill_domain(skill_id):
+    """Look up task_domain for a skill from the capability registry."""
+    global _skill_domains_cache
+    if _skill_domains_cache is None:
+        try:
+            with open(CAPABILITY_REGISTRY) as f:
+                reg = yaml.safe_load(f)
+            _skill_domains_cache = reg.get("skill_domains", {})
+        except Exception:
+            _skill_domains_cache = {}
+    return _skill_domains_cache.get(skill_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -142,6 +157,8 @@ class Agent:
         self.condition = config.get("condition")
         self.go_to = config.get("go_to")
         self.memory_contract = config.get("memory_contract", {})
+        # Routing: task_domain from workflow step or auto-lookup from registry
+        self.task_domain = config.get("task_domain") or get_skill_domain(self.skill_id)
 
     def __repr__(self):
         return f"Agent({self.name}, skill={self.skill_id}, type={self.agent_type})"
@@ -231,8 +248,15 @@ def _extract_section_from_output(text, key):
 # SKILL EXECUTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def execute_skill(skill_id, inputs, chain_from_envelope=None):
-    """Execute a single skill via skill-runner.py subprocess."""
+def execute_skill(skill_id, inputs, chain_from_envelope=None, task_domain=None):
+    """Execute a single skill via skill-runner.py subprocess.
+
+    Args:
+        skill_id: The skill to execute.
+        inputs: Dict of input key-value pairs.
+        chain_from_envelope: Path to envelope for chaining.
+        task_domain: Task domain for chain routing (passed via env var).
+    """
     if CHECKPOINT_DB.exists():
         CHECKPOINT_DB.unlink()
 
@@ -246,8 +270,14 @@ def execute_skill(skill_id, inputs, chain_from_envelope=None):
     if chain_from_envelope:
         cmd.extend(["--input-from", str(chain_from_envelope)])
 
+    # Pass task_domain via env var so chain_router can use it
+    env = os.environ.copy()
+    if task_domain:
+        env["NEMOCLAW_TASK_DOMAIN"] = task_domain
+
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=600, cwd=str(REPO)
+        cmd, capture_output=True, text=True, timeout=600, cwd=str(REPO),
+        env=env,
     )
 
     output = result.stdout + result.stderr
@@ -337,10 +367,21 @@ def plan_from_natural_language(goal, available_skills):
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
 
+    # Build domain hint for planner
+    domain_hints = {}
+    for sid, info in available_skills.items():
+        d = get_skill_domain(sid)
+        if d:
+            domain_hints[sid] = d
+    domain_text = "\n".join(f"  {sid}: {d}" for sid, d in sorted(domain_hints.items()))
+
     prompt = f"""You are a multi-agent workflow planner. Plan a workflow where specialized agents collaborate.
 
 AVAILABLE SKILLS:
 {skill_list}
+
+SKILL DOMAINS (for tier-aware routing — strategic/premium skills get multi-model chain review):
+{domain_text}
 
 GOAL: {goal}
 
@@ -353,6 +394,7 @@ Respond with ONLY valid JSON:
     {{
       "agent": "agent_role_name",
       "skill": "skill-id",
+      "task_domain": "domain from list above (e.g., sales_revenue, coding, research)",
       "inputs": {{"key": "value"}},
       "outputs_to_memory": ["insight_key_1"],
       "chain_from": null or "previous",
@@ -363,6 +405,7 @@ Respond with ONLY valid JSON:
 
 Rules:
 - Each step has a unique agent name describing its ROLE (e.g., market_analyst, product_manager)
+- task_domain must match the skill's domain from the list above
 - outputs_to_memory lists what this agent contributes to shared knowledge
 - chain_from: "previous" passes the envelope, null starts fresh
 - Provide ALL required inputs
@@ -538,7 +581,7 @@ def run_workflow(workflow, dry_run=False):
             print(f"      Running{attempt_label}...", end="", flush=True)
 
             start = time.time()
-            result = execute_skill(agent.skill_id, final_inputs, chain_envelope)
+            result = execute_skill(agent.skill_id, final_inputs, chain_envelope, agent.task_domain)
             elapsed = int(time.time() - start)
 
             if result["success"]:

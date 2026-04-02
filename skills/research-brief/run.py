@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 
 # ── LLM Helpers (routed through lib/routing.py — L-003 compliant) ────────────
 def call_openai(messages, model=None, max_tokens=1500):
-    from lib.routing import call_llm
-    return call_llm(messages, task_class="general_short", max_tokens=max_tokens)
+    from lib.routing import call_llm_or_chain
+    return call_llm_or_chain(messages, task_class="general_short", task_domain="research", max_tokens=max_tokens)
 
 def call_anthropic(messages, model=None, max_tokens=1500):
     from lib.routing import call_llm

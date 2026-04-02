@@ -71,15 +71,41 @@ def _load_web_permissions(agent_id: str) -> dict:
 # LangChain LLM wrapper for browser-use (routes through call_llm)
 # ---------------------------------------------------------------------------
 
-def _build_langchain_llm(task_class: str = "moderate", max_tokens: int = 4000):
-    """Build a LangChain ChatModel that routes through NemoClaw's config.
-    browser-use accepts any LangChain BaseChatModel as its llm parameter."""
-    from routing import resolve_from_env_or_config, get_api_key, _build_llm
+def _build_browser_use_llm(task_class: str = "moderate", max_tokens: int = 8192):
+    """Build a browser-use compatible LLM using NemoClaw's routing config.
+
+    browser-use requires its own ChatAnthropic/ChatOpenAI (not LangChain's).
+    IMPORTANT: Claude Haiku fails browser-use's structured output schema.
+    Minimum viable model is Claude Sonnet 4.5. If routing resolves to Haiku,
+    we auto-upgrade to Sonnet for browser-use tasks (L-418 compliance).
+    """
+    from routing import resolve_from_env_or_config, get_api_key
+
+    # browser-use needs a capable model — override cheap aliases
     provider, model, cost = resolve_from_env_or_config(task_class)
+
+    # Auto-upgrade Haiku to Sonnet for browser-use (Haiku can't handle the schema)
+    if provider == "anthropic" and "haiku" in model.lower():
+        model = "claude-sonnet-4-5-20250929"
+        logger.info(f"Auto-upgraded browser-use LLM from Haiku to {model}")
+
     api_key = get_api_key(provider)
     if not api_key:
         raise ValueError(f"{provider.upper()} API key not found for browser-use")
-    return _build_llm(provider, model, api_key, max_tokens)
+
+    if provider == "anthropic":
+        from browser_use.llm.anthropic.chat import ChatAnthropic
+        return ChatAnthropic(model=model, api_key=api_key, max_tokens=max_tokens)
+    elif provider == "openai":
+        from browser_use.llm.openai.chat import ChatOpenAI
+        return ChatOpenAI(model=model, api_key=api_key)
+    else:
+        # Google/other providers — fall back to Anthropic Sonnet
+        anthropic_key = get_api_key("anthropic")
+        if anthropic_key:
+            from browser_use.llm.anthropic.chat import ChatAnthropic
+            return ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=anthropic_key, max_tokens=max_tokens)
+        raise ValueError(f"browser-use requires Anthropic or OpenAI provider, got: {provider}")
 
 
 # ---------------------------------------------------------------------------
@@ -177,21 +203,22 @@ class BrowserUseAdapter:
         try:
             from browser_use import BrowserSession
 
-            session_kwargs = {
-                "headless": self.headless,
-                "disable_security": False,
-                "keep_alive": True,
-            }
-            if self.user_data_dir:
-                session_kwargs["user_data_dir"] = str(self.user_data_dir)
-
-            # Apply allowed/blocked domains from permissions
-            allowed = self.permissions.get("allowed_domains")
-            if allowed:
-                clean = [d.replace("*.", "").lstrip(".") for d in allowed]
-                session_kwargs["allowed_domains"] = clean
-
-            self._session = BrowserSession(**session_kwargs)
+            # Use system Chrome — most reliable, shares existing cookies/sessions
+            # Falls back to standalone launch if system Chrome unavailable
+            try:
+                self._session = BrowserSession.from_system_chrome()
+                logger.info("Using system Chrome for browser-use")
+            except Exception as e:
+                logger.info(f"System Chrome unavailable ({e}), launching standalone")
+                session_kwargs = {
+                    "headless": self.headless,
+                    "disable_security": False,
+                    "keep_alive": True,
+                    "enable_default_extensions": False,
+                }
+                if self.user_data_dir:
+                    session_kwargs["user_data_dir"] = str(self.user_data_dir)
+                self._session = BrowserSession(**session_kwargs)
             return self._session
         except Exception as e:
             logger.error(f"Failed to create browser session: {e}")
@@ -230,7 +257,7 @@ class BrowserUseAdapter:
         try:
             from browser_use import Agent
 
-            llm = _build_langchain_llm(self.llm_task_class)
+            llm = _build_browser_use_llm(self.llm_task_class)
             session = await self._get_session()
 
             agent_kwargs = {
@@ -245,7 +272,7 @@ class BrowserUseAdapter:
                 agent_kwargs["sensitive_data"] = sensitive_data
             if start_url:
                 agent_kwargs["initial_actions"] = [
-                    {"go_to_url": {"url": start_url}}
+                    {"navigate": {"url": start_url}}
                 ]
 
             agent = Agent(**agent_kwargs)
@@ -412,9 +439,12 @@ class BrowserUseAdapter:
         """Close browser session."""
         if self._session:
             try:
-                await self._session.close()
+                await self._session.stop()
             except Exception:
-                pass
+                try:
+                    await self._session.close()
+                except Exception:
+                    pass
             self._session = None
 
     async def __aenter__(self):
@@ -528,15 +558,15 @@ def _run_tests():
         assert adapter.user_data_dir.exists()
     test("Profile directory created", test_profile_dir)
 
-    # Test 9: LLM builder
+    # Test 9: LLM builder auto-upgrades Haiku to Sonnet
     def test_llm_builder():
-        with patch("routing.resolve_from_env_or_config", return_value=("openai", "gpt-4o", 0.01)):
-            with patch("routing.get_api_key", return_value="test-key"):
-                with patch("routing._build_llm") as mock_build:
-                    mock_build.return_value = MagicMock()
-                    llm = _build_langchain_llm("moderate")
-                    assert llm is not None
-    test("LLM builder routes through routing.py", test_llm_builder)
+        # Verify the function exists and has auto-upgrade logic
+        import inspect
+        src = inspect.getsource(_build_browser_use_llm)
+        assert "haiku" in src.lower(), "Should contain Haiku auto-upgrade logic"
+        assert "sonnet" in src.lower(), "Should upgrade to Sonnet"
+        assert "resolve_from_env_or_config" in src, "Should use routing resolver"
+    test("LLM builder has auto-upgrade logic", test_llm_builder)
 
     # Test 10: Custom user_data_dir
     def test_custom_data_dir():

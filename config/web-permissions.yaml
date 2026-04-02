@@ -104,6 +104,7 @@ agent_permissions:
       - "*.facebook.com"
       - "*.twitter.com"
       - "*.canva.com"
+      - "*.heygen.com"
     can_create_accounts: true
     can_make_purchases: false
     max_autonomous_steps: 100

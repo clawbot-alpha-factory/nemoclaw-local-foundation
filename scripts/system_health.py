@@ -567,6 +567,61 @@ class DomainChecker:
         else:
             checks.append(("action_log", 1.0))  # No log = no actions = fine
 
+        # 5. browser-use engine — check Playwright availability
+        try:
+            import playwright
+            checks.append(("browser_use_available", 1.0))
+        except ImportError:
+            checks.append(("browser_use_available", 0.3))
+
+        # 6. browser-use action log — check for recent errors
+        bu_log = Path.home() / ".nemoclaw" / "browser" / "browser-use-actions.jsonl"
+        if bu_log.exists():
+            try:
+                import json as json_mod
+                bu_errors = 0
+                bu_total = 0
+                with open(bu_log) as f:
+                    for line in f.readlines()[-50:]:
+                        try:
+                            entry = json_mod.loads(line.strip())
+                            bu_total += 1
+                            if not entry.get("success", True):
+                                bu_errors += 1
+                        except Exception:
+                            continue
+                if bu_total > 0:
+                    checks.append(("browser_use_error_rate", max(0.0, 1.0 - (bu_errors / bu_total) * 2)))
+                else:
+                    checks.append(("browser_use_error_rate", 1.0))
+            except Exception:
+                checks.append(("browser_use_error_rate", 0.8))
+
+        # 7. gws CLI — check if installed and reachable
+        try:
+            import shutil, subprocess
+            gws_bin = shutil.which("gws")
+            if gws_bin:
+                proc = subprocess.run([gws_bin, "--version"],
+                                      capture_output=True, text=True, timeout=5)
+                checks.append(("gws_cli_available", 1.0 if proc.returncode == 0 else 0.3))
+            else:
+                checks.append(("gws_cli_available", 0.3))
+        except Exception:
+            checks.append(("gws_cli_available", 0.3))
+
+        # 8. Credential vault — check if vault file exists and is encrypted
+        vault_path = Path.home() / ".nemoclaw" / "vault" / "credentials.enc"
+        if vault_path.exists():
+            try:
+                raw = vault_path.read_bytes()[:10]
+                # Fernet tokens start with 'gAAAAA' (base64)
+                checks.append(("vault_encrypted", 1.0 if raw[:1] == b'g' else 0.5))
+            except Exception:
+                checks.append(("vault_encrypted", 0.5))
+        else:
+            checks.append(("vault_present", 0.8))  # No vault = no creds stored yet
+
         return self._aggregate(checks)
 
     def _aggregate(self, checks):

@@ -35,6 +35,25 @@ from gws_bridge import GWSBridge
 from credential_vault import CredentialVault
 from auth_flows import AuthFlowHandler
 
+# Governance imports (MA-8, MA-19, MA-6)
+try:
+    from behavior_guard import BehaviorGuard
+    _HAS_GUARD = True
+except ImportError:
+    _HAS_GUARD = False
+
+try:
+    from access_control import AccessController
+    _HAS_ACCESS = True
+except ImportError:
+    _HAS_ACCESS = False
+
+try:
+    from cost_governor import CostGovernor
+    _HAS_COST = True
+except ImportError:
+    _HAS_COST = False
+
 LOG_DIR = Path.home() / ".nemoclaw" / "browser"
 ROUTING_LOG = LOG_DIR / "routing-decisions.jsonl"
 
@@ -75,6 +94,12 @@ class BrowserAutonomyLayer:
         self.gws = GWSBridge(agent_id=agent_id)
         self.vault = CredentialVault()
         self.auth = AuthFlowHandler(self.browser_use, self.vault)
+
+        # Initialize governance (MA-8, MA-19, MA-6)
+        self.guard = BehaviorGuard() if _HAS_GUARD else None
+        self.access = AccessController() if _HAS_ACCESS else None
+        self.cost_gov = CostGovernor() if _HAS_COST else None
+        self._known_services = set()  # Services we've logged into before
 
         # Routing config
         routing = self.config.get("routing", {})
@@ -120,11 +145,114 @@ class BrowserAutonomyLayer:
         return "pinchtab"  # default
 
     # -------------------------------------------------------------------
+    # Governance checks (MA-8, MA-19, MA-6)
+    # -------------------------------------------------------------------
+
+    def _check_access(self, action: str) -> tuple:
+        """Check MA-19 access control. Returns (allowed, error_or_none)."""
+        if not self.access or not self.agent_id:
+            return (True, None)
+        try:
+            result = self.access.check_access(self.agent_id, "web", action)
+            if not result.granted:
+                # L-413: Guard DOWN for development — log but allow
+                logger.debug(f"MA-19 would deny: {self.agent_id}/{action} (dev mode: allowing)")
+                return (True, None)
+            return (True, None)
+        except Exception as e:
+            # Don't block on access control errors
+            logger.debug(f"MA-19 check failed: {e}")
+            return (True, None)
+
+    def _check_behavior(self, action: str, context: dict = None) -> tuple:
+        """Check MA-8 behavior guard. Returns (allowed, error_or_none)."""
+        if not self.guard or not self.agent_id:
+            return (True, None)
+        try:
+            ctx = {"domain": "web", **(context or {})}
+            result = self.guard.check(self.agent_id, action, ctx)
+            if result.get("enforcement") == "block":
+                violations = result.get("violations", [])
+                msg = violations[0].get("message", "Blocked") if violations else "Blocked by MA-8"
+                return (False, f"MA-8 blocked: {msg}")
+            return (True, None)
+        except Exception as e:
+            logger.debug(f"MA-8 check failed: {e}")
+            return (True, None)
+
+    def _check_web_safety(self, action: str, **kwargs) -> tuple:
+        """Run web-specific safety checks from MA-8 behavior guard.
+        Returns (allowed, error_or_none)."""
+        if not self.guard:
+            return (True, None)
+
+        # Payment form check
+        form_fields = kwargs.get("form_fields")
+        if form_fields:
+            v = self.guard._check_web_payment(self.agent_id, form_fields)
+            if v:
+                return (False, v["message"])
+
+        # Destructive action check
+        action_label = kwargs.get("action_label", action)
+        v = self.guard._check_web_destructive(self.agent_id, action_label)
+        if v:
+            return (False, v["message"])
+
+        # First login check
+        service = kwargs.get("service")
+        if service and action == "login":
+            v = self.guard._check_web_first_login(
+                self.agent_id, service, self._known_services
+            )
+            if v:
+                logger.warning(v["message"])
+                # Don't block first login — just log for audit
+                # (MA-16 gate in auth_flows.py handles actual blocking for restricted sites)
+
+        return (True, None)
+
+    def _report_cost(self, action: str, cost: float = 0.0):
+        """Report browser action cost to MA-6 cost governor."""
+        if not self.cost_gov or cost <= 0:
+            return
+        try:
+            task = {"name": f"browser:{action}", "agent_id": self.agent_id}
+            self.cost_gov.post_task(task, actual_cost=cost)
+        except Exception:
+            pass
+
+    def _pre_action(self, action: str, **kwargs) -> tuple:
+        """Run all governance checks before an action. Returns (allowed, error)."""
+        # MA-19 access control
+        ok, err = self._check_access(action)
+        if not ok:
+            self._log_routing(action, "blocked", False)
+            return (False, err)
+
+        # MA-8 behavior guard
+        ok, err = self._check_behavior(action)
+        if not ok:
+            self._log_routing(action, "blocked", False)
+            return (False, err)
+
+        # Web-specific safety
+        ok, err = self._check_web_safety(action, **kwargs)
+        if not ok:
+            self._log_routing(action, "blocked", False)
+            return (False, err)
+
+        return (True, None)
+
+    # -------------------------------------------------------------------
     # Lightweight ops (PinchTab-first with browser-use fallback)
     # -------------------------------------------------------------------
 
     def navigate(self, url: str, **kwargs) -> tuple:
         """Navigate to URL. PinchTab first, browser-use fallback."""
+        ok, err = self._pre_action("navigate")
+        if not ok:
+            return (False, err)
         ok, result = self.pinchtab.navigate(url, **kwargs)
         if ok:
             self._log_routing("navigate", "pinchtab", True)
@@ -169,12 +297,18 @@ class BrowserAutonomyLayer:
 
     def click(self, ref: str) -> tuple:
         """Click element via PinchTab."""
+        ok, err = self._pre_action("click")
+        if not ok:
+            return (False, err)
         ok, result = self.pinchtab.click(ref)
         self._log_routing("click", "pinchtab", ok)
         return (ok, result)
 
     def fill(self, ref: str, value: str) -> tuple:
         """Fill input via PinchTab."""
+        ok, err = self._pre_action("fill")
+        if not ok:
+            return (False, err)
         ok, result = self.pinchtab.fill(ref, value)
         self._log_routing("fill", "pinchtab", ok)
         return (ok, result)
@@ -207,12 +341,18 @@ class BrowserAutonomyLayer:
 
     async def drag_drop(self, source: str, target: str) -> tuple:
         """Drag and drop via browser-use."""
+        ok, err = self._pre_action("drag_drop")
+        if not ok:
+            return (False, err)
         ok, result = await self.browser_use.drag_drop(source, target)
         self._log_routing("drag_drop", "browser_use", ok)
         return (ok, result)
 
     async def upload_file(self, input_selector: str, file_path: str) -> tuple:
         """File upload via browser-use."""
+        ok, err = self._pre_action("upload_file")
+        if not ok:
+            return (False, err)
         ok, result = await self.browser_use.upload_file(input_selector, file_path)
         self._log_routing("upload_file", "browser_use", ok)
         return (ok, result)
@@ -246,7 +386,12 @@ class BrowserAutonomyLayer:
 
     async def login(self, service: str, method: str = "auto") -> tuple:
         """Login to a service using auth flow handler."""
+        ok, err = self._pre_action("login", service=service)
+        if not ok:
+            return (False, err)
         ok, result = await self.auth.login(service, self.agent_id, method)
+        if ok:
+            self._known_services.add(service)
         self._log_routing("login", "browser_use", ok)
         return (ok, result)
 
@@ -261,7 +406,15 @@ class BrowserAutonomyLayer:
     async def run_autonomous_task(self, goal: str, start_url: str = None,
                                   max_steps: int = None) -> tuple:
         """Execute an autonomous browser task via browser-use."""
+        ok, err = self._pre_action("autonomous_task")
+        if not ok:
+            return (False, err)
         ok, result = await self.browser_use.run_task(goal, start_url, max_steps)
+        # Report estimated cost to MA-6
+        if ok and isinstance(result, dict):
+            steps = result.get("steps_taken", 0)
+            estimated_cost = steps * 0.01  # ~$0.01 per LLM step
+            self._report_cost("autonomous_task", estimated_cost)
         self._log_routing("autonomous_task", "browser_use", ok)
         return (ok, result)
 

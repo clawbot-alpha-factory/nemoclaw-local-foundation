@@ -83,6 +83,18 @@ task_domains:
     rank_3: { ref: cheap_google,     reason: "flash for fast multimodal" }
     review: { ref: reasoning_claude,  reason: "cross-provider validation" }
 
+  content:
+    rank_1: { ref: reasoning_claude, reason: "sonnet best at engaging content" }
+    rank_2: { ref: reasoning_openai, reason: "gpt-5.4 good variety + structure" }
+    rank_3: { ref: premium_claude,   reason: "opus when content is high-stakes" }
+    review: { ref: reasoning_google,  reason: "independent tone/engagement check" }
+
+  outreach:
+    rank_1: { ref: reasoning_claude, reason: "sonnet best at persuasive personalization" }
+    rank_2: { ref: reasoning_openai, reason: "gpt-5.4 structured sequences" }
+    rank_3: { ref: premium_claude,   reason: "opus for high-value prospect messaging" }
+    review: { ref: reasoning_o3,     reason: "stress-tests conversion logic" }
+
 # ── Chain Templates ──────────────────────────────────────────────────────────
 # Tier 3/4 chain step definitions. Roles are filled dynamically from task_domains.
 # The chain router enforces that adjacent steps use different providers.

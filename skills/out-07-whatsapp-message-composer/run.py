@@ -30,8 +30,8 @@ class SkillState(TypedDict):
 
 
 def call_llm(messages, max_tokens=4000):
-    from lib.routing import call_llm as _routed_call
-    return _routed_call(messages, task_class="moderate", max_tokens=max_tokens)
+    from lib.routing import call_llm_or_chain
+    return call_llm_or_chain(messages, task_class="moderate", task_domain="outreach", max_tokens=max_tokens)
 
 def estimate_cost(task_class="moderate"):
     from lib.routing import estimate_cost as _est
@@ -107,6 +107,17 @@ def step_3_critic(state):
                 state = {**state, "cost": state.get("cost", 0) + 0.008}
         except Exception as _critic_err:
             import logging; logging.getLogger("nemoclaw.critic").warning(f"Critic call failed: {_critic_err}")
+    # ── Outbound safety gate (ecosystem wiring) ──────────────────────
+    try:
+        from lib.content_safety import safe_for_outbound
+        is_safe, issues = safe_for_outbound(output)
+        if not is_safe:
+            feedback = f"SAFETY BLOCK: {'; '.join(issues)}"
+            print(f"  [safety] Blocked: {issues}")
+            return {**state, "quality_score": 0.0, "critic_feedback": feedback, "final_output": ""}
+    except Exception:
+        pass
+
     return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
 
 def should_retry(state):
