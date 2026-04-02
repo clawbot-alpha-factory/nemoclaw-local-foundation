@@ -93,8 +93,10 @@ class ApifyBridge:
 
         # Start actor run
         try:
+            # Apify API uses ~ instead of / for actor ID paths
+            api_actor_id = actor_id.replace("/", "~")
             resp = client.post(
-                f"/acts/{actor_id}/runs",
+                f"/acts/{api_actor_id}/runs",
                 json=input_data,
                 params={"waitForFinish": min(timeout_secs, 300)},
             )
