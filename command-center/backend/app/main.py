@@ -149,14 +149,16 @@ from app.api.routers import marketplace as marketplace_router
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
-# ── Logging ────────────────────────────────────────────────────────────
+# ── Structured Logging ────────────────────────────────────────────────
+# Replaces bare basicConfig with JSON-structured logging + correlation IDs.
+# LOG_FORMAT=human in dev, LOG_FORMAT=json in Docker (set in Dockerfile).
+import sys as _sys
+_repo_root_for_lib = str(Path(__file__).parent.parent.parent.parent)
+if _repo_root_for_lib not in _sys.path:
+    _sys.path.insert(0, _repo_root_for_lib)
+from lib.structured_logging import get_logger as _get_logger, make_logging_middleware as _make_logging_middleware  # noqa: E402
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(name)-18s  %(levelname)-7s  %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("cc.main")
+logger = _get_logger("cc.main")
 
 
 # ── Lifespan ───────────────────────────────────────────────────────────
@@ -343,7 +345,9 @@ async def lifespan(app: FastAPI):
         scheduler_service=app.state.scheduler_service,
         checkpoint_service=app.state.checkpoint_service,
     )
-    logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint initialized")
+    # Auto-start all agent loops — agents begin 5s tick cycles immediately
+    await app.state.agent_loop_service.start_all()
+    logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint initialized — ALL LOOPS RUNNING")
 
     # ── E-4b: Agent Collaboration ──
     app.state.protocol_service = AgentProtocolService()
@@ -531,7 +535,9 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-12+: Prompt Optimization Service initialized")
 
-    logger.info("E-12 FINAL: Autonomous Loop + Scheduler + InsightBridge initialized — SYSTEM IS AUTONOMOUS")
+    # Start the autonomous execution loop — pulls from PriorityEngine continuously
+    await app.state.autonomous_loop.start()
+    logger.info("E-12 FINAL: Autonomous Loop RUNNING + Scheduler + InsightBridge — SYSTEM IS FULLY AUTONOMOUS")
 
     yield
 
@@ -596,6 +602,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Structured logging middleware — assigns X-Correlation-ID, logs every request
+app.add_middleware(_make_logging_middleware())
 
 # Routers
 app.include_router(state.router)
