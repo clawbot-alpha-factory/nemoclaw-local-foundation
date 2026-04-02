@@ -1,11 +1,12 @@
 """
 NemoClaw Execution Engine — AgentLoopService (E-4a)
 
-Continuous execution loops for agents.
+Continuous execution loops for ALL 11 agents.
 Cycle: observe → decide → act → learn → recover → idle
 
-3 initial agents: sales, marketing, client_success.
-Each runs as an async task with configurable tick interval.
+All agents run autonomous loops with role-appropriate tick intervals:
+- L1/L2/L3 (strategic): 10s ticks, lower proactive split
+- L4 (execution): 5s ticks, higher proactive split
 
 NEW FILE: command-center/backend/app/services/agent_loop_service.py
 """
@@ -38,11 +39,50 @@ class LoopState:
 
 # ── Agents eligible for loops ──────────────────────────────────────────
 
-# Full autonomy mode (2026-04-02): fast ticks, balanced priority, proactive agents
+# Full autonomy mode (2026-04-02): ALL 11 agents with fast ticks, proactive behavior
 LOOP_AGENTS = {
+    # L1 — Executive
+    "executive_operator": {
+        "tick_seconds": 10,
+        "priority_split": 0.3,  # 30% assigned, 70% strategic oversight
+        "idle_behavior": "Review system health, audit agent performance, resolve cross-agent conflicts",
+    },
+    # L2 — Strategy & Operations
+    "strategy_lead": {
+        "tick_seconds": 10,
+        "priority_split": 0.4,
+        "idle_behavior": "Scan market signals, update competitive intelligence, refine growth strategy",
+    },
+    "operations_lead": {
+        "tick_seconds": 10,
+        "priority_split": 0.4,
+        "idle_behavior": "Monitor system health, optimize workflows, plan capacity and skill gaps",
+    },
+    # L3 — Domain Leads
+    "product_architect": {
+        "tick_seconds": 10,
+        "priority_split": 0.5,
+        "idle_behavior": "Review architecture decisions, prototype new features, audit technical debt",
+    },
+    "growth_revenue_lead": {
+        "tick_seconds": 5,
+        "priority_split": 0.5,
+        "idle_behavior": "Analyze revenue pipeline, identify pricing opportunities, run experiments",
+    },
+    "narrative_content_lead": {
+        "tick_seconds": 5,
+        "priority_split": 0.5,
+        "idle_behavior": "Plan content calendar, draft brand narratives, review content quality",
+    },
+    "engineering_lead": {
+        "tick_seconds": 10,
+        "priority_split": 0.5,
+        "idle_behavior": "Review code quality, plan implementations, audit CI/CD pipeline health",
+    },
+    # L4 — Execution Specialists
     "sales_outreach_lead": {
         "tick_seconds": 5,
-        "priority_split": 0.5,  # 50% assigned, 50% self-generated (proactive)
+        "priority_split": 0.5,
         "idle_behavior": "Scan pipeline for stale leads and follow-up opportunities",
     },
     "marketing_campaigns_lead": {
@@ -54,6 +94,11 @@ LOOP_AGENTS = {
         "tick_seconds": 5,
         "priority_split": 0.5,
         "idle_behavior": "Check client health scores and flag churn risks",
+    },
+    "social_media_lead": {
+        "tick_seconds": 5,
+        "priority_split": 0.6,  # 60% proactive — content creation driven
+        "idle_behavior": "Create viral content, monitor social engagement, respond to comments and trends",
     },
 }
 
