@@ -51,9 +51,9 @@ artifacts:
 
 steps:
   - id: step_1
-    name: Validate input and plan research
+    name: Validate Input and Plan Research
+    step_type: local
     task_class: general_short
-    makes_llm_call: false
     description: Validate topic input and create a research plan with subtopics
     input_source: inputs.topic
     output_key: research_plan
@@ -62,14 +62,19 @@ steps:
       cached: false
       never_auto_rerun: false
     requires_human_approval: false
-    approval_class: safe
-    failure_condition: topic is empty or too short
-    next_step_condition: research_plan is not empty
+    failure:
+      success_conditions:
+        - left: research_plan
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
 
   - id: step_2
-    name: Research topic
+    name: Deep Research on Topic
+    step_type: llm
     task_class: complex_reasoning
-    makes_llm_call: true
     description: Deep research on the topic using reasoning model
     input_source: step_1.output.research_plan
     output_key: raw_research
@@ -78,14 +83,19 @@ steps:
       cached: true
       never_auto_rerun: false
     requires_human_approval: false
-    approval_class: safe
-    failure_condition: model returns empty or response under 100 characters
-    next_step_condition: raw_research length > 100
+    failure:
+      success_conditions:
+        - left: raw_research
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 2
+      fallback_step: null
 
   - id: step_3
-    name: Structure findings into brief
+    name: Structure Findings into Brief
+    step_type: local
     task_class: moderate
-    makes_llm_call: false
     description: Structure raw research into Background, Key Findings, Open Questions, Recommendations
     input_source: step_2.output.raw_research
     output_key: structured_brief
@@ -94,30 +104,75 @@ steps:
       cached: true
       never_auto_rerun: false
     requires_human_approval: false
-    approval_class: safe
-    failure_condition: output missing required sections
-    next_step_condition: structured_brief contains all required sections
+    failure:
+      success_conditions:
+        - left: structured_brief
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
 
   - id: step_4
-    name: Validate output
-    task_class: general_short
-    makes_llm_call: false
-    description: Confirm brief meets minimum quality and length requirements
+    name: Evaluate Research Brief Quality
+    step_type: critic
+    task_class: structured_short
+    description: >
+      Two-layer validation: deterministic checks (sections, length) + LLM quality scoring.
+      Outputs JSON with quality_score 0-10.
     input_source: step_3.output.structured_brief
-    output_key: validated_brief
+    output_key: step_4_output
     idempotency:
       rerunnable: true
       cached: false
       never_auto_rerun: false
     requires_human_approval: false
-    approval_class: safe
-    failure_condition: validation fails — missing sections or too short
-    next_step_condition: validated_brief passes all output validation rules
+    failure:
+      success_conditions:
+        - left: step_4_output
+          op: not_empty
+          right: true
+      strategy: retry
+      retry_count: 1
+      fallback_step: null
+    transition:
+      default: step_4b
+      conditions:
+        - left: step_4_output.quality_score
+          op: ">="
+          right: 10
+          go_to: step_5
+          reason: Quality score meets acceptance threshold
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 5
+          go_to: step_5
+          reason: Maximum improvement iterations reached
+
+  - id: step_4b
+    name: Improve Research Brief Based on Critic Feedback
+    step_type: llm
+    task_class: complex_reasoning
+    description: Revise brief using structured feedback from critic step
+    input_source: step_4.output
+    output_key: structured_brief
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_5
+    transition:
+      default: step_4
+      conditions: []
 
   - id: step_5
     name: Write artifact to output
+    step_type: local
     task_class: general_short
-    makes_llm_call: false
     description: Write validated brief to markdown file in outputs directory
     input_source: step_4.output.validated_brief
     output_key: brief_file
@@ -126,9 +181,9 @@ steps:
       cached: false
       never_auto_rerun: true
     requires_human_approval: false
-    approval_class: safe
-    failure_condition: write fails — disk full or permission denied
-    next_step_condition: file exists at output path
+    failure:
+      strategy: fallback
+      fallback_step: null
 
 validation:
   input:
@@ -152,7 +207,7 @@ validation:
       action: pause with status failed — preserve step_4 output in checkpoint
 
 approval_boundaries:
-  safe_steps: [step_1, step_2, step_3, step_4, step_5]
+  safe_steps: [step_1, step_2, step_3, step_4, step_4b, step_5]
   approval_gated_steps: []
   blocked_external_effect_steps: []
   notes: >
@@ -170,8 +225,24 @@ quality_gate:
   max_retries: 5
   escalate_below: 5.0
 
+final_output:
+  select: highest_quality
+  candidates:
+    - key: structured_brief
+      from_step: step_3
+      score_from: step_4_output.quality_score
+    - key: structured_brief
+      from_step: step_4b
+      score_from: step_4_output.quality_score
+  fallback: structured_brief
+
 critic_loop:
   enabled: true
-  min_score: 10.0
-  max_iterations: 5
-  escalation: retry_with_feedback
+  generator_step: step_3
+  critic_step: step_4
+  improve_step: step_4b
+  score_field: step_4_output.quality_score
+  acceptance_score: 10
+  max_improvements: 5
+  counter_name: critic_loop
+  fallback_final_step: step_5

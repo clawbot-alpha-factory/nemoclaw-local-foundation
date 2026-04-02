@@ -213,6 +213,7 @@ def build_rich_context(skill, wf_id, inputs, prev_skills=None):
         "budget_state": build_budget_state(),
         "step_history": [],
         "execution_role": skill.get("execution_role", ""),
+        "agent_id": skill.get("agent_id", ""),  # For browser autonomy layer
         "resolved_model": "",
         "resolved_provider": "",
         "previous_skills": prev_skills or [],
@@ -705,6 +706,23 @@ def make_node(skill, skill_dir, step):
             if quality is None and isinstance(out_val, dict):
                 quality = out_val.get("quality_score")
 
+            # ── DeepEval augmentation (ecosystem wiring) ──────────────
+            # Run quick_score alongside critic score, take min (L-012)
+            if quality is not None:
+                try:
+                    from lib.eval_harness import quick_score
+                    gen_key = cl.get("generator_step", "")
+                    gen_text = str(new_ctx.get(gen_key, ""))
+                    if gen_text and len(gen_text) > 50:
+                        ds = quick_score(gen_text, str(state.get("inputs", "")))
+                        if ds < quality:
+                            print(f"  [deepeval] score={ds:.1f} < critic={quality:.1f}, using min")
+                            quality = min(quality, ds)
+                except ImportError:
+                    pass  # deepeval not installed, skip
+                except Exception:
+                    pass  # never break critic loop on eval failure
+
         # ── Fix 4: Increment loop counter after CRITIC, not improve step ──
         if cl.get("enabled") and step_id == cl.get("critic_step"):
             cn = cl.get("counter_name", "critic_loop")
@@ -734,6 +752,21 @@ def make_node(skill, skill_dir, step):
         if is_final:
             content = select_final_output(skill, new_ctx)
             if content and content != "artifact_written":
+                # ── Post-output validation (ecosystem wiring) ──────────────
+                try:
+                    from lib.routing import validate_output as _validate
+                    is_outbound = skill.get("outbound", False)
+                    _text, _warnings = _validate(
+                        content if isinstance(content, str) else str(content),
+                        min_length=50,
+                        check_pii=is_outbound,
+                        check_safety=is_outbound,
+                    )
+                    for w in _warnings:
+                        print(f"  [validate] {w}")
+                except Exception:
+                    pass  # Never block artifact write on validation failure
+
                 artifact_path = write_artifact(skill, state["workflow_id"], content)
                 print(f"  [artifact] Written to: {artifact_path}")
 

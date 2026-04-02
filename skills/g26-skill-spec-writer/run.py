@@ -529,8 +529,8 @@ CRITIC_LOOP (when enabled):
     Example: "step_3_output.quality_score" or "critic_evaluation.quality_score"
     NEVER just "quality_score" — it must reference the critic step's output_key
   - counter_name MUST be a simple name like "critic_loop" — NOT a dotted path
-  - acceptance_score: 7 (ALWAYS use 7 — must match min_quality_score in contracts)
-  - max_improvements: default 2
+  - acceptance_score: 10 (ALWAYS use 10 — must match min_quality_score in contracts)
+  - max_improvements: default 5
 
 OBSERVABILITY (optional but if present, use ONLY these fields):
   log_level: minimal | standard | detailed
@@ -583,12 +583,12 @@ STANDARD 5-STEP EXECUTOR ARCHITECTURE (with critic loop):
   Do NOT invent branching steps like step_5a. Use the critic loop for quality iteration.
 
 CRITIC LOOP CONVENTION:
-  acceptance_score: 7            # ALWAYS 7
-  max_improvements: 2            # ALWAYS 2
+  acceptance_score: 10           # ALWAYS 10
+  max_improvements: 5            # ALWAYS 5
   counter_name: critic_loop      # ALWAYS critic_loop
   The step_3 transition MUST have:
-    - left: "step_3_output.quality_score", op: ">=", right: 7, go_to: step_5
-    - left: "loop_counters.critic_loop", op: ">=", right: 2, go_to: step_5
+    - left: "step_3_output.quality_score", op: ">=", right: 10, go_to: step_5
+    - left: "loop_counters.critic_loop", op: ">=", right: 5, go_to: step_5
 
   CRITICAL CACHE RULE FOR CRITIC LOOPS:
   step_3 (critic) MUST have cached: false — cached results bypass loop counter increment

@@ -188,7 +188,7 @@ def gen_yaml(args, names, llm, critic):
               f"  generator_step: step_{gs}", f"  critic_step: step_{cs}",
               f"  improve_step: step_{imp}",
               f"  score_field: step_{cs}_output.quality_score",
-              "  acceptance_score: 7", "  max_improvements: 2",
+              "  acceptance_score: 10", "  max_improvements: 5",
               "  counter_name: critic_loop",
               f"  fallback_final_step: step_{n}", ""]
     else:
@@ -205,7 +205,7 @@ def gen_yaml(args, names, llm, critic):
           "    required_fields:", "      - result",
           "    quality:", "      min_length: 100", "      max_length: 50000"]
     if critic:
-        L.append("      min_quality_score: 7")
+        L.append("      min_quality_score: 10")
     L += ["    sla:", "      max_execution_seconds: 120",
           "      max_cost_usd: 0.15",
           "  declarative_guarantees:",

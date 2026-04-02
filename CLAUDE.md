@@ -38,7 +38,7 @@ npm run dev                                          # frontend port 3000 (from 
 
 **Execution flow:** skill-runner.py v4.0 → reads skill.yaml → builds StateGraph → dispatches steps by step_type → writes artifact + JSON envelope to `skills/<id>/outputs/`
 
-**Critic loop:** Generate → Critic (score) → if score < 9.0, Improve → re-evaluate
+**Critic loop:** Generate → Critic (score) → if score < 10.0, Improve → re-evaluate
 
 ## Key Config Files
 - `config/routing/routing-config.yaml` — 9 LLM aliases + routing rules
@@ -59,6 +59,6 @@ See @docs/architecture-lock.md for all 413 locked decisions. Critical:
 - Skill IDs: `<family>-<name>` (e.g. `a01-arch-spec-writer`)
 - Schema v2: `step_type` = `local` | `llm` | `critic` only
 - Family numbers zero-padded (F01-F99), domains single letters A-L
-- Step names semantic (3+ words), quality minimum 9/10
+- Step names semantic (3+ words), quality minimum 10/10
 - Delete checkpoint DB between test runs
 - Logs: `~/.nemoclaw/logs/provider-usage.jsonl`, `validation-runs.jsonl`

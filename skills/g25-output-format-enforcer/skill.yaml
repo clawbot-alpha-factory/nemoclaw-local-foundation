@@ -17,7 +17,7 @@ skill_type: transformer
 schema_version: 2
 runner_version_required: ">=4.0.0"
 routing_system_version_required: ">=3.0.0"
-max_loop_iterations: 6
+max_loop_iterations: 8
 
 context_requirements:
   - workflow_id
@@ -157,13 +157,13 @@ steps:
       default: step_3
 
   - id: step_3
-    name: "Validate output format and content preservation"
-    step_type: local
+    name: "Evaluate Format Compliance and Content Preservation"
+    step_type: critic
     task_class: general_short
     description: >
       Deterministic validation: format compliance (JSON parse, YAML parse,
       section headers, CSV rows), format_spec requirements, and content
-      preservation check (factual tokens present in output).
+      preservation check (factual tokens present in output). Returns quality_score.
     input_source: step_2.output
     output_key: step_3_output
     idempotency:
@@ -176,12 +176,43 @@ steps:
         - left: "step_3_output"
           op: "not_empty"
           right: true
-      strategy: halt
-      retry_count: 0
+      strategy: retry
+      retry_count: 1
       fallback_step: null
       escalation_message: "Format or content preservation validation failed"
     transition:
-      default: step_4
+      default: step_3b
+      conditions:
+        - left: step_3_output.quality_score
+          op: ">="
+          right: 10
+          go_to: step_4
+          reason: Quality score meets acceptance threshold
+        - left: loop_counters.critic_loop
+          op: ">="
+          right: 5
+          go_to: step_4
+          reason: Maximum improvement iterations reached
+
+  - id: step_3b
+    name: "Improve Format Enforcement Based on Validation Issues"
+    step_type: llm
+    task_class: moderate
+    description: Re-enforce format based on issues found by critic step
+    input_source: step_3.output
+    output_key: enforced_text
+    idempotency:
+      rerunnable: true
+      cached: false
+      never_auto_rerun: false
+    requires_human_approval: false
+    failure:
+      strategy: retry
+      retry_count: 1
+      fallback_step: step_4
+    transition:
+      default: step_3
+      conditions: []
 
   - id: step_4
     name: "Write validated output artifact"
@@ -210,11 +241,14 @@ steps:
       default: __end__
 
 final_output:
-  select: latest
+  select: highest_quality
   candidates:
     - key: enforced_text
       from_step: step_2
-      score_from: step_3_output.format_valid
+      score_from: step_3_output.quality_score
+    - key: enforced_text
+      from_step: step_3b
+      score_from: step_3_output.quality_score
   fallback: enforced_text
 
 observability:
@@ -247,7 +281,7 @@ contracts:
     - "format_spec requirements are met if provided"
 
 approval_boundaries:
-  safe_steps: [step_1, step_2, step_3, step_4]
+  safe_steps: [step_1, step_2, step_3, step_3b, step_4]
   approval_gated_steps: []
   blocked_external_effect_steps: []
   notes: >
@@ -272,6 +306,11 @@ quality_gate:
 
 critic_loop:
   enabled: true
-  min_score: 10.0
-  max_iterations: 5
-  escalation: retry_with_feedback
+  generator_step: step_2
+  critic_step: step_3
+  improve_step: step_3b
+  score_field: step_3_output.quality_score
+  acceptance_score: 10
+  max_improvements: 5
+  counter_name: critic_loop
+  fallback_final_step: step_4

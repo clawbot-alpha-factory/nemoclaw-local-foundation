@@ -13,7 +13,7 @@ skill_type: executor
 
 schema_version: 2
 runner_version_required: ">=4.0.0"
-max_loop_iterations: 6
+max_loop_iterations: 8
 
 execution_role: >
   You are an email delivery specialist. Compose and send personalized emails, track engagement, and trigger follow-up actions based on recipient behavior.

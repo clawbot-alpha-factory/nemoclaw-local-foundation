@@ -7,7 +7,7 @@ Checks:
   1. L-003: Zero hardcoded model names in skills
   2. API keys: Zero direct access in skills (must use lib.routing)
   3. Schema: All skill.yaml have schema_version: 2
-  4. Quality: All skill.yaml have quality_gate min_quality_score >= 9.0
+  4. Quality: All skill.yaml have quality_gate min_quality_score >= 10.0
   5. Critic: All skill.yaml have critic_loop enabled
   6. Syntax: Zero syntax errors in all .py files
 
@@ -76,7 +76,7 @@ def check_schema_version():
 
 
 def check_quality_gate():
-    """All skill.yaml have quality_gate with min_quality_score >= 9.0."""
+    """All skill.yaml have quality_gate with min_quality_score >= 10.0."""
     violations = []
     try:
         import yaml
@@ -87,9 +87,9 @@ def check_quality_gate():
         d = yaml.safe_load(open(f))
         qg = d.get("quality_gate", {})
         mqs = qg.get("min_quality_score", 0) if isinstance(qg, dict) else 0
-        if float(mqs) < 9.0:
+        if float(mqs) < 10.0:
             violations.append(f"{f} (min_quality_score={mqs})")
-    return {"name": "Quality gate >= 9.0", "passed": len(violations) == 0,
+    return {"name": "Quality gate >= 10.0", "passed": len(violations) == 0,
             "violations": violations, "count": len(violations)}
 
 

@@ -76,7 +76,60 @@ def step_2_generate(state):
     context = state["step_1_output"]
     feedback = state.get("critic_feedback", "")
     fb = f"\n\nPrevious feedback (improve):\n{feedback}" if feedback else ""
-    messages = [("system", """You are a lead qualification specialist. Score leads precisely using ICP criteria, behavioral signals, and buying intent indicators."""), ("human", f"""{context}{fb}
+
+    # Try structured output via Instructor (Pydantic-validated)
+    try:
+        from pydantic import BaseModel
+        from lib.routing import call_llm_structured
+
+        class LeadQualification(BaseModel):
+            analysis: str
+            tier: str  # hot, warm, cold, disqualify
+            score: int  # 1-100
+            insight: str
+            recommended_action: str
+            trigger_skill: str
+            confidence: float
+            demand_volume: str
+
+        messages = [
+            {"role": "system", "content": "You are a lead qualification specialist. Score leads precisely using ICP criteria, behavioral signals, and buying intent indicators."},
+            {"role": "user", "content": f"{context}{fb}\n\nAnalyze this lead and return structured qualification."},
+        ]
+        cost = estimate_cost()
+        result, error = call_llm_structured(messages, response_model=LeadQualification, task_class="moderate", max_tokens=2000)
+        if error or not result:
+            raise ValueError(error or "Empty structured response")
+
+        # Format as readable output + structured JSON
+        content = f"""# Lead Qualification Report
+
+## Analysis
+{result.analysis}
+
+## Qualification
+- **Tier:** {result.tier}
+- **Score:** {result.score}/100
+- **Confidence:** {result.confidence}
+- **Demand Volume:** {result.demand_volume}
+
+## Insight
+{result.insight}
+
+## Recommended Action
+{result.recommended_action}
+
+```json
+{json.dumps(result.model_dump(), indent=2)}
+```"""
+        state["context"]["budget_state"]["remaining"] -= cost
+        return {**state, "generated_output": content, "cost": state.get("cost", 0) + cost}
+
+    except Exception as e:
+        # Fallback to plain call_llm if Instructor fails
+        import logging
+        logging.getLogger("nemoclaw.skill").info(f"Structured output fallback: {e}")
+        messages = [("system", """You are a lead qualification specialist. Score leads precisely using ICP criteria, behavioral signals, and buying intent indicators."""), ("human", f"""{context}{fb}
 
 CRITICAL: End your response with a JSON block:
 ```json
@@ -88,13 +141,11 @@ CRITICAL: End your response with a JSON block:
   "demand_volume": "high/medium/low"
 }}
 ```""")]
-    from lib.routing import resolve_from_env_or_config as _resolve
-    provider, model, _cost = _resolve("moderate")
-    cost = estimate_cost()
-    content, error = call_llm(messages)
-    if error or not content: return {**state, "error": str(error or "Empty response")}
-    state["context"]["budget_state"]["remaining"] -= cost
-    return {**state, "generated_output": content, "cost": state.get("cost", 0) + cost}
+        cost = estimate_cost()
+        content, error = call_llm(messages)
+        if error or not content: return {**state, "error": str(error or "Empty response")}
+        state["context"]["budget_state"]["remaining"] -= cost
+        return {**state, "generated_output": content, "cost": state.get("cost", 0) + cost}
 
 def step_3_critic(state):
     output = state.get("generated_output", "")

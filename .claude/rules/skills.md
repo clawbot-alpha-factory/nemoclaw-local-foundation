@@ -12,4 +12,4 @@ paths:
 - Skill IDs: <family>-<name> pattern (e.g., a01-arch-spec-writer)
 - Family numbers zero-padded (F01-F99), domains single letters A-L
 - Delete checkpoint DB between test runs to prevent stale cache
-- Quality minimum: 9/10 across all skills
+- Quality minimum: 10/10 across all skills

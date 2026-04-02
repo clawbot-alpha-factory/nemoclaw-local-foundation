@@ -13,7 +13,7 @@ skill_type: orchestrator
 
 schema_version: 2
 runner_version_required: ">=4.0.0"
-max_loop_iterations: 6
+max_loop_iterations: 8
 
 execution_role: >
   You are a risk management and capital allocation strategist. Make data-driven decisions about where to invest resources for maximum ROI with minimum risk.

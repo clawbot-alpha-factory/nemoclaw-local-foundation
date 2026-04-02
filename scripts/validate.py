@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NemoClaw Local Validation Script v1.0.0
-Runs all 31 checks across 6 categories and reports pass/fail.
+Runs all 35 checks across 7 categories and reports pass/fail.
 Doc 16 — Local Validation Checklist
 """
 
@@ -420,6 +420,75 @@ def c6_checkpoint_db():
         return FAIL, "langgraph.db not found — run skill once to initialize"
     return PASS, path
 
+# ── Category 7 — Critic Compliance ─────────────────────────────────────────────
+
+def c7_all_skills_have_critic():
+    """Verify every skill has a critic mechanism (should_retry OR critic_loop)."""
+    import glob as _glob
+    missing = []
+    for rp in sorted(_glob.glob(os.path.join(REPO, "skills/*/run.py"))):
+        skill_dir = os.path.dirname(rp)
+        skill_id = os.path.basename(skill_dir)
+        with open(rp) as f:
+            code = f.read()
+        yaml_path = os.path.join(skill_dir, "skill.yaml")
+        has_yaml_critic = False
+        if os.path.exists(yaml_path):
+            with open(yaml_path) as f:
+                yc = f.read()
+            has_yaml_critic = "acceptance_score:" in yc
+        has_retry = "should_retry" in code
+        if not has_retry and not has_yaml_critic:
+            missing.append(skill_id)
+    if missing:
+        return FAIL, f"{len(missing)} skills lack critic: {', '.join(missing[:5])}"
+    return PASS, "all skills have critic mechanism"
+
+
+def c7_acceptance_threshold():
+    """Verify no Pattern B skill has acceptance_score < 10."""
+    import glob as _glob, re
+    violations = []
+    for yp in sorted(_glob.glob(os.path.join(REPO, "skills/*/skill.yaml"))):
+        with open(yp) as f:
+            content = f.read()
+        m = re.search(r"acceptance_score:\s*(\d+)", content)
+        if m and int(m.group(1)) < 10:
+            violations.append(f"{os.path.basename(os.path.dirname(yp))}={m.group(1)}")
+    if violations:
+        return FAIL, f"{len(violations)} skills below 10: {', '.join(violations[:5])}"
+    return PASS, "all Pattern B skills at acceptance_score >= 10"
+
+
+def c7_min_score_threshold():
+    """Verify no Pattern A skill has min_score < 10.0."""
+    import glob as _glob, re
+    violations = []
+    for yp in sorted(_glob.glob(os.path.join(REPO, "skills/*/skill.yaml"))):
+        with open(yp) as f:
+            content = f.read()
+        m = re.search(r"min_score:\s*([\d.]+)", content)
+        if m and float(m.group(1)) < 10.0:
+            violations.append(f"{os.path.basename(os.path.dirname(yp))}={m.group(1)}")
+    if violations:
+        return FAIL, f"{len(violations)} skills below 10.0: {', '.join(violations[:5])}"
+    return PASS, "all Pattern A skills at min_score >= 10.0"
+
+
+def c7_run_py_threshold():
+    """Verify no run.py has old < 9.0 threshold."""
+    import glob as _glob
+    violations = []
+    for rp in sorted(_glob.glob(os.path.join(REPO, "skills/*/run.py"))):
+        with open(rp) as f:
+            content = f.read()
+        if "< 9.0" in content:
+            violations.append(os.path.basename(os.path.dirname(rp)))
+    if violations:
+        return FAIL, f"{len(violations)} run.py with old threshold: {', '.join(violations[:5])}"
+    return PASS, "no run.py files with < 9.0 threshold"
+
+
 # ── Run all checks ────────────────────────────────────────────────────────────
 def main():
     os.makedirs(LOGS, exist_ok=True)
@@ -473,6 +542,12 @@ def main():
     check("Skills", 29, "research-brief/skill.yaml valid",  c6_skill_yaml_valid)
     check("Skills", 30, "research-brief/outputs/ writable", c6_outputs_dir)
     check("Skills", 31, "LangGraph checkpoint DB exists",   c6_checkpoint_db)
+
+    print("\nCategory 7 — Critic Compliance")
+    check("Critic", 32, "All skills have critic mechanism",    c7_all_skills_have_critic)
+    check("Critic", 33, "Pattern B acceptance_score >= 10",    c7_acceptance_threshold)
+    check("Critic", 34, "Pattern A min_score >= 10.0",         c7_min_score_threshold)
+    check("Critic", 35, "No run.py with old < 9.0 threshold",  c7_run_py_threshold)
 
     print(f"\n{'='*55}")
     print(f"  Results: {total_pass} passed  {total_warn} warnings  {total_fail} failed")

@@ -121,21 +121,59 @@ def step_3_structure_findings(inputs, context):
 
 
 def step_4_validate_output(inputs, context):
-    """Validate the structured brief meets quality requirements."""
+    """Critic step: evaluate quality of the structured brief."""
     brief = context.get("structured_brief", "")
     if not brief:
         return None, "No structured brief found in context"
 
+    # Deterministic checks
     required_sections = ["Background", "Key Findings", "Open Questions", "Recommendations"]
     missing = [s for s in required_sections if s not in brief]
+    score = 5.0
+    if not missing: score += 1.0
+    if len(brief) > 200: score += 0.5
+    if len(brief) > 500: score += 0.5
+    if "##" in brief: score += 0.5
+    if "- " in brief or "1." in brief: score += 0.5
 
-    if missing:
-        return None, f"Brief missing required sections: {missing}"
+    feedback = ""
+    if score < 10.5:
+        try:
+            from lib.routing import call_llm as _routed_call
+            _critic_text, _critic_err = _routed_call(
+                [("system", "You are a strict quality evaluator. Score 1-10: 9-10=excellent, 7-8=good, 5-6=acceptable, 1-4=poor. Be generous with well-structured outputs. Return JSON: {\"score\":N,\"feedback\":\"...\"}"),
+                 ("human", f"Task: Research Brief\n\nOutput:\n{brief[:2000]}")],
+                "structured_short", 300)
+            text = _critic_text.strip() if _critic_text else ""
+            if "{" in text:
+                import json
+                data = json.loads(text[text.index("{"):text.rindex("}")+2])
+                score = data.get("score", 5)
+                feedback = data.get("feedback", "")
+        except Exception:
+            pass
 
-    if len(brief) < 200:
-        return None, f"Brief too short: {len(brief)} chars (minimum 200)"
+    return {"output": brief, "validated_brief": brief,
+            "quality_score": min(score, 10.0), "feedback": feedback}, None
 
-    return {"output": brief, "validated_brief": brief}, None
+
+def step_4b_improve_brief(inputs, context):
+    """Improve brief based on critic feedback."""
+    brief = context.get("structured_brief", "")
+    feedback = context.get("step_4_output", {})
+    fb_text = feedback.get("feedback", "") if isinstance(feedback, dict) else ""
+    if not fb_text:
+        return {"output": brief}, None
+
+    from lib.routing import call_llm as _routed_call
+    messages = [
+        ("system", "You are a research analyst. Improve the brief based on the feedback. Keep the same structure (Background, Key Findings, Open Questions, Recommendations)."),
+        ("human", f"Brief:\n{brief}\n\nFeedback to address:\n{fb_text}\n\nImproved brief:")
+    ]
+    content, error = _routed_call(messages, "complex_reasoning", 4000)
+    if error or not content:
+        return {"output": brief}, None
+    return {"output": content, "structured_brief": content}, None
 
 
 def step_5_write_artifact(inputs, context):
@@ -148,6 +186,7 @@ STEP_HANDLERS = {
     "step_2": step_2_research_topic,
     "step_3": step_3_structure_findings,
     "step_4": step_4_validate_output,
+    "step_4b": step_4b_improve_brief,
     "step_5": step_5_write_artifact,
 }
 

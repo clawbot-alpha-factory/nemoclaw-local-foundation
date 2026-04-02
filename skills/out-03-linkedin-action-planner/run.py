@@ -107,6 +107,17 @@ def step_3_critic(state):
                 state = {**state, "cost": state.get("cost", 0) + 0.008}
         except Exception as _critic_err:
             import logging; logging.getLogger("nemoclaw.critic").warning(f"Critic call failed: {_critic_err}")
+    # ── Outbound safety gate (ecosystem wiring) ──────────────────────
+    try:
+        from lib.content_safety import safe_for_outbound
+        is_safe, issues = safe_for_outbound(output)
+        if not is_safe:
+            feedback = f"SAFETY BLOCK: {'; '.join(issues)}"
+            print(f"  [safety] Blocked: {issues}")
+            return {**state, "quality_score": 0.0, "critic_feedback": feedback, "final_output": ""}
+    except Exception:
+        pass
+
     return {**state, "quality_score": min(score, 10.0), "critic_feedback": feedback, "final_output": output}
 
 def should_retry(state):

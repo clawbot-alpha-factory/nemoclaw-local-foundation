@@ -13,7 +13,7 @@ skill_type: analyzer
 
 schema_version: 2
 runner_version_required: ">=4.0.0"
-max_loop_iterations: 6
+max_loop_iterations: 8
 
 execution_role: >
   You are a funnel optimization expert. Identify conversion bottlenecks and produce specific, actionable fixes.

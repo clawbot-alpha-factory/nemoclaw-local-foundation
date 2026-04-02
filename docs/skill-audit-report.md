@@ -15,7 +15,7 @@
 | schema_version: 2 | 120 | 100% |
 | runner_version_required: >=4.0.0 | 120 | 100% |
 | Hardcoded model names (L-003 violations) | 0 | 0% |
-| quality_gate with min_quality_score: 9.0 | 120 | 100% |
+| quality_gate with min_quality_score: 10.0 | 120 | 100% |
 | critic_loop enabled | 120 | 100% |
 | README.md present | 25 | 20.8% |
 | Capability registry entries | 122 | — |
@@ -34,7 +34,7 @@ All 120 skills pass schema v2 validation. Issues found and FIXED:
 |---|---|---|
 | Missing runner_version_required | int-06, ops-02, cnt-14/15/16 | FIXED → >=4.0.0 |
 | Legacy runner version >=1.0.0 | research-brief | FIXED → >=4.0.0 |
-| Missing quality_gate section | 120 skills | FIXED → min 9.0 added to all |
+| Missing quality_gate section | 120 skills | FIXED → min 10.0 added to all |
 | Missing critic_loop section | 92 skills | FIXED → enabled with min_score 9.0 |
 
 ---

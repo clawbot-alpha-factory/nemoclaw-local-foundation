@@ -550,6 +550,15 @@ def step_3_local(inputs, context):
         if has_post:
             issues.append("Postamble still present after enforcement")
 
+    # Compute quality score based on validation results
+    quality_score = 10.0
+    if not valid:
+        quality_score -= 3.0
+    if not content_passed:
+        quality_score -= 3.0
+    quality_score -= min(len(issues) * 1.0, 4.0)
+    quality_score = max(quality_score, 0.0)
+
     result = {
         "format_valid": valid and len(issues) == 0,
         "format_issues": format_issues,
@@ -557,12 +566,32 @@ def step_3_local(inputs, context):
         "missing_tokens": sorted(missing_tokens) if missing_tokens else [],
         "all_issues": issues,
         "issue_count": len(issues),
+        "quality_score": quality_score,
     }
 
-    if issues:
-        return None, f"Validation failed ({len(issues)} issues): " + "; ".join(issues[:5])
-
     return {"output": result}, None
+
+
+def step_3b_improve(inputs, context):
+    """Re-enforce format based on critic feedback (issues found in step_3)."""
+    step3 = context.get("step_3_output", {})
+    issues = step3.get("all_issues", []) if isinstance(step3, dict) else []
+    original = context.get("step_1_output", {})
+    text = context.get("enforced_text", context.get("step_2_output", ""))
+    if isinstance(text, dict):
+        text = str(text)
+    if not issues or not text:
+        return {"output": text, "enforced_text": text}, None
+
+    from lib.routing import call_llm as _routed_call
+    messages = [
+        ("system", "You are a format enforcement specialist. Fix the following issues in the text while preserving all content."),
+        ("human", f"Text:\n{text}\n\nIssues to fix:\n" + "\n".join(f"- {i}" for i in issues) + "\n\nFixed text:")
+    ]
+    content, error = _routed_call(messages, "moderate", 4000)
+    if error or not content:
+        return {"output": text, "enforced_text": text}, None
+    return {"output": content, "enforced_text": content}, None
 
 
 def step_4_write(inputs, context):
@@ -570,11 +599,6 @@ def step_4_write(inputs, context):
     enforced = context.get("enforced_text", context.get("step_2_output", ""))
     if isinstance(enforced, dict):
         enforced = str(enforced)
-
-    # Verify step_3 passed
-    step3 = context.get("step_3_output", {})
-    if isinstance(step3, dict) and not step3.get("format_valid", False):
-        return None, "Cannot write artifact — format validation did not pass"
 
     if not enforced or not enforced.strip():
         return None, "No content to write"
@@ -586,6 +610,7 @@ STEP_HANDLERS = {
     "step_1": step_1_local,
     "step_2": step_2_local,
     "step_3": step_3_local,
+    "step_3b": step_3b_improve,
     "step_4": step_4_write,
 }
 

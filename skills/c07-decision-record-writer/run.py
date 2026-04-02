@@ -394,7 +394,7 @@ def step_4_llm(inputs, context):
         return {"output": original_adr}, None
 
     quality_score = critic_output.get("quality_score", 10)
-    if quality_score >= 9:
+    if quality_score >= 10:
         return {"output": original_adr}, None
 
     consequence_issues = critic_output.get("consequence_issues", [])

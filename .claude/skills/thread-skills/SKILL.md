@@ -79,8 +79,8 @@ rm -f ~/.nemoclaw/checkpoints/langgraph.db
 ```
 
 ## Quality Gate
-Skills must score ≥ 9/10 on critic evaluation before production use.
-Critic loop: Generate → Score (1-10 per dimension) → min() across dimensions → if < 9.0, Improve → re-score.
+Skills must score 10/10 on critic evaluation before production use.
+Critic loop: Generate → Score (1-10 per dimension) → min() across dimensions → if < 10.0, Improve → re-score. Max 5 improvement cycles.
 
 ## Out of Scope in This Thread
 - Frontend/backend → use /thread-frontend or /thread-backend
