@@ -42,6 +42,7 @@ from app.services.client_service import ClientService
 from app.api.routers import clients as clients_router
 # ── CC-7 imports ──
 from app.services.project_service import ProjectService
+from app.services.planning_service import PlanningService
 from app.api.routers import projects as projects_router
 # ── CC-6 imports ──
 from app.services.ops_service import OpsService
@@ -65,6 +66,7 @@ from app.services.agent_loop_service import AgentLoopService
 from app.services.agent_memory_service import AgentMemoryService
 from app.services.scheduler_service import SchedulerService
 from app.services.checkpoint_service import CheckpointService
+from app.services.agent_notification_service import AgentNotificationService
 from app.api.routers import engine as engine_router
 
 # ── Engine (E-4b) imports ──
@@ -117,6 +119,7 @@ from app.api.routers import revenue as revenue_router
 # ── Engine (E-11) imports ──
 from app.services.onboarding_service import OnboardingService
 from app.services.deliverable_service import DeliverableService
+from app.services.work_log_service import WorkLogService
 from app.services.churn_service import ChurnService
 from app.api.routers import lifecycle as lifecycle_router
 
@@ -145,6 +148,10 @@ from app.api.routers import skill_requests as skill_requests_router
 
 # ── P-8: Skills Marketplace ──
 from app.api.routers import marketplace as marketplace_router
+
+# ── E-13: Mega Projects ──
+from app.services.mega_project_service import MegaProjectService
+from app.api.routers import mega_projects as mega_projects_router
 
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
@@ -311,6 +318,17 @@ async def lifespan(app: FastAPI):
     app.state.project_service = ProjectService(Path(__file__).resolve().parents[3])
     logger.info("CC-7: ProjectService initialized")
 
+    # ── S1: Planning service ──
+    from app.services.planning_service import PlanningService
+    app.state.planning_service = PlanningService(
+        repo_root=Path(__file__).resolve().parents[3],
+        project_service=app.state.project_service,
+        approval_service=getattr(app.state, "approval_service", None),
+    )
+    # Wire planning_service back into project_service for milestone hooks
+    app.state.project_service.planning_service = app.state.planning_service
+    logger.info("S1: PlanningService initialized")
+
     # ── P-1: Project Scoped Memory ──
     from app.services.project_memory_service import ProjectMemoryService
     app.state.project_memory_service = ProjectMemoryService()
@@ -353,15 +371,25 @@ async def lifespan(app: FastAPI):
     app.state.agent_memory_service = AgentMemoryService()
     app.state.scheduler_service = SchedulerService()
     app.state.checkpoint_service = CheckpointService()
+    app.state.notification_service = AgentNotificationService(
+        message_store=message_store,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+    )
     app.state.agent_loop_service = AgentLoopService(
         execution_service=app.state.execution_service,
         memory_service=app.state.agent_memory_service,
         scheduler_service=app.state.scheduler_service,
         checkpoint_service=app.state.checkpoint_service,
+        notification_service=app.state.notification_service,
     )
     # Auto-start all agent loops — agents begin 5s tick cycles immediately
     await app.state.agent_loop_service.start_all()
-    logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint initialized — ALL LOOPS RUNNING")
+    logger.info("E-4a: AgentLoopService + Memory + Scheduler + Checkpoint + Notifications initialized — ALL LOOPS RUNNING")
+
+    # Wire notification_service into project_service and planning_service for lifecycle hooks
+    app.state.project_service.notification_service = app.state.notification_service
+    if hasattr(app.state, "planning_service"):
+        app.state.planning_service.notification_service = app.state.notification_service
 
     # ── E-4b: Agent Collaboration ──
     app.state.protocol_service = AgentProtocolService()
@@ -414,6 +442,15 @@ async def lifespan(app: FastAPI):
         skill_service=app.state.skill_service,
     )
     logger.info("P-8: SkillMarketplaceService initialized")
+
+    # ── E-13: Mega Project Service ──
+    app.state.mega_project_service = MegaProjectService(
+        repo_root=Path(__file__).resolve().parents[3],
+        project_service=app.state.project_service,
+        team_service=app.state.team_service,
+        execution_service=app.state.execution_service,
+    )
+    logger.info("E-13: MegaProjectService initialized")
 
     # ── E-7b: Self-Build Engine (THE TIPPING POINT) ──
     app.state.build_plan_tracker = BuildPlanTracker()
@@ -476,6 +513,7 @@ async def lifespan(app: FastAPI):
         global_state=app.state.global_state,
         event_bus=app.state.event_bus,
     )
+    app.state.work_log_service = WorkLogService()
     app.state.churn_service = ChurnService(
         global_state=app.state.global_state,
         event_bus=app.state.event_bus,
@@ -688,6 +726,7 @@ app.include_router(lifecycle_router.router)  # E-11: Lifecycle
 app.include_router(autonomous_router.router)  # E-12: Autonomous
 app.include_router(infra_router.router)  # Infra: Queue + Rate Limits
 app.include_router(activity_router.router)  # P-2: Activity Event Log
+app.include_router(mega_projects_router.router)  # E-13: Mega Projects
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
