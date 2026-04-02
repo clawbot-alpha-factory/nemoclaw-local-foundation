@@ -28,6 +28,8 @@ dependencies = [
     "playwright>=1.58",
     "cryptography>=44.0",
     "pyotp>=2.9",
+    # --- Local vector store ---
+    "chromadb>=0.5",
 ]
 
 [project.optional-dependencies]

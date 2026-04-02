@@ -30,5 +30,23 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8100
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: nemoclaw
+      MINIO_ROOT_PASSWORD: nemoclaw-dev
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   nemoclaw-data:
+  minio-data:

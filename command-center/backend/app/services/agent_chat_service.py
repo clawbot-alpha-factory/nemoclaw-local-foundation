@@ -255,7 +255,7 @@ class AgentChatService:
         repo_root = os.environ.get("CC_REPO_ROOT")
         if repo_root:
             env_candidates.append(Path(repo_root) / "config" / ".env")
-        env_candidates.append(Path(__file__).parent / "../../../config/.env")
+        env_candidates.append(Path(__file__).resolve().parent.parents[3] / "config" / ".env")
 
         for env_path in env_candidates:
             if env_path.resolve().exists():

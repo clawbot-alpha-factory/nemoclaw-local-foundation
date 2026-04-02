@@ -160,6 +160,20 @@ from lib.structured_logging import get_logger as _get_logger, make_logging_middl
 
 logger = _get_logger("cc.main")
 
+# ── Sentry Error Tracking ────────────────────────────────────────────
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            traces_sample_rate=0.1,
+            environment=os.environ.get("SENTRY_ENV", "development"),
+        )
+        logger.info("Sentry error tracking enabled")
+    except ImportError:
+        logger.warning("SENTRY_DSN set but sentry-sdk not installed")
+
 
 # ── Lifespan ───────────────────────────────────────────────────────────
 
