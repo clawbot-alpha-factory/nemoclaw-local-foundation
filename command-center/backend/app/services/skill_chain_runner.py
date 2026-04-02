@@ -204,5 +204,5 @@ class SkillChainRunner:
                 ExecutionStatus.DEAD_LETTER,
             ):
                 return execution
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)  # Fast polling (2026-04-02)
         return None

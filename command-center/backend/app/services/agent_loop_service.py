@@ -38,20 +38,21 @@ class LoopState:
 
 # ── Agents eligible for loops ──────────────────────────────────────────
 
+# Full autonomy mode (2026-04-02): fast ticks, balanced priority, proactive agents
 LOOP_AGENTS = {
     "sales_outreach_lead": {
-        "tick_seconds": 60,
-        "priority_split": 0.7,  # 70% assigned tasks, 30% self-generated
+        "tick_seconds": 5,
+        "priority_split": 0.5,  # 50% assigned, 50% self-generated (proactive)
         "idle_behavior": "Scan pipeline for stale leads and follow-up opportunities",
     },
     "marketing_campaigns_lead": {
-        "tick_seconds": 60,
-        "priority_split": 0.7,
+        "tick_seconds": 5,
+        "priority_split": 0.5,
         "idle_behavior": "Analyze campaign performance and propose optimizations",
     },
     "client_success_lead": {
-        "tick_seconds": 60,
-        "priority_split": 0.7,
+        "tick_seconds": 5,
+        "priority_split": 0.5,
         "idle_behavior": "Check client health scores and flag churn risks",
     },
 }
@@ -64,8 +65,8 @@ class AgentLoop:
         self.agent_id = agent_id
         self.config = config
         self.state = LoopState.STOPPED
-        self.tick_seconds = config.get("tick_seconds", 60)
-        self.priority_split = config.get("priority_split", 0.7)
+        self.tick_seconds = config.get("tick_seconds", 5)  # Fast ticks (2026-04-02)
+        self.priority_split = config.get("priority_split", 0.5)  # Proactive agents
         self.idle_behavior = config.get("idle_behavior", "Wait for tasks")
 
         # Stats

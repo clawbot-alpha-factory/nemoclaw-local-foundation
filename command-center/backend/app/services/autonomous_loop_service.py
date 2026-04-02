@@ -16,10 +16,11 @@ from typing import Any
 logger = logging.getLogger("cc.autoloop")
 
 EXECUTION_MODES = {
-    "conservative": {"max_per_hour": 10, "tick_seconds": 120, "max_per_tick": 2},
-    "balanced":     {"max_per_hour": 30, "tick_seconds": 60,  "max_per_tick": 5},
-    "aggressive":   {"max_per_hour": 60, "tick_seconds": 30,  "max_per_tick": 10},
+    "conservative": {"max_per_hour": 30, "tick_seconds": 60, "max_per_tick": 5},
+    "balanced":     {"max_per_hour": 120, "tick_seconds": 15, "max_per_tick": 15},
+    "aggressive":   {"max_per_hour": 999, "tick_seconds": 5,  "max_per_tick": 50},
 }
+# Full autonomy mode (2026-04-02): agents operate at maximum throughput
 
 
 class ExecutionRecord:
@@ -75,7 +76,7 @@ class AutonomousLoopService:
 
         self._running = False
         self._task: asyncio.Task | None = None
-        self._mode = "conservative"
+        self._mode = "aggressive"  # Full autonomy (2026-04-02)
         self._tick_count = 0
         self._executions_this_hour: int = 0
         self._hour_reset: float = time.time()
@@ -216,19 +217,7 @@ class AutonomousLoopService:
             self._persist()
 
     def _is_duplicate(self, skill_id: str) -> bool:
-        """Check if skill was executed within cooldown period."""
-        if not skill_id:
-            return False
-        now = time.time()
-        # Clean old entries
-        self._recent_skills[skill_id] = [t for t in self._recent_skills[skill_id] if now - t < 86400]
-        recent = self._recent_skills[skill_id]
-        # Within 1 hour = duplicate
-        if any(now - t < 3600 for t in recent):
-            return True
-        # More than 3 in 24h = cooldown
-        if len(recent) >= 3:
-            return True
+        """Dedup DISABLED — agents can re-run skills freely (2026-04-02)."""
         return False
 
     def _record_skill_execution(self, skill_id: str) -> None:

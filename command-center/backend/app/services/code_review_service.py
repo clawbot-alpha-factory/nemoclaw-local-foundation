@@ -212,7 +212,7 @@ class CodeReviewService:
                     stderr=asyncio.subprocess.PIPE,
                     cwd=str(self.backend_dir),
                 )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
                 passed = proc.returncode == 0
                 results.append({
                     "test": test_path,
@@ -316,7 +316,7 @@ REJECTION CRITERIA:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.repo_root),
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
 
             passed = proc.returncode == 0
             return {

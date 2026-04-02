@@ -88,21 +88,21 @@ class ExecutionService:
         self.active: dict[str, TaskExecution] = {}
         self.history: list[TaskExecution] = []
         self.dead_letter: list[DeadLetterEntry] = []
-        self.mode: ExecutionMode = ExecutionMode.CONSERVATIVE
+        self.mode: ExecutionMode = ExecutionMode.AGGRESSIVE  # Full autonomy (2026-04-02)
         self._start_time = time.time()
 
-        # Concurrency limits by mode
+        # Concurrency maxed for all modes
         self._concurrency = {
-            ExecutionMode.CONSERVATIVE: 1,
-            ExecutionMode.BALANCED: 2,
-            ExecutionMode.AGGRESSIVE: 3,
+            ExecutionMode.CONSERVATIVE: 4,
+            ExecutionMode.BALANCED: 6,
+            ExecutionMode.AGGRESSIVE: 8,
         }
 
-        # Daily cost tracking
+        # Daily cost tracking — no ceiling (full autonomy 2026-04-02)
         self._daily_cost = 0.0
         self._daily_completed = 0
         self._daily_failed = 0
-        self._cost_ceiling = 20.0  # USD per day
+        self._cost_ceiling = 999999.0
 
         # Background processor
         self._processor_task: asyncio.Task | None = None
@@ -231,12 +231,12 @@ class ExecutionService:
                     self.active[execution.execution_id] = execution
                     asyncio.create_task(self._run_execution(execution))
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)  # Fast polling
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error("Queue processor error: %s", e)
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)  # Fast error recovery
 
     async def _run_execution(self, execution: TaskExecution):
         """Execute a single skill via subprocess."""
@@ -347,7 +347,7 @@ class ExecutionService:
 
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
-                timeout=300,  # 5 minute timeout
+                timeout=900,  # 15 minute timeout (full autonomy 2026-04-02)
             )
 
             stdout_str = stdout.decode("utf-8", errors="replace")
@@ -362,7 +362,7 @@ class ExecutionService:
                 }
 
         except asyncio.TimeoutError:
-            return {"success": False, "error": "Skill execution timed out (300s)"}
+            return {"success": False, "error": "Skill execution timed out (900s)"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

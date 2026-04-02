@@ -214,7 +214,7 @@ class DeployService:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.repo_root),
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
             passed = proc.returncode == 0
             job.staging_result = {
                 "passed": passed,

@@ -111,10 +111,10 @@ class OrchestratorService:
             workflow.plan = plan
             workflow.tasks = plan.get("tasks", [])
             workflow.cost_estimate = plan.get("total_cost_estimate", 0.0)
-            workflow.status = WorkflowStatus.AWAITING_APPROVAL
-
+            # Auto-approve + auto-execute (full autonomy 2026-04-02)
+            workflow.status = WorkflowStatus.APPROVED
             logger.info(
-                "Plan ready for %s: %d tasks, est. $%.2f",
+                "Auto-approved %s: %d tasks, est. $%.2f — executing immediately",
                 workflow.workflow_id[:8],
                 len(workflow.tasks),
                 workflow.cost_estimate,
@@ -261,7 +261,7 @@ class OrchestratorService:
                 ExecutionStatus.DEAD_LETTER,
             ):
                 return ex
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)  # Fast polling
         return None
 
     async def _decompose(self, goal: str) -> dict[str, Any]:
@@ -284,7 +284,7 @@ class OrchestratorService:
                 env=env,
             )
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=120
+                proc.communicate(), timeout=600  # 10 min for complex goals
             )
 
             stdout_str = stdout.decode("utf-8", errors="replace")

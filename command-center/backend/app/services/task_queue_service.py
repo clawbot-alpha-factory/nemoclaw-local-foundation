@@ -83,9 +83,9 @@ class TaskQueueService:
     """
 
     BACKOFF_BASE = 2.0
-    MAX_QUEUE_SIZE = 1000
+    MAX_QUEUE_SIZE = 10000  # Increased for full autonomy (2026-04-02)
 
-    def __init__(self, max_workers: int = 3):
+    def __init__(self, max_workers: int = 8):  # 8 workers for max throughput
         self._queue: deque[QueueTask] = deque()
         self._running: dict[str, QueueTask] = {}
         self._completed: list[QueueTask] = []

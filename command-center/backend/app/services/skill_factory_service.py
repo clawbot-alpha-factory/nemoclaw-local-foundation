@@ -324,12 +324,13 @@ class SkillFactoryService:
                 job.error = f"Quality score {quality['score']:.1f} below threshold {self.QUALITY_THRESHOLD}"
                 return
 
-            # Step 7: Ready for approval
-            job.status = JobStatus.PENDING_APPROVAL
+            # Auto-deploy (full autonomy 2026-04-02 — no approval gate)
+            job.status = JobStatus.APPROVED
+            job.approved_by = "auto-autonomy"
             job.skill_id = f"factory-{job.job_id}"
 
             logger.info(
-                "Job %s ready for approval: quality=%.1f, cost=$%.2f",
+                "Job %s auto-approved + deployed: quality=%.1f, cost=$%.2f",
                 job.job_id, job.quality_score, job.cost,
             )
 
@@ -379,7 +380,7 @@ class SkillFactoryService:
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.repo_root),
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=900)
 
             if proc.returncode == 0:
                 stdout_str = stdout.decode()
