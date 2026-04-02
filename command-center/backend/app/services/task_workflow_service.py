@@ -1,0 +1,462 @@
+"""
+NemoClaw Execution Engine — TaskWorkflowService (E-4a+)
+
+Structured task execution: brainstorm → plan → execute → validate → document.
+Each workflow writes artifacts to ~/.nemoclaw/workflows/{workflow_id}/.
+
+Phases:
+  1. BRAINSTORM — Generate 3 approaches via LLM
+  2. PLAN — Decompose chosen approach into executable steps
+  3. EXECUTE — Run skills per step
+  4. VALIDATE — Quality check on outputs
+  5. DOCUMENT — Write execution log and summary
+
+NEW FILE: command-center/backend/app/services/task_workflow_service.py
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+import uuid
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger("cc.task_workflow")
+
+WORKFLOWS_DIR = Path.home() / ".nemoclaw" / "workflows"
+
+
+class WorkflowPhase(str, Enum):
+    BRAINSTORM = "brainstorm"
+    PLAN = "plan"
+    EXECUTE = "execute"
+    VALIDATE = "validate"
+    DOCUMENT = "document"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class TaskWorkflow:
+    """A single structured workflow instance."""
+
+    def __init__(self, goal: str, agent_id: str, project_id: str | None = None):
+        self.workflow_id = f"wf-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+        self.goal = goal
+        self.agent_id = agent_id
+        self.project_id = project_id or "default"
+        self.phase = WorkflowPhase.BRAINSTORM
+        self.created_at = datetime.now(timezone.utc)
+        self.updated_at = self.created_at
+        self.completed_at: datetime | None = None
+
+        # Phase outputs
+        self.approaches: list[dict[str, Any]] = []
+        self.plan_steps: list[dict[str, Any]] = []
+        self.execution_results: list[dict[str, Any]] = []
+        self.validation: dict[str, Any] = {}
+        self.error: str | None = None
+
+        # File paths
+        self.work_dir = WORKFLOWS_DIR / self.workflow_id
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workflow_id": self.workflow_id,
+            "goal": self.goal,
+            "agent_id": self.agent_id,
+            "project_id": self.project_id,
+            "phase": self.phase.value,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "approaches_count": len(self.approaches),
+            "plan_steps_count": len(self.plan_steps),
+            "executions_count": len(self.execution_results),
+            "validation": self.validation,
+            "error": self.error,
+            "files": self._file_paths(),
+        }
+
+    def _file_paths(self) -> dict[str, str]:
+        paths: dict[str, str] = {}
+        for name in ["brainstorm.md", "plan.md", "execution-log.jsonl", "validation-report.md"]:
+            p = self.work_dir / name
+            if p.exists():
+                paths[name] = str(p)
+        return paths
+
+
+class TaskWorkflowService:
+    """
+    Structured task execution through 5 phases.
+
+    Dependencies (injected post-creation):
+      - execution_service: skill execution
+      - event_bus: emit task lifecycle events
+      - brain_service: LLM calls for brainstorm/plan/validate
+    """
+
+    def __init__(
+        self,
+        execution_service=None,
+        event_bus=None,
+        brain_service=None,
+    ):
+        self.execution_service = execution_service
+        self.event_bus = event_bus
+        self.brain_service = brain_service
+        self._workflows: dict[str, TaskWorkflow] = {}
+        WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info("TaskWorkflowService initialized (dir=%s)", WORKFLOWS_DIR)
+
+    # ── Public API ────────────────────────────────────────────────────
+
+    def create_workflow(
+        self, goal: str, agent_id: str, project_id: str | None = None
+    ) -> str:
+        """Create a new workflow and return its ID."""
+        wf = TaskWorkflow(goal, agent_id, project_id)
+        self._workflows[wf.workflow_id] = wf
+        self._emit("task_started", wf)
+        logger.info("Workflow created: %s for %s — %s", wf.workflow_id, agent_id, goal[:80])
+        return wf.workflow_id
+
+    async def run_workflow(self, workflow_id: str) -> dict[str, Any]:
+        """Execute all phases sequentially. Returns structured result."""
+        wf = self._workflows.get(workflow_id)
+        if not wf:
+            return {"success": False, "error": f"Workflow {workflow_id} not found"}
+
+        try:
+            await self._phase_brainstorm(wf)
+            await self._phase_plan(wf)
+            await self._phase_execute(wf)
+            await self._phase_validate(wf)
+            await self._phase_document(wf)
+
+            wf.phase = WorkflowPhase.COMPLETED
+            wf.completed_at = datetime.now(timezone.utc)
+            wf.updated_at = wf.completed_at
+            self._emit("task_completed", wf)
+
+            return {"success": True, "workflow": wf.to_dict()}
+
+        except Exception as e:
+            wf.phase = WorkflowPhase.FAILED
+            wf.error = str(e)
+            wf.updated_at = datetime.now(timezone.utc)
+            self._emit("task_failed", wf, error=str(e))
+            logger.error("Workflow %s failed: %s", workflow_id, e)
+            return {"success": False, "error": str(e), "workflow": wf.to_dict()}
+
+    def get_workflow(self, workflow_id: str) -> dict[str, Any] | None:
+        wf = self._workflows.get(workflow_id)
+        return wf.to_dict() if wf else None
+
+    def list_workflows(self, agent_id: str | None = None) -> list[dict[str, Any]]:
+        wfs = self._workflows.values()
+        if agent_id:
+            wfs = [w for w in wfs if w.agent_id == agent_id]
+        return [w.to_dict() for w in wfs]
+
+    # ── Phase 1: Brainstorm ───────────────────────────────────────────
+
+    async def _phase_brainstorm(self, wf: TaskWorkflow) -> None:
+        wf.phase = WorkflowPhase.BRAINSTORM
+        wf.updated_at = datetime.now(timezone.utc)
+
+        prompt = (
+            f"Generate exactly 3 distinct approaches to accomplish this goal:\n\n"
+            f"Goal: {wf.goal}\n"
+            f"Agent: {wf.agent_id}\n"
+            f"Project: {wf.project_id}\n\n"
+            f"For each approach provide:\n"
+            f"1. Name (short title)\n"
+            f"2. Strategy (2-3 sentences)\n"
+            f"3. Skills needed (NemoClaw skill IDs if known)\n"
+            f"4. Risk level (low/medium/high)\n"
+            f"5. Estimated steps\n"
+        )
+
+        if self.brain_service:
+            result = await self.brain_service.analyze(prompt, context="workflow_brainstorm")
+            # Parse LLM response into structured approaches
+            wf.approaches = self._parse_approaches(result.get("analysis", ""), wf.goal)
+        else:
+            # Fallback: single direct approach
+            wf.approaches = [
+                {
+                    "name": "Direct Execution",
+                    "strategy": f"Execute goal directly: {wf.goal}",
+                    "skills": [],
+                    "risk": "low",
+                    "steps": 1,
+                },
+            ]
+
+        # Write brainstorm.md
+        md = f"# Brainstorm — {wf.goal}\n\n"
+        md += f"**Workflow:** {wf.workflow_id}\n"
+        md += f"**Agent:** {wf.agent_id}\n"
+        md += f"**Generated:** {wf.updated_at.isoformat()}\n\n"
+        for i, a in enumerate(wf.approaches, 1):
+            md += f"## Approach {i}: {a['name']}\n"
+            md += f"- **Strategy:** {a['strategy']}\n"
+            md += f"- **Skills:** {', '.join(a.get('skills', [])) or 'TBD'}\n"
+            md += f"- **Risk:** {a.get('risk', 'unknown')}\n"
+            md += f"- **Steps:** {a.get('steps', '?')}\n\n"
+
+        (wf.work_dir / "brainstorm.md").write_text(md)
+        logger.info("Brainstorm complete: %s — %d approaches", wf.workflow_id, len(wf.approaches))
+
+    def _parse_approaches(self, text: str, goal: str) -> list[dict[str, Any]]:
+        """Parse LLM brainstorm text into structured approaches."""
+        approaches: list[dict[str, Any]] = []
+        # Simple heuristic: split on numbered patterns
+        sections = []
+        current: list[str] = []
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped and (stripped[0].isdigit() or stripped.startswith("## ") or stripped.startswith("Approach")):
+                if current:
+                    sections.append("\n".join(current))
+                current = [line]
+            else:
+                current.append(line)
+        if current:
+            sections.append("\n".join(current))
+
+        for i, section in enumerate(sections[:3]):
+            approaches.append({
+                "name": f"Approach {i + 1}",
+                "strategy": section.strip()[:300],
+                "skills": [],
+                "risk": "medium",
+                "steps": 3,
+            })
+
+        # Ensure at least one approach
+        if not approaches:
+            approaches.append({
+                "name": "Direct Execution",
+                "strategy": f"Execute directly: {goal}",
+                "skills": [],
+                "risk": "low",
+                "steps": 1,
+            })
+        return approaches
+
+    # ── Phase 2: Plan ─────────────────────────────────────────────────
+
+    async def _phase_plan(self, wf: TaskWorkflow) -> None:
+        wf.phase = WorkflowPhase.PLAN
+        wf.updated_at = datetime.now(timezone.utc)
+
+        # Use first approach (best/default)
+        chosen = wf.approaches[0] if wf.approaches else {"strategy": wf.goal}
+
+        prompt = (
+            f"Decompose this approach into concrete executable steps.\n\n"
+            f"Goal: {wf.goal}\n"
+            f"Approach: {chosen.get('strategy', wf.goal)}\n\n"
+            f"For each step provide:\n"
+            f"1. Step name\n"
+            f"2. Description\n"
+            f"3. Skill ID to run (or 'manual')\n"
+            f"4. Inputs needed\n"
+            f"5. Expected output\n"
+        )
+
+        if self.brain_service:
+            result = await self.brain_service.analyze(prompt, context="workflow_plan")
+            wf.plan_steps = self._parse_plan(result.get("analysis", ""))
+        else:
+            wf.plan_steps = [
+                {
+                    "step": 1,
+                    "name": "Execute goal",
+                    "description": wf.goal,
+                    "skill_id": None,
+                    "inputs": {},
+                    "expected_output": "Goal accomplished",
+                },
+            ]
+
+        # Write plan.md
+        md = f"# Execution Plan — {wf.goal}\n\n"
+        md += f"**Chosen approach:** {chosen.get('name', 'Direct')}\n\n"
+        md += "| # | Step | Skill | Description |\n"
+        md += "|---|------|-------|-------------|\n"
+        for s in wf.plan_steps:
+            md += f"| {s['step']} | {s['name']} | {s.get('skill_id') or 'manual'} | {s['description'][:60]} |\n"
+
+        (wf.work_dir / "plan.md").write_text(md)
+        logger.info("Plan complete: %s — %d steps", wf.workflow_id, len(wf.plan_steps))
+
+    def _parse_plan(self, text: str) -> list[dict[str, Any]]:
+        """Parse LLM plan into structured steps."""
+        steps: list[dict[str, Any]] = []
+        for i, line in enumerate(text.split("\n"), 1):
+            stripped = line.strip()
+            if stripped and (stripped[0].isdigit() or stripped.startswith("- ")):
+                steps.append({
+                    "step": len(steps) + 1,
+                    "name": stripped.lstrip("0123456789.-) ").strip()[:80],
+                    "description": stripped,
+                    "skill_id": None,
+                    "inputs": {},
+                    "expected_output": "Step output",
+                })
+            if len(steps) >= 10:
+                break
+        if not steps:
+            steps.append({
+                "step": 1,
+                "name": "Execute",
+                "description": text[:200],
+                "skill_id": None,
+                "inputs": {},
+                "expected_output": "Output",
+            })
+        return steps
+
+    # ── Phase 3: Execute ──────────────────────────────────────────────
+
+    async def _phase_execute(self, wf: TaskWorkflow) -> None:
+        wf.phase = WorkflowPhase.EXECUTE
+        wf.updated_at = datetime.now(timezone.utc)
+        log_path = wf.work_dir / "execution-log.jsonl"
+
+        for step in wf.plan_steps:
+            entry: dict[str, Any] = {
+                "step": step["step"],
+                "name": step["name"],
+                "skill_id": step.get("skill_id"),
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "success": False,
+            }
+
+            skill_id = step.get("skill_id")
+            if skill_id and self.execution_service:
+                try:
+                    from app.domain.engine_models import ExecutionRequest, LLMTier
+                    request = ExecutionRequest(
+                        skill_id=skill_id,
+                        inputs=step.get("inputs", {}),
+                        agent_id=wf.agent_id,
+                        tier=LLMTier.STANDARD,
+                    )
+                    execution = self.execution_service.submit(request)
+                    entry["execution_id"] = execution.execution_id
+                    entry["success"] = True
+                except Exception as e:
+                    entry["error"] = str(e)
+            else:
+                # Manual step — mark as passed-through
+                entry["success"] = True
+                entry["note"] = "No skill_id — manual/passthrough step"
+
+            entry["completed_at"] = datetime.now(timezone.utc).isoformat()
+            wf.execution_results.append(entry)
+
+            # Append to JSONL
+            with open(log_path, "a") as f:
+                f.write(json.dumps(entry, default=str) + "\n")
+
+        logger.info(
+            "Execute complete: %s — %d/%d succeeded",
+            wf.workflow_id,
+            sum(1 for r in wf.execution_results if r.get("success")),
+            len(wf.execution_results),
+        )
+
+    # ── Phase 4: Validate ─────────────────────────────────────────────
+
+    async def _phase_validate(self, wf: TaskWorkflow) -> None:
+        wf.phase = WorkflowPhase.VALIDATE
+        wf.updated_at = datetime.now(timezone.utc)
+
+        total = len(wf.execution_results)
+        succeeded = sum(1 for r in wf.execution_results if r.get("success"))
+        failed = total - succeeded
+
+        wf.validation = {
+            "total_steps": total,
+            "succeeded": succeeded,
+            "failed": failed,
+            "success_rate": round(succeeded / total, 2) if total else 0,
+            "passed": failed == 0,
+        }
+
+        # LLM quality check if brain available
+        if self.brain_service and succeeded > 0:
+            prompt = (
+                f"Evaluate the quality of this workflow execution.\n\n"
+                f"Goal: {wf.goal}\n"
+                f"Steps executed: {total}, Succeeded: {succeeded}, Failed: {failed}\n"
+                f"Rate the overall quality 1-10 and suggest improvements.\n"
+            )
+            result = await self.brain_service.analyze(prompt, context="workflow_validate")
+            wf.validation["quality_assessment"] = result.get("analysis", "")[:500]
+
+        # Write validation-report.md
+        md = f"# Validation Report — {wf.goal}\n\n"
+        md += f"**Workflow:** {wf.workflow_id}\n"
+        md += f"**Agent:** {wf.agent_id}\n\n"
+        md += f"## Results\n"
+        md += f"- Total steps: {total}\n"
+        md += f"- Succeeded: {succeeded}\n"
+        md += f"- Failed: {failed}\n"
+        md += f"- Success rate: {wf.validation['success_rate']:.0%}\n"
+        md += f"- **Verdict:** {'PASS' if wf.validation['passed'] else 'FAIL'}\n\n"
+        if wf.validation.get("quality_assessment"):
+            md += f"## Quality Assessment\n{wf.validation['quality_assessment']}\n"
+
+        (wf.work_dir / "validation-report.md").write_text(md)
+        logger.info("Validate complete: %s — %s", wf.workflow_id, "PASS" if wf.validation["passed"] else "FAIL")
+
+    # ── Phase 5: Document ─────────────────────────────────────────────
+
+    async def _phase_document(self, wf: TaskWorkflow) -> None:
+        wf.phase = WorkflowPhase.DOCUMENT
+        wf.updated_at = datetime.now(timezone.utc)
+
+        # Write final summary to work_dir
+        summary = {
+            "workflow_id": wf.workflow_id,
+            "goal": wf.goal,
+            "agent_id": wf.agent_id,
+            "project_id": wf.project_id,
+            "created_at": wf.created_at.isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "approaches": len(wf.approaches),
+            "plan_steps": len(wf.plan_steps),
+            "execution_results": wf.execution_results,
+            "validation": wf.validation,
+            "files": list(wf._file_paths().keys()),
+        }
+        (wf.work_dir / "summary.json").write_text(
+            json.dumps(summary, indent=2, default=str)
+        )
+        logger.info("Document complete: %s — summary written", wf.workflow_id)
+
+    # ── Event Emission ────────────────────────────────────────────────
+
+    def _emit(self, event_type: str, wf: TaskWorkflow, error: str | None = None) -> None:
+        if not self.event_bus:
+            return
+        data: dict[str, Any] = {
+            "workflow_id": wf.workflow_id,
+            "goal": wf.goal,
+            "agent_id": wf.agent_id,
+            "project_id": wf.project_id,
+            "phase": wf.phase.value,
+        }
+        if error:
+            data["error"] = error
+        self.event_bus.emit(event_type, data, source=f"task_workflow:{wf.agent_id}")

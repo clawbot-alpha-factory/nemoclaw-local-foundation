@@ -61,12 +61,16 @@ from app.services.team_formation_service import TeamFormationService
 from app.services.multi_project_service import MultiProjectService
 from app.api.routers import orchestrator as orchestrator_router
 
+# ── CC-TD: Task Dispatch ──
+from app.services.task_dispatch_service import TaskDispatchService
+
 # ── Engine (E-4a) imports ──
 from app.services.agent_loop_service import AgentLoopService
 from app.services.agent_memory_service import AgentMemoryService
 from app.services.scheduler_service import SchedulerService
 from app.services.checkpoint_service import CheckpointService
 from app.services.agent_notification_service import AgentNotificationService
+from app.services.task_workflow_service import TaskWorkflowService
 from app.api.routers import engine as engine_router
 
 # ── Engine (E-4b) imports ──
@@ -224,6 +228,7 @@ async def lifespan(app: FastAPI):
 
     # Wire brain dependencies
     brain_set_deps(_brain_service, aggregator)
+    app.state.brain_service = _brain_service
     if _brain_service.is_available:
         logger.info(f"Brain online: {_brain_service.provider_info}")
 
@@ -387,6 +392,8 @@ async def lifespan(app: FastAPI):
         scheduler_service=app.state.scheduler_service,
         checkpoint_service=app.state.checkpoint_service,
         notification_service=app.state.notification_service,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+        task_workflow_service=getattr(app.state, "orchestrator_service", None),
     )
     # Auto-start all agent loops — agents begin 5s tick cycles immediately
     await app.state.agent_loop_service.start_all()
@@ -539,7 +546,26 @@ async def lifespan(app: FastAPI):
     app.state.agent_loop_service.event_bus = app.state.event_bus
     app.state.agent_loop_service.work_log_service = app.state.work_log_service
     app.state.agent_loop_service.subscribe_events()
-    logger.info("Event bus wired to AgentLoopService (5 event subscriptions)")
+    logger.info("Event bus wired to AgentLoopService (8 event subscriptions)")
+
+    # ── E-4a+: TaskWorkflowService (structured task execution) ──
+    app.state.task_workflow_service = TaskWorkflowService(
+        execution_service=app.state.execution_service,
+        event_bus=app.state.event_bus,
+        brain_service=app.state.brain_service,
+    )
+    app.state.agent_loop_service.task_workflow_service = app.state.task_workflow_service
+    logger.info("E-4a+: TaskWorkflowService initialized and wired to AgentLoopService")
+
+    # ── CC-TD: Task Dispatch Service ──
+    app.state.task_dispatch_service = TaskDispatchService(
+        agent_loop_service=app.state.agent_loop_service,
+        notification_service=app.state.notification_service,
+        activity_log_service=getattr(app.state, "activity_log_service", None),
+        event_bus=app.state.event_bus,
+        audit_service=app.state.audit_service,
+    )
+    logger.info("CC-TD: TaskDispatchService initialized")
 
     # ── E-12: Full Autonomous Operation ──
     app.state.metrics_service = MetricsService(

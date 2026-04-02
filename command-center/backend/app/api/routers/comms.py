@@ -56,6 +56,11 @@ def _get_ws_manager(request: Request):
     return getattr(request.app.state, "ws_manager", None)
 
 
+def _get_task_dispatch(request: Request):
+    """Get TaskDispatchService from app state."""
+    return getattr(request.app.state, "task_dispatch_service", None)
+
+
 # ------------------------------------------------------------------
 # Lanes
 # ------------------------------------------------------------------
@@ -157,6 +162,21 @@ async def send_message(
         await ws_manager.broadcast_chat_message(user_msg.to_ws_payload())
 
     response_data = {"user_message": user_msg.model_dump(mode="json")}
+
+    # Task dispatch: if message_type is "task", dispatch to the agent
+    if body.message_type == MessageType.TASK:
+        dispatch_svc = _get_task_dispatch(request)
+        if dispatch_svc and lane.participants:
+            target_agent = lane.participants[0] if lane.lane_type == "dm" else None
+            if target_agent:
+                dispatch_result = await dispatch_svc.dispatch_task(
+                    agent_id=target_agent,
+                    goal=body.content,
+                    source="comms",
+                    project_id=body.metadata.get("project_id"),
+                )
+                response_data["dispatch"] = dispatch_result
+                response_data["workflow_id"] = dispatch_result.get("workflow_id")
 
     # Trigger agent response for DM and group lanes
     if lane.lane_type in ("dm", "group", "broadcast") and lane.participants:

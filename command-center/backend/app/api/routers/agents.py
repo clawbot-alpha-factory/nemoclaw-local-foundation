@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from app.auth import require_auth
 
@@ -355,3 +356,43 @@ async def export_agent_work_log(
     if format not in ("markdown", "json"):
         raise HTTPException(status_code=400, detail="format must be markdown or json")
     return svc.export_logs(agent_id, fmt=format)
+
+
+# ------------------------------------------------------------------
+# Task Assignment
+# ------------------------------------------------------------------
+
+
+class AssignTaskRequest(BaseModel):
+    goal: str = Field(..., min_length=1, max_length=4000)
+    project_id: Optional[str] = None
+
+
+def _get_task_dispatch_service(request: Request):
+    svc = getattr(request.app.state, "task_dispatch_service", None)
+    if not svc:
+        raise HTTPException(status_code=503, detail="TaskDispatchService not initialized")
+    return svc
+
+
+@router.post("/{agent_id}/assign-task", dependencies=[Depends(require_auth)])
+async def assign_task(agent_id: str, body: AssignTaskRequest, request: Request):
+    """Assign a task to an agent. Returns workflow details."""
+    # Validate agent exists
+    service = _get_agent_service(request)
+    agent = service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+    dispatch_svc = _get_task_dispatch_service(request)
+    result = await dispatch_svc.dispatch_task(
+        agent_id=agent_id,
+        goal=body.goal,
+        source="api",
+        project_id=body.project_id,
+    )
+
+    if result.get("status") == "failed":
+        raise HTTPException(status_code=422, detail=result.get("error", "Dispatch failed"))
+
+    return result

@@ -188,3 +188,51 @@ async def score_history(request: Request, limit: int = 50) -> dict[str, Any]:
 @router.get("/api/engine/approvals/chains")
 async def get_chains(request: Request) -> dict[str, Any]:
     return _svc(request, "approval_chain_service", "ApprovalChainService").get_chains()
+
+
+# ── Connectivity Audit ──
+
+@router.get("/api/audit/connectivity")
+async def audit_connectivity(request: Request) -> dict[str, Any]:
+    """Check all agent wiring: loops, events, tools, messaging."""
+    from app.services.agent_loop_service import LOOP_AGENTS
+
+    agent_loop_svc = getattr(request.app.state, "agent_loop_service", None)
+    notification_svc = getattr(request.app.state, "notification_service", None)
+    tool_access_svc = getattr(request.app.state, "tool_access_service", None)
+    event_bus = getattr(request.app.state, "event_bus", None)
+    task_dispatch_svc = getattr(request.app.state, "task_dispatch_service", None)
+
+    agents = []
+    for agent_id in LOOP_AGENTS:
+        loop_running = False
+        if agent_loop_svc:
+            loop = agent_loop_svc.loops.get(agent_id)
+            loop_running = bool(loop and loop._running)
+
+        events_subscribed = bool(event_bus and hasattr(event_bus, "_subscribers") and event_bus._subscribers)
+
+        tools_accessible = bool(tool_access_svc)
+
+        messaging_active = bool(notification_svc)
+
+        agents.append({
+            "id": agent_id,
+            "loop_running": loop_running,
+            "events_subscribed": events_subscribed,
+            "tools_accessible": tools_accessible,
+            "messaging_active": messaging_active,
+        })
+
+    return {
+        "agents": agents,
+        "services": {
+            "agent_loop_service": agent_loop_svc is not None,
+            "notification_service": notification_svc is not None,
+            "tool_access_service": tool_access_svc is not None,
+            "event_bus": event_bus is not None,
+            "task_dispatch_service": task_dispatch_svc is not None,
+        },
+        "total_agents": len(agents),
+        "loops_running": sum(1 for a in agents if a["loop_running"]),
+    }

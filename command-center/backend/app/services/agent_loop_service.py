@@ -180,6 +180,9 @@ class AgentLoopService:
         event_bus=None,
         work_log_service=None,
         skill_agent_mapping=None,
+        tool_access_service=None,
+        task_workflow_service=None,
+        activity_log_service=None,
     ):
         self.execution_service = execution_service
         self.memory_service = memory_service
@@ -189,6 +192,9 @@ class AgentLoopService:
         self.event_bus = event_bus
         self.work_log_service = work_log_service
         self.skill_agent_mapping = skill_agent_mapping
+        self.tool_access_service = tool_access_service
+        self.task_workflow_service = task_workflow_service
+        self.activity_log_service = activity_log_service
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
 
@@ -320,6 +326,105 @@ class AgentLoopService:
             "shutdown": self._shutdown,
         }
 
+    # ── Task Dispatch ─────────────────────────────────────────────────
+
+    async def dispatch_task(
+        self,
+        agent_id: str,
+        goal: str,
+        source: str = "api",
+    ) -> dict[str, Any]:
+        """
+        Dispatch a task to a specific agent.
+
+        1. Create workflow via OrchestratorService (task_workflow_service)
+        2. Assign to agent via ExecutionService
+        3. Log to ActivityLog
+        4. Notify agent via notification_service
+        5. Return workflow_id for tracking
+
+        Args:
+            agent_id: Target agent (must be in LOOP_AGENTS)
+            goal: Natural-language goal to decompose and execute
+            source: Origin — "comms", "projects", or "api"
+        """
+        if agent_id not in LOOP_AGENTS:
+            return {"success": False, "error": f"Unknown agent: {agent_id}"}
+
+        # 1. Create workflow (decompose goal → plan → tasks)
+        workflow = None
+        if self.task_workflow_service:
+            try:
+                workflow = await self.task_workflow_service.create_plan(goal)
+            except Exception as e:
+                logger.error("dispatch_task: planning failed for %s: %s", agent_id, e)
+                return {"success": False, "error": f"Planning failed: {e}"}
+
+            if workflow.status == "failed":
+                return {
+                    "success": False,
+                    "error": workflow.error or "Planning failed",
+                    "workflow_id": workflow.workflow_id,
+                }
+        else:
+            logger.warning("dispatch_task: no task_workflow_service — skipping planning")
+
+        workflow_id = workflow.workflow_id if workflow else None
+
+        # 2. Assign tasks to agent via ExecutionService
+        if self.execution_service and workflow and workflow.tasks:
+            from app.domain.engine_models import ExecutionRequest, LLMTier
+
+            for task in workflow.tasks:
+                request = ExecutionRequest(
+                    skill_id=task.get("skill", task.get("skill_id", "")),
+                    inputs=task.get("inputs", {}),
+                    agent_id=agent_id,
+                    tier=LLMTier.STANDARD,
+                )
+                self.execution_service.submit(request)
+
+            logger.info(
+                "dispatch_task: queued %d tasks for %s (workflow %s)",
+                len(workflow.tasks), agent_id, workflow_id[:8],
+            )
+
+        # 3. Log to activity log
+        if self.activity_log_service:
+            await self.activity_log_service.append(
+                category="execution",
+                action="task_dispatched",
+                actor_type="system",
+                actor_id=source,
+                entity_type="task",
+                entity_id=workflow_id or "",
+                summary=f"Dispatched to {agent_id}: {goal[:120]}",
+                details={
+                    "agent_id": agent_id,
+                    "goal": goal,
+                    "source": source,
+                    "workflow_id": workflow_id,
+                    "task_count": len(workflow.tasks) if workflow else 0,
+                },
+            )
+
+        # 4. Notify agent
+        if self.notification_service:
+            self.notification_service.notify_agent(
+                from_agent="system",
+                to_agent=agent_id,
+                intent="task_assigned",
+                message=f"New task from {source}: {goal[:200]}",
+            )
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "agent_id": agent_id,
+            "source": source,
+            "task_count": len(workflow.tasks) if workflow else 0,
+        }
+
     # ── Event Bus Integration ─────────────────────────────────────────
 
     def subscribe_events(self) -> None:
@@ -331,7 +436,10 @@ class AgentLoopService:
         self.event_bus.subscribe("demand_detected", self._on_demand_detected)
         self.event_bus.subscribe("budget_warning", self._on_budget_warning)
         self.event_bus.subscribe("content_viral", self._on_content_viral)
-        logger.info("AgentLoopService subscribed to 5 event types")
+        self.event_bus.subscribe("task_started", self._on_task_started)
+        self.event_bus.subscribe("task_completed", self._on_task_completed)
+        self.event_bus.subscribe("task_failed", self._on_task_failed)
+        logger.info("AgentLoopService subscribed to 8 event types")
 
     def _on_skill_completed(self, event) -> None:
         """Log completed skill to work log."""
@@ -397,6 +505,53 @@ class AgentLoopService:
                     category="viral_content",
                     message=msg,
                 )
+
+    def _on_task_started(self, event) -> None:
+        """Log workflow start to work log."""
+        if not self.work_log_service:
+            return
+        data = event.data
+        self.work_log_service.log_work(
+            agent_id=data.get("agent_id", "system"),
+            project_id=data.get("project_id", "default"),
+            action="task_started",
+            details=f"Workflow {data.get('workflow_id', '?')} started: {data.get('goal', '')[:100]}",
+        )
+
+    def _on_task_completed(self, event) -> None:
+        """Log workflow completion and emit agent_idle for the freed agent."""
+        data = event.data
+        if self.work_log_service:
+            self.work_log_service.log_work(
+                agent_id=data.get("agent_id", "system"),
+                project_id=data.get("project_id", "default"),
+                action="task_completed",
+                details=f"Workflow {data.get('workflow_id', '?')} completed",
+            )
+        # Emit agent_idle so other services know this agent is free
+        if self.event_bus:
+            self.event_bus.emit("agent_idle", {
+                "agent_id": data.get("agent_id", ""),
+                "freed_by": data.get("workflow_id", ""),
+            }, source="agent_loop")
+
+    def _on_task_failed(self, event) -> None:
+        """Log workflow failure and broadcast blocker."""
+        data = event.data
+        if self.work_log_service:
+            self.work_log_service.log_work(
+                agent_id=data.get("agent_id", "system"),
+                project_id=data.get("project_id", "default"),
+                action="task_failed",
+                details=f"Workflow {data.get('workflow_id', '?')} failed: {data.get('error', 'unknown')}",
+            )
+        if self.notification_service:
+            self.notification_service.broadcast_all_hands(
+                agent_id=data.get("agent_id", "system"),
+                message=f"Workflow failed: {data.get('goal', '?')[:80]} — {data.get('error', '')}",
+                category="blocker",
+                priority="high",
+            )
 
     # ── Main Loop ──────────────────────────────────────────────────────
 
@@ -546,18 +701,54 @@ class AgentLoopService:
         return None
 
     async def _act(self, loop: AgentLoop, action: dict[str, Any]) -> dict[str, Any]:
-        """Act: execute the chosen action."""
+        """Act: execute the chosen action. Uses browser via tool_access_service when needed."""
         action_type = action.get("type", "")
 
-        if action_type == "scheduled" and self.execution_service:
-            from app.domain.engine_models import ExecutionRequest, LLMTier
-            request = ExecutionRequest(
-                skill_id=action["skill_id"],
-                inputs=action.get("inputs", {}),
+        # Browser actions — delegate to tool_access_service
+        if action_type == "browser" and self.tool_access_service:
+            browser_result, error = await self.tool_access_service.run_browser_task(
                 agent_id=loop.agent_id,
-                tier=LLMTier.STANDARD,
+                url=action.get("url", ""),
+                actions=action.get("browser_actions", []),
             )
-            execution = self.execution_service.submit(request)
+            if error:
+                result = {"success": False, "error": f"Browser task failed: {error}"}
+            else:
+                result = {"success": True, "browser_result": browser_result, "cost": 0.0}
+            self._emit_skill_event(loop, action, result)
+            return result
+
+        if action_type == "scheduled" and self.execution_service:
+            # Route through TaskWorkflowService when available
+            if self.task_workflow_service:
+                goal = action.get("description", action.get("skill_id", "scheduled task"))
+                wf_id = self.task_workflow_service.create_workflow(
+                    goal=goal,
+                    agent_id=loop.agent_id,
+                    project_id=action.get("project_id"),
+                )
+                wf_result = await self.task_workflow_service.run_workflow(wf_id)
+                result = {
+                    "success": wf_result.get("success", False),
+                    "workflow_id": wf_id,
+                    "cost": 0.0,
+                }
+                if not wf_result.get("success"):
+                    result["error"] = wf_result.get("error", "Workflow failed")
+            else:
+                from app.domain.engine_models import ExecutionRequest, LLMTier
+                request = ExecutionRequest(
+                    skill_id=action["skill_id"],
+                    inputs=action.get("inputs", {}),
+                    agent_id=loop.agent_id,
+                    tier=LLMTier.STANDARD,
+                )
+                execution = self.execution_service.submit(request)
+                result = {
+                    "success": True,
+                    "execution_id": execution.execution_id,
+                    "cost": 0.0,
+                }
 
             # Mark scheduled task as run
             if self.scheduler_service:
@@ -566,11 +757,6 @@ class AgentLoopService:
                 if task:
                     task.mark_run()
 
-            result = {
-                "success": True,
-                "execution_id": execution.execution_id,
-                "cost": 0.0,  # actual cost tracked by ExecutionService
-            }
             self._emit_skill_event(loop, action, result)
             return result
 
@@ -606,7 +792,7 @@ class AgentLoopService:
         return len(agents) >= 2
 
     async def _learn(self, loop: AgentLoop, action: dict[str, Any], result: dict[str, Any]):
-        """Learn: record outcome for future decisions."""
+        """Learn: record outcome and ALWAYS broadcast to all-hands (no tier gates)."""
         if not self.memory_service:
             return
 
@@ -621,11 +807,12 @@ class AgentLoopService:
                 source="loop",
                 importance=0.5,
             )
-            # Broadcast high-tier skill completions to all-hands
-            if self.notification_service and self._is_high_tier_skill(skill_id):
+            # Fully open: broadcast ALL completions to all-hands (no tier check)
+            if self.notification_service:
                 self.notification_service.broadcast_all_hands(
                     agent_id=loop.agent_id,
-                    message=f"Completed tier 3/4 skill [{skill_id}]: {action.get('description', '')}",
+                    message=f"Completed [{skill_id or 'task'}]: {action.get('description', '')}",
+                    category="completion",
                     priority="normal",
                 )
         else:
@@ -637,21 +824,52 @@ class AgentLoopService:
                 source="loop",
                 importance=1.0,
             )
+            # Broadcast failures too — full transparency
+            if self.notification_service:
+                self.notification_service.broadcast_all_hands(
+                    agent_id=loop.agent_id,
+                    message=f"Failed [{skill_id or 'task'}]: {result.get('error', 'unknown')}",
+                    category="blocker",
+                    priority="high",
+                )
 
     async def _idle_hunt(self, loop: AgentLoop):
-        """Idle: hunt for opportunities when no tasks are pending."""
+        """Idle: hunt for opportunities — notify peers on ALL events, run browser tasks."""
         logger.debug(
             "Agent %s idle hunt #%d: %s",
             loop.agent_id, loop.idle_hunts, loop.idle_behavior,
         )
 
-        # Every 5th idle hunt, offer help to domain peers
-        if self.notification_service and loop.idle_hunts % 5 == 0:
-            from app.services.agent_notification_service import AGENT_DOMAINS
-            domains = AGENT_DOMAINS.get(loop.agent_id, [])
-            for domain in domains[:1]:  # primary domain only
+        from app.services.agent_notification_service import AGENT_DOMAINS
+        domains = AGENT_DOMAINS.get(loop.agent_id, [])
+
+        # Notify domain peers on EVERY idle hunt — completions, offers, opportunities
+        if self.notification_service and domains:
+            for domain in domains:
                 self.notification_service.notify_domain_peers(
                     agent_id=loop.agent_id,
                     domain=domain,
                     message=f"Idle and available — can pick up overflow work in {domain}",
                 )
+
+        # Broadcast idle availability to all-hands
+        if self.notification_service and loop.idle_hunts % 3 == 0:
+            self.notification_service.broadcast_all_hands(
+                agent_id=loop.agent_id,
+                message=f"Available for work — {loop.idle_behavior}",
+                category="idle_offer",
+                priority="low",
+            )
+
+        # Run autonomous browser task if tool_access_service available
+        if self.tool_access_service and loop.idle_hunts % 10 == 0:
+            try:
+                result, error = await self.tool_access_service.run_browser_task(
+                    agent_id=loop.agent_id,
+                    url="about:blank",
+                    actions=[],
+                )
+                if error:
+                    logger.debug("Idle browser check for %s: %s", loop.agent_id, error)
+            except Exception as e:
+                logger.debug("Idle browser check for %s failed: %s", loop.agent_id, e)

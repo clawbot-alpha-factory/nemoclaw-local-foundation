@@ -27,6 +27,15 @@ NOTIFICATION_CATEGORIES = {
     "recommendation",
     "upgrade_request",
     "tech_discovery",
+    # Open communication categories (2026-04-03)
+    "completion",
+    "idea",
+    "challenge",
+    "win",
+    "request_help",
+    "discovery",
+    "idle_offer",
+    "opportunity",
 }
 
 PRIORITY_LEVELS = {"low", "normal", "high", "urgent"}
@@ -160,15 +169,21 @@ class AgentNotificationService:
         self,
         agent_id: str,
         message: str,
+        category: str = "completion",
         priority: str = "normal",
     ) -> dict[str, Any]:
-        """Broadcast a message to the all-hands lane visible to every agent."""
+        """
+        Broadcast a message to the all-hands lane visible to every agent.
+
+        Fully open — no tier checks, no priority gates. Every agent broadcasts
+        every task completion, blocker, idea, challenge, win, and help request.
+        """
         if priority not in PRIORITY_LEVELS:
             priority = "normal"
 
         agent_name = AGENT_NAMES.get(agent_id, agent_id)
         prefix = _priority_prefix(priority)
-        content = f"{prefix}{message}"
+        content = f"{prefix}[{category}] {message}"
 
         msg = self.message_store.add_message(
             lane_id="all-hands",
@@ -177,12 +192,12 @@ class AgentNotificationService:
             sender_type=SenderType.AGENT,
             content=content,
             message_type=MessageType.ALERT if priority == "urgent" else MessageType.CHAT,
-            metadata={"broadcast": True, "priority": priority},
+            metadata={"broadcast": True, "priority": priority, "category": category},
         )
         if not msg:
             return {"success": False, "reason": "Failed to write to all-hands lane"}
 
-        logger.info("broadcast_all_hands: %s → all-hands [%s]", agent_id, priority)
+        logger.info("broadcast_all_hands: %s → all-hands [%s/%s]", agent_id, category, priority)
         return {"success": True, "message_id": msg.id}
 
     def notify_domain_peers(
@@ -288,6 +303,50 @@ class AgentNotificationService:
             message=message,
             priority="normal",
         )
+
+    def challenge_peers(
+        self,
+        agent_id: str,
+        topic: str,
+        position: str,
+    ) -> dict[str, Any]:
+        """
+        Start a competitive discussion on all-hands.
+
+        Any agent can challenge peers with a topic and position — all agents
+        see it and can respond via broadcast or DM.
+        """
+        message = f"CHALLENGE — {topic}\nPosition: {position}"
+        result = self.broadcast_all_hands(
+            agent_id=agent_id,
+            message=message,
+            category="challenge",
+            priority="high",
+        )
+        logger.info("challenge_peers: %s challenged on '%s'", agent_id, topic)
+        return result
+
+    def share_discovery(
+        self,
+        agent_id: str,
+        discovery: str,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Share a research/tech finding with all agents via all-hands broadcast.
+
+        Tags allow agents to filter for discoveries relevant to their domain.
+        """
+        tag_str = " ".join(f"#{t}" for t in (tags or []))
+        message = f"{discovery}" + (f"\nTags: {tag_str}" if tag_str else "")
+        result = self.broadcast_all_hands(
+            agent_id=agent_id,
+            message=message,
+            category="discovery",
+            priority="normal",
+        )
+        logger.info("share_discovery: %s shared discovery (tags=%s)", agent_id, tags)
+        return result
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
