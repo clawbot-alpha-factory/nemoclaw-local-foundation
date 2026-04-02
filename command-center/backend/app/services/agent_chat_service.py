@@ -250,14 +250,21 @@ class AgentChatService:
 
     def _init_client(self) -> None:
         """Initialize OpenAI client for agent responses."""
-        # Try config/.env first, then environment
-        env_path = Path(__file__).parent / "../../../config/.env"
-        if env_path.resolve().exists():
-            for line in env_path.resolve().read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, _, val = line.partition("=")
-                    os.environ.setdefault(key.strip(), val.strip())
+        # Try config/.env — check CC_REPO_ROOT first, then relative path
+        env_candidates = []
+        repo_root = os.environ.get("CC_REPO_ROOT")
+        if repo_root:
+            env_candidates.append(Path(repo_root) / "config" / ".env")
+        env_candidates.append(Path(__file__).parent / "../../../config/.env")
+
+        for env_path in env_candidates:
+            if env_path.resolve().exists():
+                for line in env_path.resolve().read_text().splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, _, val = line.partition("=")
+                        os.environ.setdefault(key.strip(), val.strip())
+                break
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if api_key:
