@@ -183,9 +183,43 @@ def call_llm(messages, task_class="moderate", max_tokens=4000):
         else:
             result = llm.invoke(lc_messages)
 
-        return result.content, None
+        content = result.content
+        # NVIDIA reasoning models (Nemotron 9B) may return content via raw API
+        # but LangChain strips it when reasoning_content is present.
+        # Fall back to direct API call for these models.
+        if not content and provider == "nvidia":
+            content = _nvidia_direct_chat(model, api_key, messages, max_tokens)
+        return content, None
     except Exception as e:
         return None, str(e)
+
+
+def _nvidia_direct_chat(model, api_key, messages, max_tokens):
+    """Direct NVIDIA NIM chat call bypassing LangChain (for reasoning models).
+
+    Nemotron reasoning models return content=None when reasoning is enabled
+    and the response goes to reasoning_content. This extracts from either field.
+    """
+    try:
+        import httpx
+        resp = httpx.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": model,
+                "messages": [{"role": m.get("role", "user"), "content": m["content"]}
+                             for m in messages if isinstance(m, dict)],
+                "max_tokens": max_tokens * 3,  # reasoning models need more budget
+            },
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        msg = resp.json()["choices"][0]["message"]
+        # Prefer content, fall back to reasoning_content
+        return msg.get("content") or msg.get("reasoning_content", "") or ""
+    except Exception as e:
+        logger.warning(f"NVIDIA direct chat fallback failed: {e}")
+        return ""
 
 
 def estimate_cost(task_class="moderate"):
@@ -392,35 +426,55 @@ def call_llm_structured(
 # Guardrails AI: content validation for output quality gate
 # ---------------------------------------------------------------------------
 
-def validate_output(text: str, validators: Optional[list] = None) -> tuple[str, list[str]]:
-    """Validate LLM output through Guardrails AI validators.
+def validate_output(
+    text: str,
+    min_length: int = 0,
+    max_length: int = 50000,
+    check_safety: bool = False,
+    check_pii: bool = False,
+) -> tuple[str, list[str]]:
+    """Validate LLM output with built-in checks + optional NVIDIA safety/PII.
 
     Args:
         text: The output text to validate.
-        validators: List of Guardrails validator instances.
-                   If None, uses a default set (profanity, PII detection).
+        min_length: Minimum character length (0 = no minimum).
+        max_length: Maximum character length.
+        check_safety: Run NVIDIA Content Safety 4B check.
+        check_pii: Run PII detection (regex fallback or NIM).
 
     Returns:
         Tuple of (validated_text, list_of_warnings).
     """
     warnings = []
-    try:
-        from guardrails import Guard
 
-        guard = Guard()
-        if validators:
-            for v in validators:
-                guard = guard.use(v)
+    # Length checks
+    if min_length and len(text) < min_length:
+        warnings.append(f"Output too short: {len(text)} chars (min {min_length})")
+    if len(text) > max_length:
+        warnings.append(f"Output too long: {len(text)} chars (max {max_length})")
+        text = text[:max_length]
 
-        result = guard.validate(text)
+    # NVIDIA Content Safety (if requested and available)
+    if check_safety:
+        try:
+            from lib.content_safety import check_safety as _check_safety
+            result = _check_safety(text, reasoning=False)
+            if not result["safe"]:
+                warnings.append(f"Content safety: {result['reason'][:200]}")
+        except Exception as e:
+            warnings.append(f"Safety check error: {e}")
 
-        if result.validation_passed:
-            return result.validated_output or text, warnings
-        else:
-            for fail in (result.error_spans or []):
-                warnings.append(f"Validation issue: {fail}")
-            return result.validated_output or text, warnings
-    except ImportError:
-        return text, ["guardrails-ai not installed — output returned unvalidated"]
-    except Exception as e:
-        return text, [f"Validation error: {e}"]
+    # PII detection (if requested)
+    if check_pii:
+        try:
+            from lib.content_safety import detect_pii
+            entities, err = detect_pii(text)
+            if err:
+                warnings.append(f"PII check error: {err}")
+            elif entities:
+                types = list(set(e["type"] for e in entities))
+                warnings.append(f"PII detected: {', '.join(types)} ({len(entities)} instances)")
+        except Exception as e:
+            warnings.append(f"PII check error: {e}")
+
+    return text, warnings

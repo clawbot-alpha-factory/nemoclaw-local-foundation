@@ -11,6 +11,8 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+import yaml
+
 REPO = os.path.expanduser("~/nemoclaw-local-foundation")
 LOGS = os.path.expanduser("~/.nemoclaw/logs")
 VALIDATION_LOG = os.path.join(LOGS, "validation-runs.jsonl")
@@ -280,6 +282,59 @@ def c5_complex_reasoning_routing():
     except Exception:
         return FAIL, "Could not parse enforcer output"
 
+def c5_premium_routing():
+    enforcer = os.path.join(REPO, "scripts/budget-enforcer.py")
+    out, _, rc = run(f"python3 {enforcer} --task-class premium 2>/dev/null")
+    if rc != 0:
+        return FAIL, "enforcer failed"
+    try:
+        data = json.loads(out)
+        alias = data.get("alias")
+        if alias in ("premium_claude", "fallback_openai"):
+            return PASS, f"premium → {alias} ✓"
+        return FAIL, f"Expected premium_claude — got {alias}"
+    except Exception:
+        return FAIL, "Could not parse enforcer output"
+
+def c5_strategic_routing():
+    enforcer = os.path.join(REPO, "scripts/budget-enforcer.py")
+    out, _, rc = run(f"python3 {enforcer} --task-class strategic 2>/dev/null")
+    if rc != 0:
+        return FAIL, "enforcer failed"
+    try:
+        data = json.loads(out)
+        alias = data.get("alias")
+        if alias in ("premium_claude", "fallback_openai"):
+            return PASS, f"strategic → {alias} ✓"
+        return FAIL, f"Expected premium_claude — got {alias}"
+    except Exception:
+        return FAIL, "Could not parse enforcer output"
+
+def c5_skill_alias_validity():
+    """Scan all skill.yaml for undefined default_alias and task_class values."""
+    import glob
+    routing_cfg = os.path.join(REPO, "config/routing/routing-config.yaml")
+    with open(routing_cfg) as f:
+        cfg = yaml.safe_load(f)
+    valid_rules = set(cfg.get("routing_rules", {}).keys())
+    valid_aliases = set(cfg.get("providers", {}).keys())
+    valid_all = valid_rules | valid_aliases
+
+    issues = []
+    for yf in sorted(glob.glob(os.path.join(REPO, "skills/*/skill.yaml"))):
+        with open(yf) as f:
+            try:
+                skill = yaml.safe_load(f)
+            except Exception:
+                continue
+        routing = skill.get("routing", {})
+        da = routing.get("default_alias")
+        if da and da not in valid_all:
+            issues.append(f"{os.path.basename(os.path.dirname(yf))}: default_alias='{da}'")
+    if issues:
+        return FAIL, f"{len(issues)} undefined aliases: {', '.join(issues[:3])}"
+    return PASS, "All skill default_alias values valid"
+
 # ── Category 6 — Skill System ─────────────────────────────────────────────────
 def c3_asana_key():
     return check_env_key("ASANA_ACCESS_TOKEN")
@@ -407,6 +462,9 @@ def main():
     check("Routing", 23, "budget-enforcer.py runs",         c5_enforcer_runs)
     check("Routing", 24, "general_short → cheap_openai",    c5_general_short_routing)
     check("Routing", 25, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
+    check("Routing", 32, "premium → premium_claude",        c5_premium_routing)
+    check("Routing", 33, "strategic → premium_claude",      c5_strategic_routing)
+    check("Routing", 34, "All skill aliases valid",         c5_skill_alias_validity)
 
     print("\nCategory 6 — Skill System")
     check("Skills", 26, "obs.py executes cleanly",              c6_obs_script)

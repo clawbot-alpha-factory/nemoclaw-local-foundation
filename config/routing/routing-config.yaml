@@ -72,7 +72,7 @@ providers:
   # NVIDIA NIM — free tier (40 RPM, trial service)
   cheap_nvidia:
     provider: nvidia
-    model: nvidia/nemotron-nano-9b-v2
+    model: nvidia/nvidia-nemotron-nano-9b-v2
     max_tokens: 8192
     estimated_cost_per_call: 0.0
     notes: Fast 9B hybrid Mamba-Transformer. Free NIM API. Tier 1 alternative.
