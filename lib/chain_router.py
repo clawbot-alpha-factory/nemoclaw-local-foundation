@@ -310,7 +310,7 @@ def _check_provider_budget(provider):
         provider_spend = spend.get(provider, {})
         cumulative = provider_spend.get("cumulative_spend_usd", 0)
         budget_entry = budget_cfg.get("budgets", {}).get(provider, {})
-        limit = budget_entry.get("total_usd", 30.0)
+        limit = budget_entry.get("total_usd", 100.0)
 
         # Free-tier providers (total_usd=0) are rate-limited, not budget-limited
         if limit == 0:
