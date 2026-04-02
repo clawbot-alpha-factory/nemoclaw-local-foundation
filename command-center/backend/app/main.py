@@ -542,6 +542,41 @@ async def lifespan(app: FastAPI):
         "metric_thresholds", 3600, app.state.insight_bridge.check_metrics,
         "Hourly metric threshold check")
 
+    # ── Content & Social Automation Jobs ──
+    async def _content_calendar_job():
+        """Generate weekly content calendar via cnt-06."""
+        await app.state.execution_service.queue_execution(
+            skill_id="cnt-06-content-calendar-builder",
+            agent_id="social_media_lead",
+            inputs={"business_context": "NemoClaw AI company", "channels": "tiktok,instagram,linkedin,twitter"},
+        )
+
+    async def _social_scrape_job():
+        """Run social intelligence scraping via int-05."""
+        await app.state.execution_service.queue_execution(
+            skill_id="int-05-cross-platform-scraper",
+            agent_id="strategy_lead",
+            inputs={"targets": "AI automation,AI agents,SaaS", "platforms": "tiktok,instagram,linkedin"},
+        )
+
+    async def _agent_self_promo_job():
+        """Generate self-promotion content for all agents via cnt-11."""
+        await app.state.execution_service.queue_execution(
+            skill_id="cnt-11-agent-self-promo-generator",
+            agent_id="social_media_lead",
+            inputs={"agent_count": "11", "platforms": "tiktok,instagram"},
+        )
+
+    app.state.autonomous_scheduler.register(
+        "content_calendar", 604800, _content_calendar_job,
+        "Weekly content calendar generation (Zara)")
+    app.state.autonomous_scheduler.register(
+        "social_intelligence", 43200, _social_scrape_job,
+        "Social intelligence scraping (12h)")
+    app.state.autonomous_scheduler.register(
+        "agent_self_promo", 86400, _agent_self_promo_job,
+        "Daily agent self-promotion content")
+
     # Start scheduler
     await app.state.autonomous_scheduler.start_all()
     app.state.prompt_optimization = PromptOptimizationService(

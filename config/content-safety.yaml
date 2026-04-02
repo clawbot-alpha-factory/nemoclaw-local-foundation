@@ -1,0 +1,58 @@
+# NemoClaw Content Safety — Whitelist-based (2026-04-02)
+# Agents have full autonomy. Safety checks are advisory, not blocking.
+# Platform-specific policies are enforced per-platform, not globally.
+
+mode: advisory  # advisory | blocking
+
+platform_policies:
+  tiktok:
+    max_hashtags: 30
+    max_video_seconds: 180
+    prohibited_content: [nudity, violence, hate_speech, illegal_activity]
+    required_disclosures: [ai_generated, sponsored_content]
+    min_age_audience: 13
+
+  instagram:
+    max_hashtags: 30
+    max_caption_length: 2200
+    prohibited_content: [nudity, violence, hate_speech, illegal_activity]
+    required_disclosures: [ai_generated, sponsored_content, partnership]
+    min_age_audience: 13
+
+  linkedin:
+    max_post_length: 3000
+    prohibited_content: [spam, misleading_claims, hate_speech]
+    required_disclosures: [ai_generated]
+    professional_tone: true
+
+  twitter:
+    max_tweet_length: 280
+    max_thread_tweets: 25
+    prohibited_content: [hate_speech, harassment, spam]
+    required_disclosures: [ai_generated]
+
+  youtube:
+    max_title_length: 100
+    max_description_length: 5000
+    prohibited_content: [nudity, violence, hate_speech, illegal_activity, misleading_medical]
+    required_disclosures: [ai_generated, sponsored_content]
+    min_age_audience: 13
+
+global_rules:
+  # Never claim to be human — always disclose AI agent identity
+  always_disclose_ai: true
+  # Never make financial guarantees or medical claims
+  no_financial_guarantees: true
+  no_medical_claims: true
+  # Attribution for agent-generated content
+  attribution_format: "Created by {agent_name} @ NemoClaw AI"
+  # No proprietary/internal data in public content
+  no_internal_disclosure: true
+
+content_review:
+  # Content is reviewed by narrative_content_lead before publishing
+  reviewer_agent: narrative_content_lead
+  # Auto-approve if quality_score >= 8.0
+  auto_approve_threshold: 8.0
+  # Flag for human review if contains these keywords
+  flag_keywords: [guarantee, promise, lawsuit, legal, medical, investment]
