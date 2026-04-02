@@ -170,7 +170,7 @@ def _nvidia_direct_chat(model, api_key, messages, max_tokens):
                              for m in messages if isinstance(m, dict)],
                 "max_tokens": max_tokens * 3,  # reasoning models need more budget
             },
-            timeout=30.0,
+            timeout=120.0,
         )
         resp.raise_for_status()
         msg = resp.json()["choices"][0]["message"]

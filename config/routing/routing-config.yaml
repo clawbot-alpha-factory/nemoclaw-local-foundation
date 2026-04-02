@@ -72,7 +72,7 @@ providers:
   fallback_nvidia:
     provider: nvidia
     model: nvidia/nvidia-nemotron-nano-9b-v2
-    max_tokens: 8192
+    max_tokens: 16384
     estimated_cost_per_call: 0.0
     notes: Free fallback when OpenAI budget exhausted. 40 RPM limit.
 
@@ -80,14 +80,14 @@ providers:
   cheap_nvidia:
     provider: nvidia
     model: nvidia/nvidia-nemotron-nano-9b-v2
-    max_tokens: 8192
+    max_tokens: 16384
     estimated_cost_per_call: 0.0
     notes: Fast 9B hybrid Mamba-Transformer. Free NIM API. Tier 1 alternative.
 
   reasoning_nvidia:
     provider: nvidia
     model: nvidia/nemotron-3-nano-30b-a3b
-    max_tokens: 16384
+    max_tokens: 32768
     estimated_cost_per_call: 0.0
     notes: 30B MoE (3.5B active), 1M context. Free NIM API. Tier 2/3 candidate.
 

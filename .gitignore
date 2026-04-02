@@ -17,6 +17,8 @@ eggs/
 /lib/
 !/lib/routing.py
 !/lib/__init__.py
+!/lib/chain_router.py
+!/lib/config_loader.py
 lib64/
 parts/
 sdist/
