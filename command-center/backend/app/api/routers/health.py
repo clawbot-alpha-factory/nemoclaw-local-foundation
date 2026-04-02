@@ -42,6 +42,66 @@ async def readiness_check():
     }
 
 
+@router.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus-compatible metrics endpoint.
+
+    Frozen metric names — stable contract, no churn.
+    Removal requires 2-version deprecation notice.
+    """
+    from fastapi.responses import PlainTextResponse
+
+    state = aggregator.state
+    lines = []
+
+    # Counters
+    lines.append(f"# HELP nemoclaw_skills_built_total Total built skills")
+    lines.append(f"# TYPE nemoclaw_skills_built_total gauge")
+    lines.append(f"nemoclaw_skills_built_total {state.skills.total_built}")
+
+    lines.append(f"# HELP nemoclaw_agents_total Total active agents")
+    lines.append(f"# TYPE nemoclaw_agents_total gauge")
+    lines.append(f"nemoclaw_agents_total {state.agents.total}")
+
+    lines.append(f"# HELP nemoclaw_ma_tests_total Total MA system test checks")
+    lines.append(f"# TYPE nemoclaw_ma_tests_total gauge")
+    lines.append(f"nemoclaw_ma_tests_total {state.ma_systems.total_tests}")
+
+    # Budget gauges (per provider)
+    lines.append(f"# HELP nemoclaw_llm_cost_usd LLM spend per provider")
+    lines.append(f"# TYPE nemoclaw_llm_cost_usd gauge")
+    for p in state.budget.providers:
+        lines.append(f'nemoclaw_llm_cost_usd{{provider="{p.provider}"}} {p.spent:.4f}')
+
+    lines.append(f"# HELP nemoclaw_provider_budget_remaining_usd Budget remaining per provider")
+    lines.append(f"# TYPE nemoclaw_provider_budget_remaining_usd gauge")
+    for p in state.budget.providers:
+        remaining = p.limit - p.spent
+        lines.append(f'nemoclaw_provider_budget_remaining_usd{{provider="{p.provider}"}} {remaining:.4f}')
+
+    # System health
+    lines.append(f"# HELP nemoclaw_system_health_score Overall system health 0-1")
+    lines.append(f"# TYPE nemoclaw_system_health_score gauge")
+    health_val = 1.0 if state.health.overall == "healthy" else (0.5 if state.health.overall == "warning" else 0.0)
+    lines.append(f"nemoclaw_system_health_score {health_val}")
+
+    # Validation
+    lines.append(f"# HELP nemoclaw_validation_passed Validation checks passed")
+    lines.append(f"# TYPE nemoclaw_validation_passed gauge")
+    lines.append(f"nemoclaw_validation_passed {state.validation.passed}")
+
+    lines.append(f"# HELP nemoclaw_validation_failed Validation checks failed")
+    lines.append(f"# TYPE nemoclaw_validation_failed gauge")
+    lines.append(f"nemoclaw_validation_failed {state.validation.failed}")
+
+    # WebSocket
+    lines.append(f"# HELP nemoclaw_ws_clients Connected WebSocket clients")
+    lines.append(f"# TYPE nemoclaw_ws_clients gauge")
+    lines.append(f"nemoclaw_ws_clients {ws_manager.connection_count}")
+
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")
+
+
 @router.get("/debug")
 async def debug_state():
     """Raw state dump for debugging. No auth required in dev."""

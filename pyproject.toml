@@ -1,0 +1,38 @@
+[project]
+name = "nemoclaw-local-foundation"
+version = "1.0.0"
+description = "LangGraph-based AI skill execution and multi-agent orchestration"
+requires-python = ">=3.12"
+license = {text = "Proprietary"}
+
+dependencies = [
+    "langgraph>=0.3",
+    "langchain-core>=0.3",
+    "langchain-anthropic>=0.3",
+    "langchain-openai>=0.3",
+    "langchain-google-genai>=4.0",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+    "httpx>=0.28",
+    "pydantic>=2.9",
+    "Pillow>=12.0",
+    "moviepy>=2.0",
+    "pydub>=0.25",
+    "srt>=3.5",
+]
+
+[project.optional-dependencies]
+backend = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "websockets>=14.0",
+    "pydantic-settings>=2.7",
+    "python-jose[cryptography]>=3.3",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["lib"]
