@@ -74,7 +74,7 @@ jobs:
             requests>=2.31
 
       - name: Run validation suite
-        run: python3 scripts/validate.py
+        run: python3 scripts/validate.py --ci
         env:
           # Provide stub keys so imports succeed without real calls
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'ci-stub' }}
