@@ -1,0 +1,1 @@
+Voice reference: assets/voices/references/yasmin/yasmin_reference.wav

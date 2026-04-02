@@ -530,12 +530,13 @@ def resolve_input_source(step, skill, inputs, context):
 
 # ── Node Factory ──────────────────────────────────────────────────────────────
 def make_node(skill, skill_dir, step):
-    step_id    = step["id"]
-    step_type  = step.get("step_type", "local")
-    task_class = step.get("task_class", "general_short")
-    idm        = step.get("idempotency", {})
-    failure    = step.get("failure", {})
-    is_llm     = step_type in ("llm", "critic")
+    step_id     = step["id"]
+    step_type   = step.get("step_type", "local")
+    task_class  = step.get("task_class", "general_short")
+    task_domain = step.get("task_domain", None)
+    idm         = step.get("idempotency", {})
+    failure     = step.get("failure", {})
+    is_llm      = step_type in ("llm", "critic")
 
     def node_fn(state: SkillState) -> SkillState:
         context = state["context"].copy()
@@ -590,6 +591,11 @@ def make_node(skill, skill_dir, step):
             except RuntimeError as e:
                 return {"status": "failed", "error": str(e),
                         "completed_steps": [], "step_history": []}
+
+        # ── Chain routing: pass task_domain to run.py via context ─────────
+        if task_domain:
+            context["_task_domain"] = task_domain
+            context["_task_class"] = task_class
 
         # ── Fix 1: Resolve input_source from skill.yaml ──────────────────
         resolved_input = resolve_input_source(step, skill, inputs, context)

@@ -4,10 +4,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   listApprovals,
   createApproval,
+  fetchBlockers,
+  fetchHistory,
+  fetchApprovalStats,
+  bulkApprove as apiBulkApprove,
   type Approval,
   type ApprovalCreateInput,
   type ApprovalStatus,
   type ApprovalPriority,
+  type ApprovalStats,
   type AuditEntry,
   type AuditTrailResponse,
 } from '../lib/approvals-api';
@@ -48,7 +53,19 @@ async function fetchAuditTrail(): Promise<AuditTrailResponse> {
   return res.json();
 }
 
-type TabView = 'queue' | 'history' | 'audit';
+type TabView = 'queue' | 'blockers' | 'history' | 'audit';
+
+const BLOCKER_CATEGORIES = ['account_creation', 'login', 'api_key', 'external_service', 'budget', 'deployment', 'infrastructure'];
+
+const CATEGORY_ICONS: Record<string, string> = {
+  account_creation: '👤',
+  login: '🔑',
+  api_key: '🔐',
+  external_service: '🔗',
+  budget: '💰',
+  deployment: '🚀',
+  infrastructure: '🏗️',
+};
 
 const PRIORITY_STYLES: Record<ApprovalPriority, { bg: string; text: string; label: string }> = {
   critical: { bg: 'bg-red-100', text: 'text-red-800', label: 'Critical' },
@@ -66,6 +83,7 @@ const STATUS_STYLES: Record<ApprovalStatus, { bg: string; text: string; label: s
 
 const TABS: { key: TabView; label: string }[] = [
   { key: 'queue', label: 'Queue' },
+  { key: 'blockers', label: 'Blockers' },
   { key: 'history', label: 'History' },
   { key: 'audit', label: 'Audit' },
 ];
@@ -116,6 +134,13 @@ export default function ApprovalsTab() {
     assignee: '',
   });
   const [createLoading, setCreateLoading] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActioning, setBulkActioning] = useState(false);
+  const [engineApprovals, setEngineApprovals] = useState<Approval[]>([]);
+  const [blockerItems, setBlockerItems] = useState<Approval[]>([]);
+  const [historyItems, setHistoryItems] = useState<Approval[]>([]);
+  const [stats, setStats] = useState<ApprovalStats | null>(null);
 
   const loadApprovals = useCallback(async () => {
     try {
@@ -143,13 +168,86 @@ export default function ApprovalsTab() {
     }
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'audit') {
-      loadAudit();
-    } else {
-      loadApprovals();
+  const loadEngineApprovals = useCallback(async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8100/api/engine/approvals/pending', { headers: headers() });
+      if (res.ok) {
+        const data = await res.json();
+        const normalized = (data.items || data || []).map((item: any) => ({
+          id: item.id || item.approval_id || crypto.randomUUID(),
+          title: item.title || item.action || 'Engine Approval',
+          description: item.description || item.details || '',
+          status: 'pending' as ApprovalStatus,
+          priority: item.priority || 'medium',
+          category: item.category || 'engine',
+          requester: item.requester || item.agent_id || 'system',
+          assignee: null,
+          notes: null,
+          reason: null,
+          escalated_to: null,
+          created_at: item.created_at || new Date().toISOString(),
+          updated_at: item.updated_at || new Date().toISOString(),
+          resolved_at: null,
+          metadata: item.metadata || {},
+        }));
+        setEngineApprovals(normalized);
+      }
+    } catch {
+      // Engine approvals endpoint may not exist yet — silent fail
     }
-  }, [activeTab, loadApprovals, loadAudit]);
+  }, []);
+
+  const loadBlockers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchBlockers();
+      setBlockerItems(data);
+    } catch {
+      // Fall back to client-side filtering if endpoint not available
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchHistory();
+      setHistoryItems(data.items || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load history');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await fetchApprovalStats();
+      setStats(data);
+    } catch {
+      // Stats endpoint optional
+    }
+  }, []);
+
+  useEffect(() => {
+    switch (activeTab) {
+      case 'audit':
+        loadAudit();
+        break;
+      case 'blockers':
+        loadBlockers();
+        break;
+      case 'history':
+        loadHistory();
+        break;
+      default:
+        loadApprovals();
+        loadEngineApprovals();
+        break;
+    }
+    loadStats();
+  }, [activeTab, loadApprovals, loadAudit, loadEngineApprovals, loadBlockers, loadHistory, loadStats]);
 
   const pendingApprovals = useMemo(
     () => approvals.filter((a) => a.status === 'pending' || a.status === 'escalated'),
@@ -162,17 +260,90 @@ export default function ApprovalsTab() {
   );
 
   const queueStats = useMemo(() => {
-    const critical = pendingApprovals.filter((a) => a.priority === 'critical').length;
-    const high = pendingApprovals.filter((a) => a.priority === 'high').length;
+    if (stats) {
+      const byStatus = (stats as any).by_status || {};
+      const byPriority = (stats as any).by_priority || {};
+      const pending = Number(byStatus.pending || (stats as any).queue_depth || stats.pending) || 0;
+      const escalated = Number(byStatus.escalated || stats.escalated) || 0;
+      return {
+        total: pending + escalated,
+        critical: Number((stats as any).critical_pending || byPriority.critical) || 0,
+        high: Number((stats as any).high_pending || byPriority.high) || 0,
+        escalated,
+        blockers: Number(stats.blockers) || 0,
+      };
+    }
+    const all = [...pendingApprovals, ...engineApprovals];
+    const critical = all.filter((a) => a.priority === 'critical').length;
+    const high = all.filter((a) => a.priority === 'high').length;
     const escalated = pendingApprovals.filter((a) => a.status === 'escalated').length;
-    return { total: pendingApprovals.length, critical, high, escalated };
-  }, [pendingApprovals]);
+    const blockers = all.filter((a) => BLOCKER_CATEGORIES.includes(a.category)).length;
+    return { total: all.length, critical, high, escalated, blockers };
+  }, [pendingApprovals, engineApprovals, stats]);
 
   const historyStats = useMemo(() => {
-    const approved = resolvedApprovals.filter((a) => a.status === 'approved').length;
-    const rejected = resolvedApprovals.filter((a) => a.status === 'rejected').length;
-    return { total: resolvedApprovals.length, approved, rejected };
-  }, [resolvedApprovals]);
+    const items = historyItems.length > 0 ? historyItems : resolvedApprovals;
+    const approved = items.filter((a) => a.status === 'approved').length;
+    const rejected = items.filter((a) => a.status === 'rejected').length;
+    return { total: items.length, approved, rejected };
+  }, [historyItems, resolvedApprovals]);
+
+  // All pending items (including engine approvals)
+  const allPending = useMemo(
+    () => [...pendingApprovals, ...engineApprovals],
+    [pendingApprovals, engineApprovals]
+  );
+
+  // Blockers — loaded from /api/approvals/blockers, fallback to client-side
+  const effectiveBlockers = useMemo(
+    () => blockerItems.length > 0 ? blockerItems : allPending.filter((a) => BLOCKER_CATEGORIES.includes(a.category)),
+    [blockerItems, allPending]
+  );
+
+  // Category-filtered queue
+  const filteredPending = useMemo(() => {
+    if (!categoryFilter) return allPending;
+    return allPending.filter((a) => a.category === categoryFilter);
+  }, [allPending, categoryFilter]);
+
+  // Unique categories in pending
+  const pendingCategories = useMemo(() => {
+    const cats = new Set(allPending.map((a) => a.category).filter(Boolean));
+    return Array.from(cats).sort();
+  }, [allPending]);
+
+  // Bulk approve — uses backend bulk endpoint
+  const handleBulkApprove = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setBulkActioning(true);
+    try {
+      const result = await apiBulkApprove(Array.from(selectedIds), 'Bulk approved');
+      if (result.failed.length > 0) {
+        setError(`${result.failed.length} items failed to approve`);
+      }
+      setSelectedIds(new Set());
+      await loadApprovals();
+      if (activeTab === 'blockers') await loadBlockers();
+      await loadStats();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Bulk approve failed');
+    } finally {
+      setBulkActioning(false);
+    }
+  }, [selectedIds, loadApprovals, loadBlockers, loadStats, activeTab]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = (items: Approval[]) => {
+    setSelectedIds(new Set(items.map((a) => a.id)));
+  };
 
   const auditStats = useMemo(() => {
     const actions = auditEntries.reduce<Record<string, number>>((acc, e) => {
@@ -266,10 +437,11 @@ export default function ApprovalsTab() {
   }, [pendingApprovals]);
 
   const sortedResolved = useMemo(() => {
-    return [...resolvedApprovals].sort(
+    const items = historyItems.length > 0 ? historyItems : resolvedApprovals;
+    return [...items].sort(
       (a, b) => new Date(b.resolved_at || b.updated_at).getTime() - new Date(a.resolved_at || a.updated_at).getTime()
     );
-  }, [resolvedApprovals]);
+  }, [historyItems, resolvedApprovals]);
 
   const sortedAudit = useMemo(() => {
     return [...auditEntries].sort(
@@ -337,7 +509,7 @@ export default function ApprovalsTab() {
       {!loading && activeTab === 'queue' && (
         <div className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="bg-nc-surface border border-nc-border rounded-lg p-4">
               <p className="text-sm text-nc-text-dim">Total Pending</p>
               <p className="text-2xl font-bold text-nc-text mt-1">{queueStats.total}</p>
@@ -354,17 +526,61 @@ export default function ApprovalsTab() {
               <p className="text-sm text-nc-text-dim">Escalated</p>
               <p className="text-2xl font-bold text-blue-800 mt-1">{queueStats.escalated}</p>
             </div>
+            <div className="bg-nc-surface border border-nc-border rounded-lg p-4 cursor-pointer hover:border-nc-accent transition-colors" onClick={() => setActiveTab('blockers')}>
+              <p className="text-sm text-nc-text-dim">Blockers</p>
+              <p className="text-2xl font-bold text-purple-800 mt-1">{queueStats.blockers}</p>
+            </div>
+          </div>
+
+          {/* Category filter + Bulk actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1 flex-wrap">
+              <button
+                onClick={() => setCategoryFilter('')}
+                className={`px-2 py-1 text-xs rounded-lg transition-colors ${
+                  !categoryFilter ? 'bg-nc-accent text-white' : 'bg-nc-surface-2 text-nc-text-dim hover:text-nc-text'
+                }`}
+              >All ({allPending.length})</button>
+              {pendingCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-2 py-1 text-xs rounded-lg transition-colors ${
+                    categoryFilter === cat ? 'bg-nc-accent text-white' : 'bg-nc-surface-2 text-nc-text-dim hover:text-nc-text'
+                  }`}
+                >
+                  {CATEGORY_ICONS[cat] || '📋'} {cat.replace(/_/g, ' ')} ({allPending.filter(a => a.category === cat).length})
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkActioning}
+                  className="px-3 py-1.5 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors disabled:opacity-50"
+                >
+                  {bulkActioning ? 'Approving...' : `✓ Approve ${selectedIds.size} selected`}
+                </button>
+              )}
+              <button
+                onClick={() => selectedIds.size === filteredPending.length ? setSelectedIds(new Set()) : selectAll(filteredPending)}
+                className="px-2 py-1 text-xs bg-nc-surface-2 text-nc-text-dim rounded-lg hover:text-nc-text"
+              >
+                {selectedIds.size === filteredPending.length && filteredPending.length > 0 ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
           </div>
 
           {/* Pending Approval Cards */}
-          {sortedPending.length === 0 ? (
+          {filteredPending.length === 0 ? (
             <div className="text-center py-12 bg-nc-surface border border-nc-border rounded-lg">
               <p className="text-nc-text-dim text-lg">No pending approvals</p>
               <p className="text-nc-text-dim text-sm mt-1">All caught up!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {sortedPending.map((approval) => {
+              {filteredPending.map((approval) => {
                 const pStyle = PRIORITY_STYLES[approval.priority];
                 const sStyle = STATUS_STYLES[approval.status];
                 return (
@@ -374,6 +590,12 @@ export default function ApprovalsTab() {
                   >
                     {/* Header row */}
                     <div className="flex items-start justify-between">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(approval.id)}
+                        onChange={() => toggleSelect(approval.id)}
+                        className="mt-1 mr-2 shrink-0 accent-nc-accent"
+                      />
                       <h3 className="text-sm font-semibold text-nc-text leading-tight flex-1 mr-2">
                         {approval.title}
                       </h3>
@@ -454,6 +676,110 @@ export default function ApprovalsTab() {
                           }
                         }}
                         className="flex-1 px-3 py-1.5 bg-red-100 text-red-800 rounded-md text-xs font-medium hover:bg-red-200 transition-colors disabled:opacity-50"
+                      >
+                        {actioningId === approval.id ? '...' : '✗ Reject'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Blockers View */}
+      {!loading && activeTab === 'blockers' && (
+        <div className="space-y-6">
+          <div className="bg-nc-surface border border-nc-border rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-nc-text mb-1">External Blockers</h3>
+            <p className="text-sm text-nc-text-dim">
+              Items that need your external action — account creation, API key setup, login credentials, service access, and other infrastructure needs.
+            </p>
+          </div>
+
+          {/* Category summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+            {BLOCKER_CATEGORIES.map((cat) => {
+              const count = effectiveBlockers.filter((a) => a.category === cat).length;
+              return (
+                <div key={cat} className="bg-nc-surface border border-nc-border rounded-lg p-3 text-center">
+                  <div className="text-2xl mb-1">{CATEGORY_ICONS[cat] || '📋'}</div>
+                  <div className="text-lg font-bold text-nc-text">{count}</div>
+                  <div className="text-[10px] text-nc-text-dim capitalize">{cat.replace(/_/g, ' ')}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bulk approve blockers */}
+          {effectiveBlockers.length > 0 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => selectAll(effectiveBlockers)}
+                className="px-3 py-1.5 text-xs bg-nc-surface-2 text-nc-text-dim rounded-lg hover:text-nc-text"
+              >Select all blockers ({effectiveBlockers.length})</button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkActioning}
+                  className="px-3 py-1.5 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 disabled:opacity-50"
+                >
+                  {bulkActioning ? 'Approving...' : `✓ Approve ${selectedIds.size} selected`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Blocker cards */}
+          {effectiveBlockers.length === 0 ? (
+            <div className="text-center py-12 bg-nc-surface border border-nc-border rounded-lg">
+              <p className="text-nc-text-dim text-lg">No blockers pending</p>
+              <p className="text-nc-text-dim text-sm mt-1">All external dependencies are cleared.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {effectiveBlockers.map((approval) => {
+                const pStyle = PRIORITY_STYLES[approval.priority];
+                return (
+                  <div
+                    key={approval.id}
+                    className="bg-nc-surface border border-nc-border rounded-lg p-4 flex items-start gap-3"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(approval.id)}
+                      onChange={() => toggleSelect(approval.id)}
+                      className="mt-1 shrink-0 accent-nc-accent"
+                    />
+                    <span className="text-xl shrink-0">{CATEGORY_ICONS[approval.category] || '📋'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-sm font-semibold text-nc-text">{approval.title}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pStyle.bg} ${pStyle.text}`}>
+                          {pStyle.label}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-nc-surface-2 text-nc-text-dim text-xs border border-nc-border capitalize">
+                          {approval.category.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-nc-text-dim mb-2">{approval.description}</p>
+                      <div className="text-xs text-nc-text-dim">
+                        Requested by: {approval.requester} &middot; {formatRelative(approval.created_at)}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button
+                        disabled={actioningId === approval.id}
+                        onClick={() => handleApprove(approval.id)}
+                        className="px-3 py-1.5 bg-green-100 text-green-800 rounded-md text-xs font-medium hover:bg-green-200 disabled:opacity-50"
+                      >
+                        {actioningId === approval.id ? '...' : '✓ Approve'}
+                      </button>
+                      <button
+                        disabled={actioningId === approval.id}
+                        onClick={() => setShowRejectModal(approval.id)}
+                        className="px-3 py-1.5 bg-red-100 text-red-800 rounded-md text-xs font-medium hover:bg-red-200 disabled:opacity-50"
                       >
                         {actioningId === approval.id ? '...' : '✗ Reject'}
                       </button>

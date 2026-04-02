@@ -6,8 +6,8 @@ import {
   fetchTasks,
   createTask,
   updateTask,
-  fetchBudgetBreakdown,
-  fetchActivityFeed,
+  fetchBudget,
+  fetchActivity,
 } from '../lib/ops-api';
 import type {
   DashboardData,
@@ -92,7 +92,7 @@ export default function OpsTab() {
     try {
       const [dash, actFeed] = await Promise.all([
         fetchDashboard(),
-        fetchActivityFeed({ page: 1, page_size: 20 }),
+        fetchActivity(1, 20),
       ]);
       setDashboard(dash);
       setActivities(actFeed.activities);
@@ -120,7 +120,7 @@ export default function OpsTab() {
     setFinanceLoading(true);
     setError(null);
     try {
-      const res = await fetchBudgetBreakdown();
+      const res = await fetchBudget();
       setBudget(res);
     } catch (e: any) {
       setError(e.message || 'Failed to load finance data');

@@ -1,0 +1,12 @@
+vault:
+  path: ~/.nemoclaw/vault/credentials.enc
+  key_derivation: pbkdf2
+  iterations: 480000
+  session_ttl_hours: 24
+  max_failed_attempts: 5
+
+  credential_types:
+    username_password: {fields: [username, password]}
+    oauth_token: {fields: [client_id, client_secret, refresh_token]}
+    api_key: {fields: [key]}
+    totp_secret: {fields: [secret, issuer]}

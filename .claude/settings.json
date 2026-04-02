@@ -2,20 +2,18 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit(config/.env*)|Write(config/.env*)",
         "hooks": [{
           "type": "command",
-          "if": "Edit(config/.env*)|Write(config/.env*)",
           "command": "echo 'BLOCKED: Edit .env files manually, not via Claude' >&2; exit 2"
         }]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit(skills/**/*.yaml)|Write(skills/**/*.yaml)",
         "hooks": [{
           "type": "command",
-          "if": "Edit(skills/**/*.yaml)|Write(skills/**/*.yaml)",
           "command": "echo 'Reminder: Run python3 scripts/validate.py to verify skill YAML changes'"
         }]
       }

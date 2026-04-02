@@ -361,8 +361,8 @@ class PinchTabClient:
     # -------------------------------------------------------------------
 
     def find(self, query: str) -> tuple:
-        """Find elements by text or selector. Returns (success, [{ref, role, name}])."""
-        ok, result = self._get("/find", {"q": query})
+        """Find elements by text or selector. Returns (success, {best_ref, matches, confidence})."""
+        ok, result = self._post("/find", {"query": query})
         self._log_action("find", {"query": query}, ok, result, result if not ok else None)
         return (ok, result)
 
@@ -430,7 +430,7 @@ class PinchTabClient:
             self._log_action("eval_js", {}, False, error=err)
             return (False, err)
 
-        ok, result = self._post("/eval", {"expression": expression})
+        ok, result = self._post("/evaluate", {"expression": expression})
         if ok:
             self._eval_count += 1
         self._log_action("eval_js", {"expression": expression[:100]}, ok, result, result if not ok else None)
@@ -540,6 +540,28 @@ class PinchTabClient:
         """Reset per-task counters (clicks, eval_js). Call at start of each skill run."""
         self._click_count = 0
         self._eval_count = 0
+
+    def restart_default_instance(self, headless: bool = True) -> tuple:
+        """Stop the default instance (if any) and start a fresh one.
+        Useful for recovering from stale/crashed Chrome contexts.
+        Returns (success, new_instance_object)."""
+        # Find and stop current default instance
+        ok, instances = self.list_instances()
+        if ok and isinstance(instances, list):
+            for inst in instances:
+                if inst.get("status") == "running":
+                    self.stop_instance(inst["id"])
+                    time.sleep(1)
+
+        # Start fresh
+        ok, result = self.start_instance(headless=headless)
+        if ok:
+            # Wait for instance to be ready
+            time.sleep(3)
+            self._log_action("restart_default_instance", {"headless": headless}, True, result)
+        else:
+            self._log_action("restart_default_instance", {"headless": headless}, False, error=result)
+        return (ok, result)
 
 
 # ---------------------------------------------------------------------------
@@ -791,10 +813,11 @@ def _run_tests():
     # --- Test 23: Find ---
     def test_find():
         client = PinchTabClient()
-        find_resp = [{"ref": "e10", "role": "link", "name": "Contact"}]
-        with patch("requests.get", return_value=mock_response(200, find_resp)):
+        find_resp = {"best_ref": "e10", "matches": [{"ref": "e10", "role": "link", "name": "Contact"}], "confidence": "high"}
+        with patch("requests.post", return_value=mock_response(200, find_resp)):
             ok, result = client.find("Contact")
             assert ok is True
+            assert result["best_ref"] == "e10"
     test("Find", test_find)
 
     # --- Test 24: Screenshot to file ---
@@ -831,12 +854,13 @@ def _run_tests():
         os.unlink(tmp_path)
     test("PDF export", test_pdf)
 
-    # --- Test 27: Eval JS ---
+    # --- Test 27: Eval JS (endpoint: /evaluate) ---
     def test_eval_js():
         client = PinchTabClient()
-        with patch("requests.post", return_value=mock_response(200, {"result": "42"})):
+        with patch("requests.post", return_value=mock_response(200, {"result": "42"})) as mock_post:
             ok, result = client.eval_js("document.title")
             assert ok is True
+            assert "/evaluate" in mock_post.call_args[0][0]
     test("Eval JS", test_eval_js)
 
     # --- Test 28: Eval JS rate limit ---

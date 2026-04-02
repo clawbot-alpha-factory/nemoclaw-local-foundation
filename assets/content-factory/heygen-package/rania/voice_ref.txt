@@ -1,0 +1,1 @@
+Voice reference: assets/voices/references/rania/rania_reference.wav

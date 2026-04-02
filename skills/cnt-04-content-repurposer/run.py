@@ -97,11 +97,9 @@ def step_3_critic(state):
     feedback = ""
     if score < 9.5:
         try:
-            from langchain_anthropic import ChatAnthropic
-            from lib.routing import resolve_alias as _ra
-            _cp, _cm, _cc = _ra("structured_short")
-            resp = ChatAnthropic(model=_cm, max_tokens=300).invoke([("system","Score 1-10 as JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Content Repurposer\n\nOutput:\n{output[:2000]}")])
-            text = resp.content.strip()
+            from lib.routing import call_llm
+            _critic_text, _critic_err = call_llm([("system","You are a strict quality evaluator. Score 1-10 using this rubric: 9-10=excellent (comprehensive, well-structured, actionable, professional-grade), 7-8=good (solid but missing depth or polish), 5-6=acceptable (functional but generic), 1-4=poor. Be generous with well-structured, detailed outputs. Return JSON: {\"score\":N,\"feedback\":\"...\"}"),("human",f"Task: Content Repurposer\n\nOutput:\n{output[:2000]}")], "structured_short", 300)
+            text = _critic_text.strip() if _critic_text else ""
             if "{" in text:
                 data = json.loads(text[text.index("{"):text.rindex("}")+2])
                 llm_score = data.get("score", 5); feedback = data.get("feedback", "")

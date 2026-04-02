@@ -28,6 +28,16 @@ budgets:
     exhausted_message: "PROVIDER BUDGET EXHAUSTED — SWITCHED TO FALLBACK"
     log_to_file: true
     log_to_terminal: true
+  nvidia:
+    total_usd: 0.00
+    tracking: cumulative_across_sessions
+    threshold_warn: 0.90
+    threshold_hard_stop: 1.00
+    warn_message: "NVIDIA FREE TIER CREDITS LOW"
+    exhausted_message: "NVIDIA FREE TIER EXHAUSTED — SWITCHED TO FALLBACK"
+    log_to_file: true
+    log_to_terminal: true
+    notes: "Free tier (5000 credits, 40 RPM). $0 budget = free tier only."
 log:
   path: ~/.nemoclaw/logs/provider-usage.jsonl
   fields:

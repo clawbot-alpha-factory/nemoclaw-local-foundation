@@ -1,0 +1,57 @@
+# NemoClaw Browser Autonomy Layer Configuration
+# Triple-engine: PinchTab + browser-use + gws CLI
+
+autonomy:
+  default_engine: pinchtab          # lightweight ops
+  autonomous_engine: browser_use     # complex tasks
+  google_engine: gws_cli             # Google Workspace services
+
+  routing:
+    pinchtab_first:                  # Try PinchTab, fallback to browser-use
+      - navigate
+      - click
+      - fill
+      - text
+      - snapshot
+      - screenshot
+      - scroll
+      - hover
+      - press
+      - select
+    browser_use_only:                # Always browser-use
+      - drag_drop
+      - upload_file
+      - login
+      - oauth
+      - captcha
+      - iframe
+      - keyboard_shortcut
+      - right_click
+      - autonomous_task
+      - wait_for_element
+
+  fallback:
+    enabled: true
+    order: [api_bridge, gws_cli, pinchtab, browser_use]
+    max_retries: 3
+    backoff_seconds: [1, 3, 10]
+
+  gws:
+    enabled: true
+    credentials_file: ~/.nemoclaw/vault/gws-service-account.json
+    default_user: clawdtob@gmail.com
+    services: [gmail, drive, sheets, calendar, docs, chat]
+    # Google services always prefer gws over browser
+    google_services_via_gws: [gmail, drive, sheets, calendar, docs, chat, admin]
+
+  concurrency:
+    max_browser_use_sessions: 4     # Match PinchTab max_instances
+    max_per_agent: 1
+    session_timeout_minutes: 30
+
+  browser_use:
+    headless: true
+    use_vision: true
+    max_failures: 3
+    max_actions_per_step: 5
+    llm_task_class: moderate         # Routes through call_llm() L-003

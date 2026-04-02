@@ -59,9 +59,15 @@ class MessageStore:
         participants: list[str] | None = None,
         avatar: str | None = None,
     ) -> Lane:
-        """Create a new lane. Idempotent — returns existing if ID exists."""
+        """Create a new lane. Idempotent — returns existing if ID exists (updates name/avatar)."""
         if lane_id in self._lanes:
-            return self._lanes[lane_id]
+            # Update name and avatar if they changed (e.g. character names added)
+            existing = self._lanes[lane_id]
+            if name and name != existing.name:
+                existing.name = name
+            if avatar and avatar != existing.avatar:
+                existing.avatar = avatar
+            return existing
 
         lane = Lane(
             id=lane_id,

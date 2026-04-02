@@ -1,0 +1,23 @@
+{
+  "date": "2026-04-01",
+  "mode": "free_only",
+  "elapsed_seconds": 1.9,
+  "results": {
+    "script": {
+      "ok": true
+    },
+    "voice": {
+      "ok": true
+    },
+    "images": {
+      "ok": true
+    },
+    "captions": {
+      "ok": true
+    },
+    "compose": {
+      "ok": false
+    }
+  },
+  "video_verified": false
+}

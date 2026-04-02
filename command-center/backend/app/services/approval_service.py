@@ -102,6 +102,32 @@ class ApprovalService:
         except OSError as exc:
             log.error("Failed to save approval data: %s", exc)
 
+    # ── Normalization ─────────────────────────────────────────────────────
+
+    def _normalize(self, approval: dict) -> dict:
+        """Normalize internal approval dict to match frontend Approval interface.
+
+        Maps internal field names to frontend-expected names and ensures all
+        required fields are present.
+        """
+        return {
+            "id": approval.get("id", ""),
+            "title": approval.get("title", ""),
+            "description": approval.get("description", ""),
+            "status": approval.get("status", "pending"),
+            "priority": approval.get("priority", "medium"),
+            "category": approval.get("category", "general"),
+            "requester": approval.get("requester") or approval.get("requested_by", ""),
+            "assignee": approval.get("assignee") or approval.get("assigned_to"),
+            "notes": approval.get("notes") or None,
+            "reason": approval.get("reason") or None,
+            "escalated_to": approval.get("escalated_to") or None,
+            "created_at": approval.get("created_at", ""),
+            "updated_at": approval.get("updated_at") or approval.get("created_at", ""),
+            "resolved_at": approval.get("resolved_at") or None,
+            "metadata": approval.get("metadata") or {},
+        }
+
     # ── Audit ──────────────────────────────────────────────────────────────
 
     def _log_audit(
@@ -128,7 +154,7 @@ class ApprovalService:
             "action": action,
             "actor": actor,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": details,
+            "details": {"message": details} if isinstance(details, str) else (details or {}),
         }
         self.audit_trail.append(entry)
         log.info(
@@ -210,10 +236,12 @@ class ApprovalService:
         self,
         title: str,
         description: str,
-        requested_by: str,
+        requested_by: str = "",
         priority: str = "medium",
-        category: str = "task",
+        category: str = "general",
         notes: Optional[str] = None,
+        assignee: Optional[str] = None,
+        metadata: Optional[dict] = None,
     ) -> dict:
         """Create a new approval request.
 
@@ -222,34 +250,37 @@ class ApprovalService:
             description: Detailed description.
             requested_by: The agent_id of the requester.
             priority: Priority level (low/medium/high/critical).
-            category: Category (budget/task/deployment/access).
+            category: Category for routing.
             notes: Optional notes.
+            assignee: Optional explicit assignee (overrides routing).
+            metadata: Optional metadata dict.
 
         Returns:
-            The created approval request dict.
+            The created approval request dict (normalized).
         """
         if priority not in PRIORITY_ORDER:
             raise ValueError(f"Invalid priority: {priority}. Must be one of {list(PRIORITY_ORDER.keys())}")
-        if category not in CATEGORY_ROUTING:
-            raise ValueError(f"Invalid category: {category}. Must be one of {list(CATEGORY_ROUTING.keys())}")
 
         approval_id = uuid4().hex[:8]
         now = datetime.now(timezone.utc).isoformat()
-        assigned_to = self._route_approver(category)
+        assigned_to = assignee or CATEGORY_ROUTING.get(category, "operations_lead")
 
         approval = {
             "id": approval_id,
             "title": title,
             "description": description,
-            "requested_by": requested_by,
-            "approved_by": None,
-            "assigned_to": assigned_to,
+            "requester": requested_by,
+            "assignee": assigned_to,
             "status": "pending",
             "priority": priority,
             "category": category,
             "created_at": now,
+            "updated_at": now,
             "resolved_at": None,
             "notes": notes or "",
+            "reason": None,
+            "escalated_to": None,
+            "metadata": metadata or {},
         }
 
         self.approvals[approval_id] = approval
@@ -264,7 +295,7 @@ class ApprovalService:
             priority,
             assigned_to,
         )
-        return approval
+        return self._normalize(approval)
 
     def list_all(
         self,
@@ -297,10 +328,10 @@ class ApprovalService:
         if requested_by:
             results = [a for a in results if a["requested_by"] == requested_by]
         if assigned_to:
-            results = [a for a in results if a.get("assigned_to") == assigned_to]
+            results = [a for a in results if (a.get("assigned_to") or a.get("assignee")) == assigned_to]
 
         log.debug("Listed %d approvals (filters: status=%s, category=%s, priority=%s)", len(results), status, category, priority)
-        return results
+        return [self._normalize(a) for a in results]
 
     def get(self, approval_id: str) -> Optional[dict]:
         """Get a single approval request by ID.
@@ -314,7 +345,8 @@ class ApprovalService:
         approval = self.approvals.get(approval_id)
         if not approval:
             log.warning("Approval %s not found", approval_id)
-        return approval
+            return None
+        return self._normalize(approval)
 
     def approve(
         self,
@@ -347,16 +379,16 @@ class ApprovalService:
 
         now = datetime.now(timezone.utc).isoformat()
         approval["status"] = "approved"
-        approval["approved_by"] = approved_by
+        approval["updated_at"] = now
         approval["resolved_at"] = now
         if notes:
-            approval["notes"] = f"{approval['notes']}\n[Approved] {notes}".strip()
+            approval["notes"] = f"{approval.get('notes', '')}\n[Approved] {notes}".strip()
 
         self._log_audit(approval_id, "approved", approved_by, notes)
         self._save()
 
         log.info("Approval %s approved by %s", approval_id, approved_by)
-        return approval
+        return self._normalize(approval)
 
     def reject(
         self,
@@ -389,16 +421,17 @@ class ApprovalService:
 
         now = datetime.now(timezone.utc).isoformat()
         approval["status"] = "rejected"
-        approval["approved_by"] = rejected_by
+        approval["updated_at"] = now
         approval["resolved_at"] = now
+        approval["reason"] = notes
         if notes:
-            approval["notes"] = f"{approval['notes']}\n[Rejected] {notes}".strip()
+            approval["notes"] = f"{approval.get('notes', '')}\n[Rejected] {notes}".strip()
 
         self._log_audit(approval_id, "rejected", rejected_by, notes)
         self._save()
 
         log.info("Approval %s rejected by %s", approval_id, rejected_by)
-        return approval
+        return self._normalize(approval)
 
     def escalate(
         self,
@@ -437,11 +470,14 @@ class ApprovalService:
                 f"Cannot escalate: approval {approval_id} is already at the highest authority level"
             )
 
+        now = datetime.now(timezone.utc).isoformat()
         approval["status"] = "escalated"
+        approval["assignee"] = escalation_target
         approval["assigned_to"] = escalation_target
-        approval["status"] = "pending"
+        approval["escalated_to"] = escalation_target
+        approval["updated_at"] = now
         if notes:
-            approval["notes"] = f"{approval['notes']}\n[Escalated] {notes}".strip()
+            approval["notes"] = f"{approval.get('notes', '')}\n[Escalated] {notes}".strip()
 
         self._log_audit(
             approval_id,
@@ -458,7 +494,7 @@ class ApprovalService:
             escalation_target,
             escalated_by,
         )
-        return approval
+        return self._normalize(approval)
 
     def update(
         self,
@@ -511,12 +547,13 @@ class ApprovalService:
             approval["notes"] = f"{approval['notes']}\n[Updated] {notes}".strip()
             changes.append("notes appended")
 
+        approval["updated_at"] = datetime.now(timezone.utc).isoformat()
         change_summary = ", ".join(changes) if changes else "no changes"
         self._log_audit(approval_id, "updated", updated_by, change_summary)
         self._save()
 
         log.info("Approval %s updated by %s: %s", approval_id, updated_by, change_summary)
-        return approval
+        return self._normalize(approval)
 
     def delete(self, approval_id: str, deleted_by: str) -> bool:
         """Delete an approval request.
@@ -572,7 +609,7 @@ class ApprovalService:
         )
 
         log.debug("Queue: %d pending items (assigned_to=%s, category=%s)", len(pending), assigned_to, category)
-        return pending
+        return [self._normalize(a) for a in pending]
 
     # ── Stats ──────────────────────────────────────────────────────────────
 
@@ -636,6 +673,82 @@ class ApprovalService:
 
         results.sort(key=lambda e: e["timestamp"], reverse=True)
         return results[:limit]
+
+    # ── Blockers ──────────────────────────────────────────────────────────
+
+    BLOCKER_CATEGORIES = frozenset([
+        "account_creation", "login", "api_key", "external_service",
+        "budget", "deployment", "infrastructure",
+    ])
+
+    def get_blockers(self) -> list[dict]:
+        """Get pending approvals in blocker categories, sorted by priority."""
+        pending = [a for a in self.approvals.values() if a["status"] in ("pending", "escalated")]
+        blockers = [a for a in pending if a.get("category") in self.BLOCKER_CATEGORIES]
+        blockers.sort(key=lambda a: (PRIORITY_ORDER.get(a["priority"], 99), a["created_at"]))
+        return [self._normalize(a) for a in blockers]
+
+    # ── History ──────────────────────────────────────────────────────────
+
+    def get_history(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Get resolved approvals (approved/rejected), most recent first."""
+        resolved = [a for a in self.approvals.values() if a["status"] in ("approved", "rejected")]
+        resolved.sort(key=lambda a: a.get("resolved_at") or a.get("updated_at", ""), reverse=True)
+        return [self._normalize(a) for a in resolved[offset:offset + limit]]
+
+    # ── Bulk Operations ──────────────────────────────────────────────────
+
+    def bulk_approve(
+        self,
+        ids: list[str],
+        approved_by: str = "system",
+        notes: str = "Bulk approved",
+    ) -> dict:
+        """Approve multiple pending approvals at once.
+
+        Returns:
+            Dict with succeeded, failed, and total counts.
+        """
+        succeeded = []
+        failed = []
+        for aid in ids:
+            try:
+                result = self.approve(approval_id=aid, approved_by=approved_by, notes=notes)
+                if result:
+                    succeeded.append(result)
+                else:
+                    failed.append({"id": aid, "error": "Not found"})
+            except (ValueError, Exception) as e:
+                failed.append({"id": aid, "error": str(e)})
+        return {"succeeded": succeeded, "failed": failed, "total": len(ids)}
+
+    def bulk_reject(
+        self,
+        ids: list[str],
+        rejected_by: str = "system",
+        reason: str = "Bulk rejected",
+    ) -> dict:
+        """Reject multiple pending approvals at once.
+
+        Returns:
+            Dict with succeeded, failed, and total counts.
+        """
+        succeeded = []
+        failed = []
+        for aid in ids:
+            try:
+                result = self.reject(approval_id=aid, rejected_by=rejected_by, notes=reason)
+                if result:
+                    succeeded.append(result)
+                else:
+                    failed.append({"id": aid, "error": "Not found"})
+            except (ValueError, Exception) as e:
+                failed.append({"id": aid, "error": str(e)})
+        return {"succeeded": succeeded, "failed": failed, "total": len(ids)}
 
     # ── Reload ─────────────────────────────────────────────────────────────
 

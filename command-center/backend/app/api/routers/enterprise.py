@@ -139,7 +139,7 @@ async def export_audit(request: Request) -> dict[str, Any]:
 @router.get("/api/engine/approvals/pending")
 async def get_pending_approvals(request: Request) -> dict[str, Any]:
     pending = _svc(request, "approval_chain_service", "ApprovalChainService").get_pending()
-    return {"pending": pending, "total": len(pending)}
+    return {"items": pending, "total": len(pending)}
 
 @router.post("/api/engine/approvals/submit")
 async def submit_approval(body: ApprovalSubmit, request: Request) -> dict[str, Any]:

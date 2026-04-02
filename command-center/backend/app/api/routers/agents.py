@@ -69,10 +69,19 @@ def _build_agent_profile(agent, store=None) -> dict[str, Any]:
     # Constraints
     constraints = raw.get("constraints", [])
 
+    # Character name from identity block (e.g. "Tariq", "Nadia")
+    character_name = getattr(agent, "character_name", "") or agent.display_name
+    character = getattr(agent, "character", "")
+    role_display = getattr(agent, "role_display", agent.display_name)
+    title_short = getattr(agent, "title_short", title)
+
     profile = {
         "id": agent.id,
-        "name": agent.display_name,
-        "title": title,
+        "name": f"{character_name} ({role_display})" if character_name and character_name != role_display else agent.display_name,
+        "character_name": character_name,
+        "character": character,
+        "role_display": role_display,
+        "title": title_short or title,
         "role": agent.description,
         "avatar": agent.avatar,
         "lane_id": agent.lane_id,

@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'operations', label: 'Ops', emoji: '📊', disabled: false },
   { id: 'execution', label: 'Engine', emoji: '🚀', disabled: false },
   { id: 'finance', label: 'Finance', emoji: '💰', disabled: false },
+  { id: 'marketing', label: 'Marketing', emoji: '🎬', disabled: false },
   { id: 'projects', label: 'Projects', emoji: '📋', disabled: false },
   { id: 'clients', label: 'Clients', emoji: '🏢', disabled: false },
   { id: 'approvals', label: 'Approvals', emoji: '✅', disabled: false },

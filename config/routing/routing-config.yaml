@@ -69,17 +69,54 @@ providers:
     estimated_cost_per_call: 0.0004
     notes: Fallback for any provider failure. Always available.
 
+  # NVIDIA NIM — free tier (40 RPM, trial service)
+  cheap_nvidia:
+    provider: nvidia
+    model: nvidia/nemotron-nano-9b-v2
+    max_tokens: 8192
+    estimated_cost_per_call: 0.0
+    notes: Fast 9B hybrid Mamba-Transformer. Free NIM API. Tier 1 alternative.
+
+  reasoning_nvidia:
+    provider: nvidia
+    model: nvidia/nemotron-3-nano-30b-a3b
+    max_tokens: 16384
+    estimated_cost_per_call: 0.0
+    notes: 30B MoE (3.5B active), 1M context. Free NIM API. Tier 2/3 candidate.
+
 routing_rules:
-  complex_reasoning:  reasoning_claude
-  long_document:      reasoning_google
-  code:               reasoning_openai
-  agentic:            reasoning_claude
-  moderate:           cheap_claude
-  vision:             cheap_google
+  # Tier 1 — Fast (single call, no review, no critical work)
   structured_short:   cheap_openai
   general_short:      cheap_openai
+  vision:             cheap_google
+
+  # Tier 2 — Moderate (single call, everyday workhorse)
+  moderate:           cheap_claude
+  long_document:      reasoning_google
+
+  # Tier 3 — Advanced (chain-routed via model-rankings.yaml when task_domain set)
+  complex_reasoning:  reasoning_claude
+  code:               reasoning_openai
+  agentic:            reasoning_claude
   deep_reasoning:     reasoning_o3
-  premium:            reasoning_claude
+
+  # Tier 4 — Strategic (chain-routed via model-rankings.yaml, best-of-best)
+  premium:            premium_claude
+  strategic:          premium_claude
+
+# Maps each task_class to a tier number. Tier 3/4 eligible for chain routing.
+tier_mapping:
+  structured_short:   1
+  general_short:      1
+  vision:             1
+  moderate:           2
+  long_document:      2
+  complex_reasoning:  3
+  code:               3
+  agentic:            3
+  deep_reasoning:     3
+  premium:            4
+  strategic:          4
 
 defaults:
   default_alias: cheap_openai

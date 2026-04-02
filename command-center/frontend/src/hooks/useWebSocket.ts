@@ -51,8 +51,9 @@ export function useWebSocket(): UseWebSocketReturn {
 
     ws.onmessage = (event) => {
       try {
-        const msg: WSMessage = JSON.parse(event.data);
+        const msg = JSON.parse(event.data);
 
+        // Brain insight (auto-generated)
         if (msg?.type === 'brain_insight' && msg?.data) {
           const store = useStore.getState();
           store.addBrainMessage({
@@ -63,6 +64,41 @@ export function useWebSocket(): UseWebSocketReturn {
           });
           return;
         }
+
+        // Budget alert (circuit breaker trip, spend warning)
+        if (msg?.type === 'budget_alert' && msg?.data) {
+          const store = useStore.getState();
+          store.addHealthAlert({
+            id: `budget-${Date.now()}`,
+            domain: 'budget',
+            severity: msg.data.severity || 'warning',
+            message: msg.data.message || 'Budget alert',
+            timestamp: new Date().toISOString(),
+          });
+          if (msg.data.circuit_breakers) {
+            const breakers: Record<string, { tripped: boolean; provider: string }> = {};
+            for (const cb of msg.data.circuit_breakers) {
+              breakers[cb.provider] = { tripped: cb.state === 'OPEN', provider: cb.provider };
+            }
+            store.setCircuitBreakers(breakers);
+          }
+          return;
+        }
+
+        // Health alert
+        if (msg?.type === 'health_alert' && msg?.data) {
+          const store = useStore.getState();
+          store.addHealthAlert({
+            id: `health-${Date.now()}`,
+            domain: msg.data.domain || 'system',
+            severity: msg.data.severity || 'warning',
+            message: msg.data.message || 'Health alert',
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        // State update
         if (msg.type === 'state_update' && msg.payload) {
           const incoming = msg.payload as unknown as SystemState;
           if (incoming.state_version >= lastVersion.current) {

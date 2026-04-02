@@ -47,7 +47,15 @@ class AgentPersona:
 
     def __init__(self, agent_data: dict[str, Any]) -> None:
         self.id: str = agent_data.get("id", agent_data.get("agent_id", "unknown"))
-        self.name: str = agent_data.get("name", agent_data.get("display_name", self.id))
+        # Identity block holds character name, cartoon persona, avatar
+        identity = agent_data.get("identity", {})
+        self.character_name: str = identity.get("name", agent_data.get("name", ""))
+        self.character: str = identity.get("character", "")
+        self.character_show: str = identity.get("show", "")
+        self.role_display: str = agent_data.get("display_name", self.id)
+        # name = character name if available, else display_name
+        self.name: str = self.character_name or agent_data.get("display_name", self.id)
+        self.title_short: str = agent_data.get("title", "")
         self.role: str = agent_data.get("role", "General Agent")
         self.description: str = agent_data.get(
             "description", agent_data.get("desc", agent_data.get("role", ""))
@@ -272,8 +280,12 @@ class AgentChatService:
         return [
             {
                 "id": a.id,
-                "name": a.display_name,
+                "name": f"{a.character_name} ({a.role_display})" if a.character_name and a.character_name != a.role_display else a.display_name,
+                "character_name": a.character_name,
+                "character": getattr(a, "character", ""),
+                "role_display": a.role_display,
                 "role": a.role,
+                "title": getattr(a, "title_short", ""),
                 "avatar": a.avatar,
                 "lane_id": a.lane_id,
             }

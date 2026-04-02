@@ -63,16 +63,13 @@ def call_llm(messages, max_tokens=4000):
 
 def call_cheap_critic(output_text, task_description):
     messages = [
-        ("system", "You are a quality evaluator. Score the output 1-10 on: task completion, correctness, usefulness, structure. Return ONLY a JSON object: {\"score\": N, \"feedback\": \"...\"}"),
+        ("system", "You are a strict quality evaluator. Score 1-10: 9-10=excellent (comprehensive, well-structured, actionable, professional-grade), 7-8=good (solid but missing depth), 5-6=acceptable, 1-4=poor. Be generous with detailed, well-structured outputs. Return ONLY JSON: {\"score\": N, \"feedback\": \"...\"}"),
         ("human", f"Task: {task_description}\n\nOutput to evaluate:\n{output_text[:2000]}"),
     ]
     try:
-        from langchain_anthropic import ChatAnthropic
-        from lib.routing import resolve_alias as _ra
-        _cp, _cm, _cc = _ra("structured_short")
-        llm = ChatAnthropic(model=_cm, max_tokens=300)
-        resp = llm.invoke(messages)
-        text = resp.content.strip()
+        from lib.routing import call_llm
+        _critic_text, _critic_err = call_llm(messages, "structured_short", 300)
+        text = _critic_text.strip() if _critic_text else ""
         if "{" in text:
             json_str = text[text.index("{"):text.rindex("}") + 1]
             data = json.loads(json_str)

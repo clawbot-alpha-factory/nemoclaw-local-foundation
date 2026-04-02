@@ -1,0 +1,47 @@
+name: NemoClaw CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  policy-check:
+    name: Policy & Syntax Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: pip install pyyaml
+
+      - name: Syntax check (all Python files)
+        run: |
+          find . -name "*.py" \
+            -not -path "./.venv*" \
+            -not -path "./tools/fish-speech/*" \
+            -not -path "./tools/capcut-api/*" \
+            -not -path "./.cc2-backup*/*" \
+            -not -path "./node_modules/*" \
+            | xargs python3 -c "
+          import ast, sys
+          errors = 0
+          for f in sys.argv[1:]:
+              try:
+                  ast.parse(open(f).read())
+              except SyntaxError as e:
+                  print(f'SYNTAX ERROR: {f}:{e.lineno} — {e.msg}')
+                  errors += 1
+          if errors:
+              print(f'{errors} syntax errors found')
+              sys.exit(1)
+          print(f'Syntax check: {len(sys.argv)-1} files, 0 errors')
+          "
+
+      - name: CI policy checks
+        run: python3 scripts/ci_policy_check.py

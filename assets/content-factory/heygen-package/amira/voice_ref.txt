@@ -1,0 +1,1 @@
+Voice reference: assets/voices/references/amira/amira_reference.wav

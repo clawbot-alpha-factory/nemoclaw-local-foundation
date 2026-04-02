@@ -1,0 +1,143 @@
+# Per-site authentication profiles for NemoClaw browser autonomy.
+# Used by AuthFlowHandler to automate login flows.
+# Selectors may need updating as sites change their UI.
+
+sites:
+  heygen.com:
+    login_url: https://app.heygen.com/login
+    auth_methods: [google_oauth, password]
+    selectors:
+      email_input: "input[type='email']"
+      password_input: "input[type='password']"
+      google_button: "button:has-text('Google'), [data-provider='google']"
+      submit: "button[type='submit']"
+    post_login_check: "nav, [data-testid='sidebar']"
+    session_indicator: cookie:heygen_session
+
+  instantly.ai:
+    login_url: https://app.instantly.ai/auth/login
+    auth_methods: [password]
+    selectors:
+      email_input: "input[name='email'], input[type='email']"
+      password_input: "input[name='password'], input[type='password']"
+      submit: "button[type='submit']"
+    post_login_check: "[data-testid='dashboard'], .dashboard"
+
+  apollo.io:
+    login_url: https://app.apollo.io/#/login
+    auth_methods: [google_oauth, password]
+    selectors:
+      email_input: "input[name='email'], input[type='email']"
+      password_input: "input[name='password'], input[type='password']"
+      google_button: "button:has-text('Google'), .google-login-btn"
+      submit: "button[type='submit']"
+    post_login_check: ".app-container, [data-testid='home']"
+
+  hubspot.com:
+    login_url: https://app.hubspot.com/login
+    auth_methods: [google_oauth, password]
+    selectors:
+      email_input: "#username, input[name='email']"
+      password_input: "#password, input[name='password']"
+      google_button: "#google-signup, button:has-text('Google')"
+      submit: "#loginBtn, button[type='submit']"
+    post_login_check: ".nav-left, [data-test-id='nav']"
+
+  resend.com:
+    login_url: https://resend.com/login
+    auth_methods: [google_oauth]
+    selectors:
+      google_button: "button:has-text('Google'), [data-provider='google']"
+    post_login_check: "[data-testid='dashboard']"
+
+  lemonsqueezy.com:
+    login_url: https://app.lemonsqueezy.com/login
+    auth_methods: [google_oauth, password]
+    selectors:
+      email_input: "input[type='email']"
+      password_input: "input[type='password']"
+      google_button: "button:has-text('Google')"
+      submit: "button[type='submit']"
+    post_login_check: ".dashboard, [data-page='dashboard']"
+
+  linkedin.com:
+    login_url: https://www.linkedin.com/login
+    auth_methods: [password]
+    selectors:
+      email_input: "#username"
+      password_input: "#password"
+      submit: ".login__form_action_container button"
+    post_login_check: ".global-nav, [data-test-id='nav-bar']"
+    safety:
+      require_approval_every_login: true
+
+  instagram.com:
+    login_url: https://www.instagram.com/accounts/login/
+    auth_methods: [password]
+    selectors:
+      email_input: "input[name='username']"
+      password_input: "input[name='password']"
+      submit: "button[type='submit']"
+    post_login_check: "nav, [data-testid='user-avatar']"
+    safety:
+      require_approval_every_login: true
+
+  youtube.com:
+    login_url: https://accounts.google.com
+    auth_methods: [google_oauth]
+    selectors:
+      google_button: null  # Direct Google login page
+    post_login_check: "ytd-app, #content"
+
+  tiktok.com:
+    login_url: https://www.tiktok.com/login/phone-or-email/email
+    auth_methods: [password]
+    selectors:
+      email_input: "input[name='username'], input[placeholder*='email']"
+      password_input: "input[type='password']"
+      submit: "button[type='submit']"
+    post_login_check: "[data-e2e='profile-icon']"
+    safety:
+      require_approval_every_login: true
+
+  canva.com:
+    login_url: https://www.canva.com/login
+    auth_methods: [google_oauth, password]
+    selectors:
+      email_input: "input[name='email']"
+      password_input: "input[name='password']"
+      google_button: "button:has-text('Google'), [data-testid='google-button']"
+      submit: "button[type='submit']"
+    post_login_check: "[data-testid='home-page']"
+
+  meta.com:
+    login_url: https://business.facebook.com
+    auth_methods: [password]
+    selectors:
+      email_input: "#email"
+      password_input: "#pass"
+      submit: "#loginbutton, button[name='login']"
+    post_login_check: "[data-testid='biz-home']"
+    safety:
+      require_approval_every_login: true
+
+  google-ads:
+    login_url: https://ads.google.com
+    auth_methods: [google_oauth]
+    selectors:
+      google_button: null  # Direct Google login
+    post_login_check: ".aw-overview-root, [data-test-id='overview']"
+
+# Template for adding new sites:
+# domain.com:
+#   login_url: https://...
+#   auth_methods: [password|google_oauth|totp]
+#   selectors:
+#     email_input: "css selector"
+#     password_input: "css selector"
+#     google_button: "css selector" (null for direct Google login)
+#     submit: "css selector"
+#   post_login_check: "css selector for logged-in state"
+#   session_indicator: cookie:name (optional)
+#   safety:
+#     require_approval_every_login: false

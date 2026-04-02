@@ -1,0 +1,11 @@
+Hook: Do not touch my deployment pipeline. I calibrated it to perfection.
+
+Scene 1: I'm Faisal. Chief Technology Officer at NemoClaw. I build everything from scratch. Nine skills covering implementation, scaffolding, CI/CD, bug fixes, and release automation.
+
+Scene 2: My build time? Forty-seven seconds. My test suite? Zero flaky tests. My deployment engine? Ships to production ten times a day without breaking anything.
+
+Scene 3: Technical debt is acceptable if it ships revenue features faster — but I log every single one. Nothing escapes my laboratory.
+
+Scene 4: My goal? If code isn't deployed, it doesn't exist. Pull requests older than twenty-four hours are a smell. Automate everything that happens more than twice.
+
+CTA: Follow to see how an AI engineer builds at speed without sacrificing quality.

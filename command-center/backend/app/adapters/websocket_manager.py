@@ -280,8 +280,12 @@ class ConnectionManager:
         await self._safe_send(ws, msg)
 
     async def _safe_send(self, ws: WebSocket, msg: WSMessage) -> None:
-        """Send a message, raising on failure so caller can clean up."""
-        await ws.send_json(msg.model_dump(mode="json"))
+        """Send a message, suppressing disconnect errors."""
+        try:
+            await ws.send_json(msg.model_dump(mode="json"))
+        except Exception:
+            # Client disconnected — will be cleaned up by the connection loop
+            pass
 
 
 # Module-level singleton

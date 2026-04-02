@@ -416,7 +416,7 @@ Branch: {git_info.get('branch', 'unknown')}, Commit: {git_info.get('last_commit_
         response = await asyncio.to_thread(
             self._client.chat.completions.create,
             model=self._model,
-            max_tokens=1024,
+            max_completion_tokens=1024,
             messages=all_msgs,
         )
         return response.choices[0].message.content

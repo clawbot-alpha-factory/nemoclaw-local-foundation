@@ -1,0 +1,120 @@
+# NemoClaw Model Excellence Registry v1.0 — Updated 2026-04-02
+# Single source of truth for best-in-class models per task domain.
+# Update HERE when new models release — all chains adapt automatically.
+# Referenced by lib/chain_router.py for tier 3/4 cross-provider chain routing.
+
+# ── Agentic Executors (can run code, iterate, use tools) ─────────────────────
+executors:
+  claude_code:
+    provider: anthropic
+    type: agent
+    model: claude-opus-4-6
+    capabilities: [code_execution, file_access, tool_use, iteration, testing]
+    cost_per_task: 0.50
+    invoke: "claude --print --dangerously-skip-permissions"
+    notes: Full agentic coding — reads files, writes code, runs tests, self-corrects.
+
+  codex:
+    provider: openai
+    type: agent
+    model: codex-mini
+    capabilities: [code_execution, sandboxed_runtime, iteration]
+    cost_per_task: 0.30
+    invoke: "codex --quiet"
+    notes: OpenAI autonomous coder — sandboxed execution, generates + tests code.
+
+# ── Task Domain Rankings ─────────────────────────────────────────────────────
+# Each domain lists rank_1 (best), rank_2, rank_3, and a dedicated reviewer.
+# ref values must match a key in executors above OR a provider alias in routing-config.yaml.
+# Chain router enforces cross-provider diversity: reviewer != generator provider.
+
+task_domains:
+  coding:
+    rank_1: { ref: codex,            reason: "sandboxed code exec + iteration" }
+    rank_2: { ref: claude_code,      reason: "full agentic coding with tool use" }
+    rank_3: { ref: reasoning_openai, reason: "gpt-5.4 strong code gen (API only)" }
+    review: { ref: premium_claude,   reason: "opus best code review depth" }
+
+  architecture:
+    rank_1: { ref: claude_code,      reason: "reads full codebase + system reasoning" }
+    rank_2: { ref: premium_claude,   reason: "opus deepest architectural reasoning" }
+    rank_3: { ref: reasoning_o3,     reason: "o3 strong structural logic" }
+    review: { ref: reasoning_google,  reason: "independent third-provider perspective" }
+
+  research:
+    rank_1: { ref: reasoning_claude, reason: "sonnet best synthesis + nuance" }
+    rank_2: { ref: reasoning_google, reason: "gemini 1M context for large corpus" }
+    rank_3: { ref: reasoning_o3,     reason: "o3 deep analytical reasoning" }
+    review: { ref: premium_claude,   reason: "opus catches subtle logic gaps" }
+
+  creative_writing:
+    rank_1: { ref: premium_claude,   reason: "opus highest prose quality" }
+    rank_2: { ref: reasoning_claude, reason: "sonnet strong creative" }
+    rank_3: { ref: reasoning_openai, reason: "gpt-5.4 good variety" }
+    review: { ref: reasoning_google,  reason: "independent tone/quality check" }
+
+  strategic_reasoning:
+    rank_1: { ref: premium_claude,   reason: "opus deepest strategic thinking" }
+    rank_2: { ref: reasoning_o3,     reason: "o3 adversarial logic" }
+    rank_3: { ref: claude_code,      reason: "validates strategy against real data" }
+    review: { ref: reasoning_google,  reason: "third-party sanity check" }
+
+  data_analysis:
+    rank_1: { ref: codex,            reason: "runs actual analysis code" }
+    rank_2: { ref: reasoning_o3,     reason: "o3 best at math/STEM" }
+    rank_3: { ref: reasoning_openai, reason: "gpt-5.4 structured data" }
+    review: { ref: reasoning_claude,  reason: "catches methodology issues" }
+
+  legal_contracts:
+    rank_1: { ref: premium_claude,   reason: "opus precision + legal nuance" }
+    rank_2: { ref: reasoning_claude, reason: "sonnet compliance awareness" }
+    rank_3: { ref: reasoning_o3,     reason: "o3 finds logical contradictions" }
+    review: { ref: reasoning_google,  reason: "independent clause review" }
+
+  sales_revenue:
+    rank_1: { ref: premium_claude,   reason: "opus persuasion + strategy" }
+    rank_2: { ref: reasoning_claude, reason: "sonnet frameworks" }
+    rank_3: { ref: reasoning_openai, reason: "gpt-5.4 structured output" }
+    review: { ref: reasoning_o3,     reason: "stress-tests revenue logic" }
+
+  multimodal:
+    rank_1: { ref: reasoning_google, reason: "gemini native multimodal" }
+    rank_2: { ref: claude_code,      reason: "processes + reasons about images" }
+    rank_3: { ref: cheap_google,     reason: "flash for fast multimodal" }
+    review: { ref: reasoning_claude,  reason: "cross-provider validation" }
+
+# ── Chain Templates ──────────────────────────────────────────────────────────
+# Tier 3/4 chain step definitions. Roles are filled dynamically from task_domains.
+# The chain router enforces that adjacent steps use different providers.
+
+chain_templates:
+  tier_3:
+    description: "3-step cross-provider chain — generate, review, improve"
+    steps:
+      - role: generator
+        source: rank_1
+        prompt_prefix: "You are the primary generator. Produce the highest quality output for this task."
+      - role: reviewer
+        source: review
+        prompt_prefix: "You are a critical reviewer from an independent perspective. Find flaws, gaps, logic errors, and areas for improvement. Be specific and actionable."
+      - role: improver
+        source: rank_1
+        prompt_prefix: "You are the improver. Apply all review feedback below to produce a significantly improved final output. Address every criticism."
+    budget_cap_per_chain: 0.15
+
+  tier_4:
+    description: "4-step cross-provider chain — generate, critique, synthesize, validate"
+    steps:
+      - role: generator
+        source: rank_1
+        prompt_prefix: "You are the primary generator. Produce the highest quality output for this task."
+      - role: critic
+        source: rank_2
+        prompt_prefix: "You are an adversarial critic. Stress-test this output for logical flaws, missing edge cases, weak reasoning, and factual errors. Be thorough and uncompromising."
+      - role: synthesizer
+        source: premium_claude
+        prompt_prefix: "You are the final synthesizer using the most capable model available. Merge the original output with all critique feedback to produce the definitive best version. This is the final output — make it exceptional."
+      - role: validator
+        source: review
+        prompt_prefix: "You are an independent validator from a third provider. Review this final output for any remaining issues. Return APPROVED if quality is sufficient, or list specific concerns."
+    budget_cap_per_chain: 0.50

@@ -19,6 +19,15 @@ dependencies = [
     "moviepy>=2.0",
     "pydub>=0.25",
     "srt>=3.5",
+    # --- Tier 1 ecosystem additions ---
+    "instructor>=1.7",
+    "langfuse>=2.0",
+    "guardrails-ai>=0.5,<1.0",
+    # --- Browser autonomy layer ---
+    "browser-use>=0.12",
+    "playwright>=1.58",
+    "cryptography>=44.0",
+    "pyotp>=2.9",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +37,9 @@ backend = [
     "websockets>=14.0",
     "pydantic-settings>=2.7",
     "python-jose[cryptography]>=3.3",
+]
+eval = [
+    "deepeval>=2.0",
 ]
 
 [build-system]

@@ -210,6 +210,13 @@ Locked architectural decisions for the NemoClaw Local Foundation. These decision
 | L-411 | Browser budgets | Tracked in MA-6 AgentLedger alongside API costs | navigate/hr, click/task, text/hr, screenshot/hr |
 | L-412 | Auth model | PinchTab CLI reads token from ~/.pinchtab/config.json automatically | No token in env vars or NemoClaw config |
 | L-413 | Security posture | Guard DOWN for development (all domains, eval enabled) | Required for external website automation |
+| L-414 | Browser autonomy | Triple-engine: PinchTab + browser-use + gws CLI via BrowserAutonomyLayer | PinchTab lightweight, browser-use autonomous, gws headless Google |
+| L-415 | Credential storage | CredentialVault with Fernet/PBKDF2 at `~/.nemoclaw/vault/` | Never plaintext, per-agent access, audit logged |
+| L-416 | Auth flow pattern | AuthFlowHandler with site-profiles.yaml, MA-16 for account creation | Supports password, Google OAuth, TOTP 2FA |
+| L-417 | Engine routing | PinchTab-first lightweight, browser-use autonomous, gws for Google | Fallback: API → gws → PinchTab → browser-use |
+| L-418 | browser-use LLM | Must route through call_llm() via LangChain wrapper (L-003) | No direct API calls from browser-use agent |
+| L-419 | Account creation | Always requires MA-16 human-in-the-loop approval | Even with can_create_accounts=true |
+| L-420 | Google Workspace CLI | `gws` via GWSBridge for all Google services, never browser | Service account auth, structured JSON output |
 
 ## Lock Modification Rules
 

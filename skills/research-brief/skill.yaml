@@ -161,7 +161,7 @@ approval_boundaries:
     approval_gated or blocked_external.
 
 routing:
-  default_alias: cheap_openai
+  default_alias: complex_reasoning
   allow_override: false
 
 quality_gate:

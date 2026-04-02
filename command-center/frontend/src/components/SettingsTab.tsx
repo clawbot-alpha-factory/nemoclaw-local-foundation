@@ -7,15 +7,25 @@ import {
   setTheme,
   fetchSystemInfo,
   updateBrainInterval,
+  fetchApiKeys,
+  testApiKey,
+  fetchModelLibrary,
+  fetchRoutingRules,
+  fetchBridgeStatus,
+  runBridgeHealthCheck,
 } from '../lib/settings-api';
 import type {
   Settings,
   ActiveToken,
   SystemInfo,
   ThemePreference,
+  ApiKeyInfo,
+  ModelAlias,
+  RoutingRule,
+  BridgeInfo as SettingsBridgeInfo,
 } from '../lib/settings-api';
 
-const SECTIONS = ['Token Setup', 'Theme', 'Brain Settings', 'System Info', 'About'] as const;
+const SECTIONS = ['Token Setup', 'API Keys', 'Model Library', 'Tools & Bridges', 'NVIDIA NIM', 'Theme', 'Brain Settings', 'System Info', 'About'] as const;
 type Section = (typeof SECTIONS)[number];
 
 const VERSION = '1.0.0';
@@ -69,6 +79,18 @@ export default function SettingsTab() {
   const [themeSaving, setThemeSaving] = useState(false);
   const [intervalSaving, setIntervalSaving] = useState(false);
   const [intervalSaved, setIntervalSaved] = useState(false);
+
+  // New section state (hoisted to avoid hooks-in-conditional)
+  const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
+  const [apiKeysLoaded, setApiKeysLoaded] = useState(false);
+  const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelAlias[]>([]);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [routingRules, setRoutingRules] = useState<RoutingRule[]>([]);
+  const [defaultAlias, setDefaultAlias] = useState('');
+  const [bridges, setBridges] = useState<SettingsBridgeInfo[]>([]);
+  const [bridgesLoaded, setBridgesLoaded] = useState(false);
+  const [showFull, setShowFull] = useState(false);
 
   const loadAllData = useCallback(async () => {
     setLoading(true);
@@ -234,8 +256,6 @@ export default function SettingsTab() {
   );
 
   const renderTokenSetup = () => {
-    const [showFull, setShowFull] = useState(false);
-
     return (
       <div className="space-y-6">
         <div className="bg-nc-surface border border-nc-border rounded-xl p-6">
@@ -534,8 +554,14 @@ export default function SettingsTab() {
 
           <div className="bg-nc-surface border border-nc-border rounded-xl p-5">
             <div className="text-xs text-nc-text-dim uppercase tracking-wide mb-2">Uptime</div>
-            <div className="text-lg font-semibold text-nc-text">{systemInfo.uptime_human}</div>
-            <div className="text-xs text-nc-text-dim mt-1">{systemInfo.uptime.toLocaleString()}s total</div>
+            <div className="text-lg font-semibold text-nc-text">
+              {systemInfo.uptime_human || (typeof systemInfo.uptime === 'object'
+                ? `${(systemInfo.uptime as any).hours || 0}h ${(systemInfo.uptime as any).seconds || 0}s`
+                : `${systemInfo.uptime}s`)}
+            </div>
+            <div className="text-xs text-nc-text-dim mt-1">
+              {typeof systemInfo.uptime === 'number' ? `${systemInfo.uptime.toLocaleString()}s total` : `${(systemInfo.uptime as any).seconds || 0}s total`}
+            </div>
           </div>
 
           <div className="bg-nc-surface border border-nc-border rounded-xl p-5">
@@ -680,10 +706,206 @@ export default function SettingsTab() {
     </div>
   );
 
+  // ─── API Keys Section ─────────────────────────────────────────────────────
+
+  const renderApiKeys = () => {
+    if (!apiKeysLoaded) {
+      setApiKeysLoaded(true);
+      fetchApiKeys().then(({ keys }) => setApiKeys(keys)).catch(console.error);
+      return <div className="text-sm text-nc-text-dim animate-pulse p-4">Loading API keys...</div>;
+    }
+    if (apiKeys.length === 0) {
+      return <div className="text-sm text-nc-text-dim p-4">No API keys configured</div>;
+    }
+
+    const statusDot = (s: string) =>
+      s === 'connected' ? 'bg-green-500' : s === 'missing' ? 'bg-zinc-500' : 'bg-red-500';
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-nc-text mb-4">API Keys & Connections</h3>
+          <div className="space-y-3">
+            {apiKeys.map((k) => (
+              <div key={k.provider} className="flex items-center gap-3 bg-nc-surface-2 rounded-lg p-3">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDot(k.status)}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-nc-text">{k.provider}</div>
+                  <div className="text-xs text-nc-text-dim font-mono">
+                    {k.masked_key || 'Not configured'}
+                  </div>
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  k.status === 'connected' ? 'bg-green-100 text-green-800' :
+                  k.status === 'missing' ? 'bg-zinc-100 text-zinc-600' :
+                  'bg-red-100 text-red-800'
+                }`}>{k.status}</span>
+                {k.configured && (
+                  <button
+                    onClick={async () => {
+                      setTestingKey(k.provider);
+                      try {
+                        const result = await testApiKey(k.provider);
+                        setApiKeys(prev => prev.map(key =>
+                          key.provider === k.provider
+                            ? { ...key, status: result.success ? 'connected' : 'invalid' }
+                            : key
+                        ));
+                      } catch { /* ignore */ }
+                      setTestingKey(null);
+                    }}
+                    disabled={testingKey === k.provider}
+                    className="px-2 py-1 text-xs bg-nc-surface border border-nc-border rounded-lg hover:bg-nc-border transition-colors disabled:opacity-50"
+                  >{testingKey === k.provider ? 'Testing...' : 'Test'}</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Model Library Section ──────────────────────────────────────────────────
+
+  const renderModelLibrary = () => {
+    if (!modelsLoaded) {
+      setModelsLoaded(true);
+      Promise.all([
+        fetchModelLibrary().catch(() => ({ aliases: [] })),
+        fetchRoutingRules().catch(() => ({ rules: [], default_alias: '' })),
+      ]).then(([modelData, ruleData]) => {
+        setModels(modelData.aliases);
+        setRoutingRules(ruleData.rules);
+        setDefaultAlias(ruleData.default_alias);
+      });
+      return <div className="text-sm text-nc-text-dim animate-pulse p-4">Loading model library...</div>;
+    }
+    if (models.length === 0) {
+      return <div className="text-sm text-nc-text-dim p-4">No models configured</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Model aliases */}
+        <div className="bg-nc-surface border border-nc-border rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-nc-border">
+            <h3 className="text-lg font-semibold text-nc-text">9-Alias Model Library</h3>
+            <p className="text-xs text-nc-text-dim mt-1">LLM aliases from routing-config.yaml (L-003)</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-nc-border bg-nc-surface-2">
+                <th className="text-left p-3 text-nc-text-dim font-medium text-xs">Alias</th>
+                <th className="text-left p-3 text-nc-text-dim font-medium text-xs">Provider</th>
+                <th className="text-left p-3 text-nc-text-dim font-medium text-xs">Model</th>
+                <th className="text-right p-3 text-nc-text-dim font-medium text-xs">Cost/Call</th>
+                <th className="text-right p-3 text-nc-text-dim font-medium text-xs">Max Tokens</th>
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.alias} className="border-b border-nc-border/50 hover:bg-nc-surface-2">
+                  <td className="p-3">
+                    <span className="font-mono text-nc-accent text-xs">{m.alias}</span>
+                    {m.alias === defaultAlias && (
+                      <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-800">default</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-nc-text text-xs">{m.provider}</td>
+                  <td className="p-3 text-nc-text-dim text-xs font-mono">{m.model}</td>
+                  <td className="p-3 text-right text-nc-text-dim text-xs">${m.cost_per_call.toFixed(4)}</td>
+                  <td className="p-3 text-right text-nc-text-dim text-xs">{m.max_tokens.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Routing rules */}
+        <div className="bg-nc-surface border border-nc-border rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-nc-border">
+            <h3 className="text-sm font-semibold text-nc-text">Routing Rules</h3>
+          </div>
+          <div className="p-4 grid grid-cols-2 gap-2">
+            {routingRules.map((r) => (
+              <div key={r.task_class} className="flex items-center justify-between bg-nc-surface-2 rounded-lg px-3 py-2">
+                <span className="text-xs text-nc-text">{r.task_class}</span>
+                <span className="text-xs font-mono text-nc-accent">{r.alias}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Tools & Bridges Section ────────────────────────────────────────────────
+
+  const renderToolsBridges = () => {
+    if (!bridgesLoaded) {
+      setBridgesLoaded(true);
+      fetchBridgeStatus().then(({ bridges: b }) => setBridges(b)).catch(console.error);
+      return <div className="text-sm text-nc-text-dim animate-pulse p-4">Loading bridges...</div>;
+    }
+    if (bridges.length === 0) {
+      return <div className="text-sm text-nc-text-dim p-4">No bridges configured</div>;
+    }
+
+    const statusColors: Record<string, string> = {
+      connected: 'bg-green-500',
+      mocked: 'bg-amber-500',
+      error: 'bg-red-500',
+      unconfigured: 'bg-zinc-500',
+    };
+
+    return (
+      <div className="bg-nc-surface border border-nc-border rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-nc-text mb-4">Tools & Bridges</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {bridges.map((b) => (
+            <div key={b.id} className="bg-nc-surface-2 rounded-lg p-3 border border-nc-border/50">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`w-2 h-2 rounded-full ${statusColors[b.status] || 'bg-zinc-500'}`} />
+                <span className="text-sm font-medium text-nc-text">{b.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-nc-text-dim capitalize">{b.status}</span>
+                <span className="text-nc-text-dim">{b.call_count} calls</span>
+              </div>
+              <div className="flex items-center gap-1 mt-2">
+                {b.has_api_key && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-800">Key</span>
+                )}
+                {b.enabled && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-800">Enabled</span>
+                )}
+                <button
+                  onClick={() => {
+                    runBridgeHealthCheck(b.id)
+                      .then(() => fetchBridgeStatus().then(({ bridges: updated }) => setBridges(updated)))
+                      .catch(console.error);
+                  }}
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-nc-surface border border-nc-border hover:bg-nc-border transition-colors text-nc-text-dim"
+                >Health Check</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderActiveSection = () => {
     switch (activeSection) {
       case 'Token Setup':
         return renderTokenSetup();
+      case 'API Keys':
+        return renderApiKeys();
+      case 'Model Library':
+        return renderModelLibrary();
+      case 'Tools & Bridges':
+        return renderToolsBridges();
       case 'Theme':
         return renderTheme();
       case 'Brain Settings':

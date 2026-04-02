@@ -20,7 +20,7 @@ SPEND_FILE     = os.path.expanduser("~/.nemoclaw/logs/provider-spend.json")
 USAGE_LOG      = os.path.expanduser("~/.nemoclaw/logs/provider-usage.jsonl")
 AUDIT_LOG      = os.path.expanduser("~/.nemoclaw/logs/budget-audit.log")
 
-PROVIDERS = ["anthropic", "openai", "google"]
+PROVIDERS = ["anthropic", "openai", "google", "nvidia"]
 
 def load_configs():
     with open(ROUTING_CONFIG) as f:
@@ -187,7 +187,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NemoClaw Budget Enforcer v3.0")
     parser.add_argument("--task-class", required=True,
         choices=["complex_reasoning","long_document","code","agentic","moderate",
-                 "vision","structured_short","general_short","deep_reasoning","premium"],
+                 "vision","structured_short","general_short","deep_reasoning",
+                 "premium","strategic"],
         help="Task class to route")
     args = parser.parse_args()
     enforce(args.task_class)

@@ -1,0 +1,86 @@
+# NemoClaw Model Routing Config v4.0 - Updated 2026-03-27
+# Phase 8: Full 9-alias routing system across OpenAI, Anthropic, Google
+# Cost estimates at 2x real pricing for conservative tracking
+# OpenAI pricing: gpt-5.4 $1.75/$14, gpt-5.4-mini $0.15/$0.60, o3 $10/$40
+# Anthropic pricing: Sonnet $3/$15, Haiku $1/$5, Opus $5/$25
+# Google pricing: Gemini 2.5 Pro $1.25/$10, Gemini 2.5 Flash $0.15/$0.60
+
+providers:
+  cheap_openai:
+    provider: openai
+    model: gpt-5.4-mini
+    max_tokens: 8192
+    estimated_cost_per_call: 0.0004
+    notes: Default path. Classification, structured output, short tasks.
+
+  reasoning_openai:
+    provider: openai
+    model: gpt-5.4
+    max_tokens: 16384
+    estimated_cost_per_call: 0.010
+    notes: Heavy reasoning, coding, agentic tasks via OpenAI.
+
+  reasoning_o3:
+    provider: openai
+    model: o3
+    max_tokens: 16384
+    estimated_cost_per_call: 0.060
+    notes: Deep STEM reasoning, math, multi-step logic. Use sparingly — expensive.
+
+  cheap_claude:
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+    max_tokens: 8192
+    estimated_cost_per_call: 0.008
+    notes: Moderate complexity tasks. Fast, cheap Claude. ~$0.005-0.01/call typical.
+
+  reasoning_claude:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    max_tokens: 16384
+    estimated_cost_per_call: 0.060
+    notes: Complex reasoning, long context, code, synthesis. ~$0.03-0.08/call typical.
+
+  premium_claude:
+    provider: anthropic
+    model: claude-opus-4-6
+    max_tokens: 16384
+    estimated_cost_per_call: 0.200
+    notes: Highest quality Claude. EXPENSIVE — ~$0.15-0.35/call. Reserved for final production review only.
+
+  cheap_google:
+    provider: google
+    model: gemini-2.5-flash
+    max_tokens: 8192
+    estimated_cost_per_call: 0.0004
+    notes: Fast, cheap Google tasks. Strong multimodal and long context.
+
+  reasoning_google:
+    provider: google
+    model: gemini-2.5-pro-preview-03-25
+    max_tokens: 16384
+    estimated_cost_per_call: 0.008
+    notes: Google flagship. Long context, complex reasoning, multimodal.
+
+  fallback_openai:
+    provider: openai
+    model: gpt-5.4-mini
+    max_tokens: 8192
+    estimated_cost_per_call: 0.0004
+    notes: Fallback for any provider failure. Always available.
+
+routing_rules:
+  complex_reasoning:  reasoning_claude
+  long_document:      reasoning_google
+  code:               reasoning_openai
+  agentic:            reasoning_claude
+  moderate:           cheap_claude
+  vision:             cheap_google
+  structured_short:   cheap_openai
+  general_short:      cheap_openai
+  deep_reasoning:     reasoning_o3
+  premium:            reasoning_claude
+
+defaults:
+  default_alias: cheap_openai
+  active_provider: openai

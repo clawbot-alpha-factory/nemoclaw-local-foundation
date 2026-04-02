@@ -9,6 +9,10 @@ import ClientsTab from '../components/ClientsTab';
 import ProjectsTab from '../components/ProjectsTab';
 import OpsTab from '../components/OpsTab';
 import ExecutionTab from '../components/ExecutionTab';
+import FinanceTab from '../components/FinanceTab';
+import IntelligenceTab from '../components/IntelligenceTab';
+import SettingsTab from '../components/SettingsTab';
+import MarketingTab from '../components/MarketingTab';
 
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
@@ -45,9 +49,14 @@ export default function CommandCenter() {
         {activeTab === 'approvals' && <ApprovalsTab />}
         {activeTab === 'clients' && <ClientsTab />}
         {activeTab === 'projects' && <ProjectsTab />}
+        {activeTab === 'finance' && <FinanceTab />}
+        {activeTab === 'intelligence' && <IntelligenceTab />}
+        {activeTab === 'settings' && <SettingsTab />}
+        {activeTab === 'marketing' && <MarketingTab />}
 
         {!['home', 'communications', 'agents', 'skills', 'operations',
-           'execution', 'approvals', 'clients', 'projects'].includes(activeTab) && (
+           'execution', 'approvals', 'clients', 'projects',
+           'finance', 'intelligence', 'settings', 'marketing'].includes(activeTab) && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="text-sm text-nc-text-dim">
