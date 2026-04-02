@@ -273,6 +273,134 @@ class CredentialVault:
 
 
 # ---------------------------------------------------------------------------
+# Credential Generator — autonomous credential provisioning
+# ---------------------------------------------------------------------------
+
+class CredentialGenerator:
+    """Generate credentials for autonomous account creation.
+
+    Uses Gmail alias pattern (base+service@gmail.com) for unique emails
+    per service. Generates secure passwords and agent-branded usernames.
+    Auto-stores generated credentials in the vault.
+
+    Usage:
+        from credential_vault import CredentialGenerator
+        gen = CredentialGenerator()
+        creds = gen.provision("heygen.com", agent_id="narrative_content_lead")
+        # creds = {"email": "clawdtob+heygen-narrative@gmail.com",
+        #          "password": "xK9!mP2...", "username": "nemoclaw-narrative"}
+    """
+
+    BASE_EMAIL = "clawdtob@gmail.com"
+
+    def __init__(self, vault: CredentialVault = None):
+        self.vault = vault or CredentialVault()
+        self._config = _load_vault_config()
+        # Allow override of base email
+        self.base_email = self._config.get("generator", {}).get(
+            "base_email", self.BASE_EMAIL
+        )
+
+    def generate_email_alias(self, service: str, agent_id: str = "") -> str:
+        """Generate a unique Gmail alias for a service.
+
+        Pattern: base+service-agent@gmail.com
+        Example: clawdtob+heygen-narrative@gmail.com
+        """
+        local, domain = self.base_email.split("@", 1)
+        # Clean service name for email
+        svc = service.replace(".", "-").replace(" ", "-").lower()[:20]
+        agent_tag = agent_id.replace("_", "").replace("lead", "")[:10] if agent_id else ""
+        suffix = f"{svc}-{agent_tag}" if agent_tag else svc
+        return f"{local}+{suffix}@{domain}"
+
+    def generate_password(self, length: int = 24) -> str:
+        """Generate a cryptographically secure password.
+
+        Guaranteed to have: uppercase, lowercase, digit, special char.
+        """
+        import secrets
+        import string
+        alphabet = string.ascii_letters + string.digits + "!@#$%&*_+-="
+        # Ensure at least one of each class
+        password = [
+            secrets.choice(string.ascii_uppercase),
+            secrets.choice(string.ascii_lowercase),
+            secrets.choice(string.digits),
+            secrets.choice("!@#$%&*_+-="),
+        ]
+        password += [secrets.choice(alphabet) for _ in range(length - 4)]
+        # Shuffle so required chars aren't always at the start
+        import random
+        random.shuffle(password)
+        return "".join(password)
+
+    def generate_username(self, agent_id: str, service: str = "") -> str:
+        """Generate an agent-branded username.
+
+        Pattern: nemoclaw-{agent_short}-{random4}
+        Example: nemoclaw-narrative-a3f2
+        """
+        agent_short = agent_id.replace("_lead", "").replace("_", "-")[:15]
+        suffix = os.urandom(2).hex()
+        return f"nemoclaw-{agent_short}-{suffix}"
+
+    def provision(
+        self,
+        service: str,
+        agent_id: str,
+        include_username: bool = False,
+    ) -> dict:
+        """Generate and store credentials for a new service account.
+
+        Creates email alias + password (+ optional username), stores in vault,
+        returns the generated credentials.
+
+        Args:
+            service: Domain name of the service (e.g., "heygen.com").
+            agent_id: Agent requesting the account.
+            include_username: Generate a username (some sites need it).
+
+        Returns:
+            Dict with email, password, and optionally username.
+        """
+        # Check if credentials already exist
+        ok, existing = self.vault.retrieve(service, agent_id)
+        if ok and existing:
+            logger.info(f"Credentials already exist for {service}/{agent_id}")
+            return existing
+
+        email = self.generate_email_alias(service, agent_id)
+        password = self.generate_password()
+        creds = {"username": email, "password": password}
+
+        if include_username:
+            username = self.generate_username(agent_id, service)
+            creds["display_username"] = username
+
+        # Store in vault
+        self.vault.store(service, "username_password", creds, allowed_agents=[agent_id])
+        logger.info(f"Provisioned credentials for {service}/{agent_id}: {email}")
+
+        return creds
+
+    def provision_oauth(self, service: str, agent_id: str) -> dict:
+        """Provision Google OAuth credentials (uses existing Google account).
+
+        For sites that support "Sign in with Google", no new credentials needed.
+        Just stores the OAuth reference pointing to the base Google account.
+        """
+        creds = {
+            "method": "google_oauth",
+            "email": self.base_email,
+            "service": service,
+        }
+        self.vault.store(service, "oauth_token", creds, allowed_agents=[agent_id])
+        logger.info(f"Provisioned OAuth for {service}/{agent_id} via {self.base_email}")
+        return creds
+
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 

@@ -304,6 +304,325 @@ class AuthFlowHandler:
 
 
 # ---------------------------------------------------------------------------
+# Session Persistence
+# ---------------------------------------------------------------------------
+
+SESSION_FILE = LOG_DIR / "sessions.json"
+
+
+def save_sessions(sessions: dict):
+    """Persist sessions to disk for restart survival."""
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(SESSION_FILE, "w") as f:
+            json.dump(sessions, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save sessions: {e}")
+
+
+def load_sessions() -> dict:
+    """Load persisted sessions from disk. Prune expired (>24h)."""
+    if not SESSION_FILE.exists():
+        return {}
+    try:
+        with open(SESSION_FILE) as f:
+            sessions = json.load(f)
+        # Prune expired sessions
+        now = time.time()
+        pruned = {}
+        for agent_id, agent_sessions in sessions.items():
+            valid = {}
+            for service, session in agent_sessions.items():
+                if now - session.get("timestamp", 0) < 86400:
+                    valid[service] = session
+            if valid:
+                pruned[agent_id] = valid
+        return pruned
+    except Exception:
+        return {}
+
+
+# Monkey-patch AuthFlowHandler to persist sessions
+_original_mark_logged_in = AuthFlowHandler._mark_logged_in
+_original_mark_logged_out = AuthFlowHandler._mark_logged_out
+
+
+def _persistent_mark_logged_in(self, agent_id, service):
+    _original_mark_logged_in(self, agent_id, service)
+    save_sessions(self.sessions)
+
+
+def _persistent_mark_logged_out(self, agent_id, service):
+    _original_mark_logged_out(self, agent_id, service)
+    save_sessions(self.sessions)
+
+
+AuthFlowHandler._mark_logged_in = _persistent_mark_logged_in
+AuthFlowHandler._mark_logged_out = _persistent_mark_logged_out
+
+
+# ---------------------------------------------------------------------------
+# Signup Handler — Autonomous Account Creation
+# ---------------------------------------------------------------------------
+
+class SignupHandler:
+    """Autonomous account creation for any service with a site profile.
+
+    Flow:
+      1. Generate credentials (email alias + password)
+      2. Navigate to signup page via browser-use
+      3. Fill form autonomously (LLM-driven, handles dynamic forms)
+      4. Submit + handle verification
+      5. Store credentials in vault
+
+    Usage:
+        from auth_flows import SignupHandler
+        handler = SignupHandler(browser_adapter, vault)
+        ok, result = await handler.signup("heygen.com", "narrative_content_lead")
+    """
+
+    def __init__(self, browser_adapter=None, vault=None):
+        self.adapter = browser_adapter
+        self.vault = vault
+
+        # Lazy imports to avoid circular deps
+        try:
+            from credential_vault import CredentialVault, CredentialGenerator
+            self.vault = vault or CredentialVault()
+            self.generator = CredentialGenerator(self.vault)
+        except ImportError:
+            self.vault = vault
+            self.generator = None
+
+        self.sites = _load_site_profiles()
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _log(self, action, service, agent_id, success, error=None):
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "action": action, "service": service,
+            "agent_id": agent_id, "success": success,
+        }
+        if error:
+            entry["error"] = str(error)[:500]
+        try:
+            with open(AUTH_LOG, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
+
+    async def signup(self, service: str, agent_id: str,
+                     method: str = "auto") -> tuple:
+        """Create a new account on a service autonomously.
+
+        Args:
+            service: Service domain (e.g., "heygen.com").
+            agent_id: Agent requesting account creation.
+            method: "form" (fill signup form) or "google_oauth" (use Google).
+
+        Returns:
+            Tuple of (success: bool, result_dict_or_error).
+        """
+        profile = self.sites.get(service, {})
+        if not profile:
+            # Try substring match
+            for key, p in self.sites.items():
+                if key in service or service in key:
+                    profile = p
+                    break
+
+        # Check if credentials already exist (already signed up)
+        if self.vault:
+            ok, existing = self.vault.retrieve(service, agent_id)
+            if ok and existing:
+                self._log("signup_skipped", service, agent_id, True, "Account already exists")
+                return (True, {"status": "already_exists", "credentials": existing})
+
+        # Determine signup method
+        signup_method = method
+        if signup_method == "auto":
+            signup_method = profile.get("signup_method", "form")
+            # Prefer OAuth if available
+            if "google_oauth" in profile.get("auth_methods", []):
+                signup_method = "google_oauth"
+
+        if signup_method == "google_oauth":
+            return await self._signup_oauth(service, agent_id, profile)
+        else:
+            return await self._signup_form(service, agent_id, profile)
+
+    async def _signup_form(self, service, agent_id, profile) -> tuple:
+        """Create account via signup form."""
+        if not self.generator:
+            return (False, "CredentialGenerator not available")
+        if not self.adapter:
+            return (False, "Browser adapter not available")
+
+        # Generate credentials
+        creds = self.generator.provision(service, agent_id, include_username=True)
+        signup_url = profile.get("signup_url", profile.get("login_url", f"https://{service}/signup"))
+
+        # Build goal for browser-use agent
+        email = creds.get("username", "")
+        password = creds.get("password", "")
+        display_name = creds.get("display_username", "")
+
+        goal = f"""Navigate to {signup_url} and create a new account.
+Fill the signup form with:
+- Email: {email}
+- Password: {password}
+- Name/Username: {display_name} (if there's a name field)
+- Accept any terms/privacy checkboxes
+- Click the signup/register/create account button
+- Wait for account creation confirmation
+
+If the form has a "Sign up with Google" option, DO NOT use it — fill the form directly.
+If there's a CAPTCHA, try to solve it. If you can't, report it."""
+
+        try:
+            ok, result = await self.adapter.run_task(
+                goal=goal,
+                start_url=signup_url,
+                max_steps=30,
+                sensitive_data={"email": email, "password": password},
+            )
+
+            if ok:
+                self._log("signup_form", service, agent_id, True)
+
+                # Handle email verification if needed
+                if profile.get("email_verification_required", True):
+                    await self._verify_email(service, agent_id, email)
+
+                return (True, {
+                    "status": "created",
+                    "method": "form",
+                    "email": email,
+                    "service": service,
+                })
+            else:
+                self._log("signup_form", service, agent_id, False, result)
+                return (False, f"Signup failed: {result}")
+
+        except Exception as e:
+            self._log("signup_form", service, agent_id, False, str(e))
+            return (False, str(e))
+
+    async def _signup_oauth(self, service, agent_id, profile) -> tuple:
+        """Create account via Google OAuth (Sign in with Google)."""
+        if not self.adapter:
+            return (False, "Browser adapter not available")
+
+        # For OAuth, we use the existing Google account
+        if self.generator:
+            self.generator.provision_oauth(service, agent_id)
+
+        signup_url = profile.get("signup_url", profile.get("login_url", f"https://{service}/signup"))
+
+        goal = f"""Navigate to {signup_url} and create a new account using Google OAuth.
+Click the "Sign in with Google" or "Continue with Google" button.
+If a Google account chooser appears, select the account.
+If a consent screen appears, click "Allow" or "Continue".
+Wait for account creation confirmation."""
+
+        try:
+            ok, result = await self.adapter.run_task(
+                goal=goal,
+                start_url=signup_url,
+                max_steps=25,
+            )
+
+            if ok:
+                self._log("signup_oauth", service, agent_id, True)
+                return (True, {
+                    "status": "created",
+                    "method": "google_oauth",
+                    "service": service,
+                })
+            else:
+                self._log("signup_oauth", service, agent_id, False, result)
+                return (False, f"OAuth signup failed: {result}")
+
+        except Exception as e:
+            self._log("signup_oauth", service, agent_id, False, str(e))
+            return (False, str(e))
+
+    async def _verify_email(self, service, agent_id, email) -> tuple:
+        """Open Gmail, find verification email, click verify link.
+
+        Uses GWS bridge for Gmail access if available, otherwise browser-use.
+        """
+        try:
+            # Try GWS bridge first (faster, no browser needed)
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            try:
+                from gws_bridge import GWSBridge
+                gws = GWSBridge()
+                ok, messages = gws.gmail_search(f"from:{service} to:{email} newer_than:10m", max_results=3)
+                if ok and messages:
+                    for msg in messages:
+                        body = msg.get("body", "")
+                        # Extract verification link
+                        import re
+                        links = re.findall(r'https?://[^\s<>"]+(?:verify|confirm|activate)[^\s<>"]*', body, re.I)
+                        if links:
+                            # Navigate to verification link
+                            if self.adapter:
+                                await self.adapter.run_task(
+                                    goal=f"Navigate to this verification link and complete email verification: {links[0]}",
+                                    start_url=links[0],
+                                    max_steps=10,
+                                )
+                            self._log("email_verify", service, agent_id, True)
+                            return (True, {"method": "gws", "link": links[0]})
+            except ImportError:
+                pass
+
+            # Fallback: use browser-use to check Gmail directly
+            if self.adapter:
+                ok, result = await self.adapter.run_task(
+                    goal=f"""Go to Gmail (https://mail.google.com).
+Find the most recent email from {service} (it may be a verification/confirmation email).
+Open it and click any verification/confirmation link inside.
+Complete the verification process.""",
+                    start_url="https://mail.google.com",
+                    max_steps=20,
+                )
+                if ok:
+                    self._log("email_verify", service, agent_id, True)
+                    return (True, {"method": "browser", "result": result})
+
+            self._log("email_verify", service, agent_id, False, "No verification method available")
+            return (False, "Email verification not completed")
+
+        except Exception as e:
+            self._log("email_verify", service, agent_id, False, str(e))
+            return (False, str(e))
+
+    async def ensure_account(self, service: str, agent_id: str) -> tuple:
+        """Ensure agent has an account on service. Create if needed.
+
+        This is the main entry point for autonomous account lifecycle.
+        Checks vault → if exists, return creds. If not, signup + return creds.
+        """
+        # Check vault first
+        if self.vault:
+            ok, creds = self.vault.retrieve(service, agent_id)
+            if ok and creds:
+                return (True, {"status": "existing", "credentials": creds})
+
+        # No account — create one
+        ok, result = await self.signup(service, agent_id)
+        if ok:
+            # Retrieve freshly stored credentials
+            if self.vault:
+                ok2, creds = self.vault.retrieve(service, agent_id)
+                if ok2:
+                    result["credentials"] = creds
+        return (ok, result)
+
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 

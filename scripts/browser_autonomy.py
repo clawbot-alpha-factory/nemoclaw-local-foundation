@@ -225,14 +225,82 @@ class BrowserAutonomyLayer:
     # Lightweight ops (PinchTab-first with browser-use fallback)
     # -------------------------------------------------------------------
 
+    # Auth wall patterns for detection
+    _AUTH_URL_PATTERNS = ["login", "signin", "sign-in", "auth", "sso", "accounts/login"]
+    _AUTH_TITLE_PATTERNS = ["log in", "sign in", "login", "signin", "authenticate"]
+
+    def _detect_auth_wall(self, url: str, title: str = "") -> bool:
+        """Detect if current page is a login/signup wall."""
+        url_lower = (url or "").lower()
+        title_lower = (title or "").lower()
+        for p in self._AUTH_URL_PATTERNS:
+            if p in url_lower:
+                return True
+        for p in self._AUTH_TITLE_PATTERNS:
+            if p in title_lower:
+                return True
+        return False
+
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL."""
+        try:
+            from urllib.parse import urlparse
+            return urlparse(url).netloc.lower().replace("www.", "").replace("app.", "")
+        except Exception:
+            return ""
+
+    async def _handle_auth_wall(self, url: str) -> tuple:
+        """Auto-login or auto-signup when auth wall detected."""
+        domain = self._extract_domain(url)
+        if not domain:
+            return (True, None)  # Can't determine domain, skip
+
+        logger.info(f"Auth wall detected at {domain} — attempting auto-auth")
+
+        # Try login first (if credentials exist)
+        try:
+            ok, result = await self.auth.login(domain, self.agent_id, method="auto")
+            if ok:
+                logger.info(f"Auto-login successful for {domain}")
+                return (True, result)
+        except Exception as e:
+            logger.debug(f"Auto-login failed for {domain}: {e}")
+
+        # No credentials — try signup
+        try:
+            from auth_flows import SignupHandler
+            signup = SignupHandler(self.browser_use, self.vault)
+            ok, result = await signup.ensure_account(domain, self.agent_id)
+            if ok:
+                # Now login with fresh credentials
+                ok2, result2 = await self.auth.login(domain, self.agent_id, method="auto")
+                if ok2:
+                    logger.info(f"Auto-signup + login successful for {domain}")
+                    return (True, result2)
+        except Exception as e:
+            logger.debug(f"Auto-signup failed for {domain}: {e}")
+
+        return (False, f"Auth wall at {domain} — could not auto-authenticate")
+
     def navigate(self, url: str, **kwargs) -> tuple:
-        """Navigate to URL. PinchTab first, browser-use fallback."""
+        """Navigate to URL. PinchTab first, browser-use fallback.
+        Auto-detects auth walls and handles login/signup autonomously."""
         ok, err = self._pre_action("navigate")
         if not ok:
             return (False, err)
         ok, result = self.pinchtab.navigate(url, **kwargs)
         if ok:
             self._log_routing("navigate", "pinchtab", True)
+
+            # Auth wall detection: check if we landed on a login page
+            landed_url = result.get("url", url) if isinstance(result, dict) else url
+            landed_title = result.get("title", "") if isinstance(result, dict) else ""
+            if self._detect_auth_wall(landed_url, landed_title):
+                auth_ok, auth_result = self._run_async(self._handle_auth_wall(landed_url))
+                if auth_ok:
+                    # Re-navigate to original URL after login
+                    return self.pinchtab.navigate(url, **kwargs)
+
             return (ok, result)
 
         if self.fallback_enabled:
@@ -256,7 +324,7 @@ class BrowserAutonomyLayer:
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, coro)
-                return future.result(timeout=60)
+                return future.result(timeout=180)  # 3 min for complex browser actions
         else:
             return asyncio.run(coro)
 
@@ -353,7 +421,7 @@ class BrowserAutonomyLayer:
         self._log_routing("iframe", "browser_use", ok)
         return (ok, result)
 
-    async def wait_for_element(self, selector: str, timeout: int = 10000) -> tuple:
+    async def wait_for_element(self, selector: str, timeout: int = 30000) -> tuple:
         """Wait for element via browser-use."""
         return await self.browser_use.wait_for_element(selector, timeout)
 

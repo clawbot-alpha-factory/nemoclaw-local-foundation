@@ -32,7 +32,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 DEFAULT_BASE_URL = "http://localhost:9867"
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 60  # Increased for complex page loads (2026-04-02)
 LOG_DIR = Path.home() / ".nemoclaw" / "browser"
 ACTION_LOG_FILE = LOG_DIR / "action-log.jsonl"
 REPO = Path(__file__).resolve().parent.parent
@@ -107,6 +107,11 @@ class PinchTabClient:
         # Ensure log directory
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+        # HTTP connection pooling (reuse TCP connections)
+        self._session = requests.Session()
+        if self._token:
+            self._session.headers["Authorization"] = f"Bearer {self._token}"
+
         self.logger = logging.getLogger("pinchtab_bridge")
 
     # -------------------------------------------------------------------
@@ -172,9 +177,9 @@ class PinchTabClient:
         return h
 
     def _get(self, path: str, params: dict = None) -> tuple:
-        """HTTP GET, returns (success: bool, data_or_error)."""
+        """HTTP GET with connection pooling. Returns (success: bool, data_or_error)."""
         try:
-            r = requests.get(f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=self.timeout)
+            r = self._session.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
             if r.status_code >= 400:
                 return (False, f"HTTP {r.status_code}: {r.text[:500]}")
             return (True, r.json())
@@ -186,12 +191,11 @@ class PinchTabClient:
             return (False, str(e))
 
     def _post(self, path: str, data: dict = None) -> tuple:
-        """HTTP POST, returns (success: bool, data_or_error)."""
+        """HTTP POST with connection pooling. Returns (success: bool, data_or_error)."""
         try:
-            r = requests.post(
+            r = self._session.post(
                 f"{self.base_url}{path}",
                 json=data or {},
-                headers={**self._headers(), "Content-Type": "application/json"},
                 timeout=self.timeout,
             )
             if r.status_code >= 400:
@@ -205,9 +209,9 @@ class PinchTabClient:
             return (False, str(e))
 
     def _get_binary(self, path: str, params: dict = None) -> tuple:
-        """HTTP GET returning binary content, returns (success, bytes_or_error)."""
+        """HTTP GET returning binary content with connection pooling."""
         try:
-            r = requests.get(f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=self.timeout)
+            r = self._session.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
             if r.status_code >= 400:
                 return (False, f"HTTP {r.status_code}: {r.text[:500]}")
             return (True, r.content)
@@ -565,14 +569,15 @@ class PinchTabClient:
     # Convenience / composite methods
     # -------------------------------------------------------------------
 
-    def navigate_and_extract(self, url: str, raw: bool = False) -> tuple:
-        """Navigate to URL and extract text in one call. Returns (success, {url, title, text})."""
-        ok, nav_result = self.navigate(url)
+    def navigate_and_extract(self, url: str, raw: bool = False, wait_ms: int = 500) -> tuple:
+        """Navigate to URL and extract text in one call. Returns (success, {url, title, text}).
+
+        Uses PinchTab's waitFor parameter for intelligent page load detection
+        instead of hardcoded sleep. Falls back to minimal delay if needed.
+        """
+        ok, nav_result = self.navigate(url, wait_for=wait_ms)
         if not ok:
             return (False, nav_result)
-
-        # Brief pause for page load
-        time.sleep(1)
 
         ok, text_result = self.text(raw=raw)
         if not ok:
@@ -618,19 +623,17 @@ class PinchTabClient:
 
         return results
 
-    def smart_extract(self, url: str) -> tuple:
+    def smart_extract(self, url: str, wait_ms: int = 500) -> tuple:
         """Navigate + snapshot + text in one call. Returns structured page state.
 
         Optimized extraction: accessibility tree for interactable elements,
         plus full text for content. Combined into one response for the agent.
         """
-        ok, nav = self.navigate(url)
+        ok, nav = self.navigate(url, wait_for=wait_ms)
         if not ok:
             return (False, nav)
 
-        time.sleep(1)
-
-        # Get both snapshot and text in parallel-ish (sequential but cached)
+        # Get both snapshot and text (cached after first call)
         ok_snap, snapshot = self.snapshot()
         ok_text, text_data = self.text()
 
@@ -658,13 +661,12 @@ class PinchTabClient:
             for inst in instances:
                 if inst.get("status") == "running":
                     self.stop_instance(inst["id"])
-                    time.sleep(1)
+                    time.sleep(0.3)  # Minimal delay for process cleanup
 
         # Start fresh
         ok, result = self.start_instance(headless=headless)
         if ok:
-            # Wait for instance to be ready
-            time.sleep(3)
+            time.sleep(0.5)  # Minimal delay for Chrome init
             self._log_action("restart_default_instance", {"headless": headless}, True, result)
         else:
             self._log_action("restart_default_instance", {"headless": headless}, False, error=result)

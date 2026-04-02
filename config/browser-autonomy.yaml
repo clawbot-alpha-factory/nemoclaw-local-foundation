@@ -44,14 +44,15 @@ autonomy:
     # Google services always prefer gws over browser
     google_services_via_gws: [gmail, drive, sheets, calendar, docs, chat, admin]
 
+  # Full autonomy mode (2026-04-02): max concurrency, long sessions, unlimited actions
   concurrency:
-    max_browser_use_sessions: 4     # Match PinchTab max_instances
-    max_per_agent: 1
-    session_timeout_minutes: 30
+    max_browser_use_sessions: 8
+    max_per_agent: 2
+    session_timeout_minutes: 120
 
   browser_use:
     headless: true
     use_vision: true
-    max_failures: 3
-    max_actions_per_step: 5
+    max_failures: 10
+    max_actions_per_step: 50
     llm_task_class: moderate         # Routes through call_llm() L-003
