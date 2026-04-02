@@ -102,6 +102,7 @@ from app.services.bridge_manager import BridgeManager
 from app.api.routers import bridges as bridges_router
 
 # ── Engine (E-9 fix) imports ──
+from app.services.tool_access_service import ToolAccessService
 from app.services.skill_agent_mapping import SkillAgentMappingService
 from app.services.skill_chain_wiring import SkillChainWiringService
 from app.services.global_state_service import GlobalStateService
@@ -367,6 +368,11 @@ async def lifespan(app: FastAPI):
     await app.state.execution_service.start()
     logger.info("E-2: ExecutionService + SkillChainRunner started")
 
+    # ── E-14: Research Service ──
+    from app.services.research_service import ResearchService
+    app.state.research_service = ResearchService(app.state.chain_runner)
+    logger.info("E-14: ResearchService initialized")
+
     # ── E-4a: Agent Runtime ──
     app.state.agent_memory_service = AgentMemoryService()
     app.state.scheduler_service = SchedulerService()
@@ -491,7 +497,16 @@ async def lifespan(app: FastAPI):
         skill_agent_mapping=app.state.skill_agent_mapping,
         bridge_manager=app.state.bridge_manager,
     )
-    logger.info("E-9: Skill Agent Mapping + Chain Wiring initialized")
+    # Wire skill_agent_mapping into agent loops for broadcast/peer messaging
+    app.state.agent_loop_service.skill_agent_mapping = app.state.skill_agent_mapping
+
+    # Wire skill_agent_mapping into execution_service for delegation
+    app.state.execution_service.skill_agent_mapping = app.state.skill_agent_mapping
+
+    # ── Tool Access Service — direct tool access from agent loops ──
+    app.state.tool_access_service = ToolAccessService(Path(__file__).resolve().parents[3])
+    app.state.agent_loop_service.tool_access_service = app.state.tool_access_service
+    logger.info("E-9: Skill Agent Mapping + Chain Wiring + ToolAccessService initialized")
 
     # ── E-10: Revenue Engine ──
     app.state.event_bus = EventBusService()
@@ -519,6 +534,12 @@ async def lifespan(app: FastAPI):
         event_bus=app.state.event_bus,
     )
     logger.info("E-11: Client Lifecycle initialized (onboarding + deliverables + churn)")
+
+    # ── Wire event_bus + work_log into AgentLoopService (post-wire: E-10/E-11 created after E-4a) ──
+    app.state.agent_loop_service.event_bus = app.state.event_bus
+    app.state.agent_loop_service.work_log_service = app.state.work_log_service
+    app.state.agent_loop_service.subscribe_events()
+    logger.info("Event bus wired to AgentLoopService (5 event subscriptions)")
 
     # ── E-12: Full Autonomous Operation ──
     app.state.metrics_service = MetricsService(
@@ -727,6 +748,8 @@ app.include_router(autonomous_router.router)  # E-12: Autonomous
 app.include_router(infra_router.router)  # Infra: Queue + Rate Limits
 app.include_router(activity_router.router)  # P-2: Activity Event Log
 app.include_router(mega_projects_router.router)  # E-13: Mega Projects
+from app.api.routers import research as research_router
+app.include_router(research_router.router)  # E-14: Research
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
