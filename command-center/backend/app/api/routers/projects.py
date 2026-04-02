@@ -276,3 +276,48 @@ async def write_project_memory(
         raise HTTPException(status_code=500, detail=f"Disk write failed: {e}")
 
     return entry
+
+
+# --- Deliverable file endpoints ---
+
+
+class DeliverableUpload(BaseModel):
+    filename: str
+    agent_id: str
+    content: str
+
+
+def _del_svc(request: Request):
+    """Get DeliverableService from app state."""
+    svc = getattr(request.app.state, "deliverable_service", None)
+    if not svc:
+        raise HTTPException(status_code=503, detail="DeliverableService not initialized")
+    return svc
+
+
+@router.get("/{project_id}/deliverables")
+async def list_deliverables(
+    project_id: str,
+    _=Depends(require_auth),
+    svc=Depends(_del_svc),
+):
+    """List all deliverable files for a project."""
+    files = svc.list_files(project_id)
+    return {"project_id": project_id, "total": len(files), "files": files}
+
+
+@router.post("/{project_id}/deliverables", status_code=201)
+async def upload_deliverable(
+    project_id: str,
+    body: DeliverableUpload,
+    _=Depends(require_auth),
+    svc=Depends(_del_svc),
+):
+    """Upload a deliverable file for a project."""
+    result = svc.store_file(
+        project_id=project_id,
+        agent_id=body.agent_id,
+        filename=body.filename,
+        content=body.content,
+    )
+    return result

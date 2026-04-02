@@ -124,3 +124,63 @@ class DeliverableService:
         for d in self._deliverables.values():
             by_stage[d.stage] = by_stage.get(d.stage, 0) + 1
         return {"total": len(self._deliverables), "by_stage": by_stage, "overdue": len(self.get_overdue())}
+
+    # ── File Storage ──────────────────────────────────────────────────
+
+    _FILES_ROOT = Path.home() / ".nemoclaw" / "deliverables"
+
+    def _project_dir(self, project_id: str) -> Path:
+        d = self._FILES_ROOT / project_id
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def store_file(
+        self, project_id: str, agent_id: str, filename: str, content: bytes | str,
+    ) -> dict[str, Any]:
+        """Save a deliverable file to ~/.nemoclaw/deliverables/{project_id}/."""
+        dest = self._project_dir(project_id) / filename
+        if isinstance(content, str):
+            dest.write_text(content, encoding="utf-8")
+        else:
+            dest.write_bytes(content)
+        logger.info("Stored file: %s/%s (by %s)", project_id, filename, agent_id)
+        return {
+            "project_id": project_id,
+            "filename": filename,
+            "agent_id": agent_id,
+            "size": dest.stat().st_size,
+            "path": str(dest),
+        }
+
+    def list_files(self, project_id: str) -> list[dict[str, Any]]:
+        """List all deliverable files for a project."""
+        d = self._FILES_ROOT / project_id
+        if not d.exists():
+            return []
+        files = []
+        for f in sorted(d.iterdir()):
+            if f.is_file():
+                stat = f.stat()
+                files.append({
+                    "filename": f.name,
+                    "size": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                })
+        return files
+
+    def get_file(self, project_id: str, filename: str) -> dict[str, Any] | None:
+        """Read a deliverable file's content."""
+        fpath = self._FILES_ROOT / project_id / filename
+        if not fpath.exists() or not fpath.is_file():
+            return None
+        try:
+            content = fpath.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            content = fpath.read_bytes().hex()
+        stat = fpath.stat()
+        return {
+            "filename": filename,
+            "project_id": project_id,
+            "size": stat.st_size,
+            "content": content,
+        }

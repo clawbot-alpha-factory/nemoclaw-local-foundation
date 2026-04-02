@@ -317,3 +317,41 @@ async def get_agent_activity(agent_id: str, request: Request):
         return {"activity": {}, "message": "MessageStore not available"}
 
     return {"agent_id": agent_id, "activity": _compute_activity(agent_id, agent.lane_id, store)}
+
+
+# ------------------------------------------------------------------
+# Work Log Endpoints
+# ------------------------------------------------------------------
+
+
+def _get_work_log_service(request: Request):
+    svc = getattr(request.app.state, "work_log_service", None)
+    if not svc:
+        raise HTTPException(status_code=503, detail="WorkLogService not initialized")
+    return svc
+
+
+@router.get("/{agent_id}/work-log", dependencies=[Depends(require_auth)])
+async def get_agent_work_log(
+    agent_id: str,
+    request: Request,
+    period: str = "today",
+):
+    """Get work log summary for an agent (today/week/all)."""
+    svc = _get_work_log_service(request)
+    if period not in ("today", "week", "all"):
+        raise HTTPException(status_code=400, detail="period must be today, week, or all")
+    return svc.get_agent_summary(agent_id, period=period)
+
+
+@router.get("/{agent_id}/work-log/export", dependencies=[Depends(require_auth)])
+async def export_agent_work_log(
+    agent_id: str,
+    request: Request,
+    format: str = "markdown",
+):
+    """Export all work logs for an agent."""
+    svc = _get_work_log_service(request)
+    if format not in ("markdown", "json"):
+        raise HTTPException(status_code=400, detail="format must be markdown or json")
+    return svc.export_logs(agent_id, fmt=format)
