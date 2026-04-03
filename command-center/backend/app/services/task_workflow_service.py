@@ -221,8 +221,9 @@ class TaskWorkflowService:
 
         if self.brain_service:
             result = await self.brain_service.analyze(prompt, context="workflow_brainstorm")
-            # Parse LLM response into structured approaches
-            wf.approaches = self._parse_approaches(result.get("analysis", ""), wf.goal)
+            # analyze() returns raw string — parse into structured approaches
+            text = result if isinstance(result, str) else result.get("analysis", str(result))
+            wf.approaches = self._parse_approaches(text, wf.goal)
         else:
             # Fallback: single direct approach
             wf.approaches = [
@@ -310,7 +311,8 @@ class TaskWorkflowService:
 
         if self.brain_service:
             result = await self.brain_service.analyze(prompt, context="workflow_plan")
-            wf.plan_steps = self._parse_plan(result.get("analysis", ""))
+            text = result if isinstance(result, str) else result.get("analysis", str(result))
+            wf.plan_steps = self._parse_plan(text)
         else:
             wf.plan_steps = [
                 {
@@ -438,7 +440,8 @@ class TaskWorkflowService:
                 f"Rate the overall quality 1-10 and suggest improvements.\n"
             )
             result = await self.brain_service.analyze(prompt, context="workflow_validate")
-            wf.validation["quality_assessment"] = result.get("analysis", "")[:500]
+            text = result if isinstance(result, str) else result.get("analysis", str(result))
+            wf.validation["quality_assessment"] = text[:500]
 
         # Write validation-report.md
         md = f"# Validation Report — {wf.goal}\n\n"
