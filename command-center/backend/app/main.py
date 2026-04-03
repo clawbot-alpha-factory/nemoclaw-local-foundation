@@ -155,6 +155,9 @@ from app.api.routers import skill_requests as skill_requests_router
 # ── P-8: Skills Marketplace ──
 from app.api.routers import marketplace as marketplace_router
 
+# ── A2A Protocol ──
+from app.api.routers.a2a import discovery_router as a2a_discovery_router, task_router as a2a_task_router
+
 # ── E-13: Mega Projects ──
 from app.services.mega_project_service import MegaProjectService
 from app.api.routers import mega_projects as mega_projects_router
@@ -514,10 +517,8 @@ async def lifespan(app: FastAPI):
     )
     logger.info("E-8: BridgeManager initialized")
 
-    # ── P-9: Language Service (MENA adaptation) ──
-    from app.services.language_service import LanguageService
-    app.state.language_service = LanguageService()
-    logger.info("P-9: LanguageService initialized")
+    # P-9: LanguageService available in app.services.language_service but
+    # not initialized here — no router uses it yet (MENA localization planned).
 
     # ── E-9 Fix: Skill Wiring ──
     # ── E-9 Gap Fix: Global State + Priority + Recovery ──
@@ -589,6 +590,14 @@ async def lifespan(app: FastAPI):
     )
     app.state.agent_loop_service.task_workflow_service = app.state.task_workflow_service
     logger.info("E-4a+: TaskWorkflowService initialized and wired to AgentLoopService")
+
+    # ── A2A Protocol Service ──
+    from app.services.a2a_service import A2AService
+    app.state.a2a_service = A2AService(
+        agent_loop_service=app.state.agent_loop_service,
+        task_workflow_service=getattr(app.state, "task_workflow_service", None),
+    )
+    logger.info("A2A: Service initialized with %d agent cards", len(app.state.a2a_service.get_all_cards()))
 
     # ── CC-TD: Task Dispatch Service ──
     app.state.task_dispatch_service = TaskDispatchService(
@@ -809,6 +818,8 @@ app.include_router(activity_router.router)  # P-2: Activity Event Log
 app.include_router(mega_projects_router.router)  # E-13: Mega Projects
 from app.api.routers import research as research_router
 app.include_router(research_router.router)  # E-14: Research
+app.include_router(a2a_discovery_router)  # A2A: Discovery (public)
+app.include_router(a2a_task_router)  # A2A: Tasks (auth)
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────
