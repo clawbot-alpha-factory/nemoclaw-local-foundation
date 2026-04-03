@@ -117,22 +117,40 @@ class TaskWorkflowService:
     # ── Public API ────────────────────────────────────────────────────
 
     async def create_plan(self, goal: str, agent_id: str = "operations_lead"):
-        """Create and execute a workflow plan. Compatible with OrchestratorService API.
+        """Create and execute a workflow plan. Compatible with dispatch_task API.
 
-        Returns a workflow-like object with .workflow_id, .status, .tasks, .error
+        Returns an object with .workflow_id, .status, .tasks, .error
+        matching what agent_loop_service.dispatch_task() expects.
         """
         wf_id = self.create_workflow(goal, agent_id)
         result = await self.run_workflow(wf_id)
         wf = self._workflows.get(wf_id)
-        if wf:
-            return wf
-        # Fallback: return a dict-like with the required attributes
-        class _Result:
-            workflow_id = wf_id
-            status = result.get("status", "failed")
-            tasks = result.get("tasks", [])
-            error = result.get("error")
-        return _Result()
+
+        # Build adapter matching expected interface (.status, .tasks, .error)
+        class _PlanResult:
+            def __init__(self, wf, result):
+                self.workflow_id = wf.workflow_id if wf else wf_id
+                self.error = wf.error if wf else result.get("error")
+                # Map phase to status
+                if wf and wf.error:
+                    self.status = "failed"
+                elif result.get("success") is False:
+                    self.status = "failed"
+                    self.error = self.error or result.get("error", "Unknown failure")
+                else:
+                    self.status = "completed"
+                # Map plan_steps to tasks
+                self.tasks = []
+                if wf:
+                    for step in wf.plan_steps:
+                        self.tasks.append({
+                            "skill": step.get("skill_id", step.get("skill", "")),
+                            "skill_id": step.get("skill_id", step.get("skill", "")),
+                            "inputs": step.get("inputs", {}),
+                            "name": step.get("name", step.get("title", "")),
+                        })
+
+        return _PlanResult(wf, result)
 
     def create_workflow(
         self, goal: str, agent_id: str, project_id: str | None = None
