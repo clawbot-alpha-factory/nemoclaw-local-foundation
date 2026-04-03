@@ -118,7 +118,7 @@ class TaskDispatchService:
             await self.activity_log_service.append(
                 category="execution",
                 action="task_dispatched",
-                actor_type="user",
+                actor_type="human",
                 actor_id=source,
                 entity_type="task",
                 entity_id=workflow_id or dispatch_id,
