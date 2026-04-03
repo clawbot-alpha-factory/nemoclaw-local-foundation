@@ -57,3 +57,45 @@ export const fetchBridges = () => fetchApi<any>('/api/bridges/status');
 // Skills
 export const fetchSkillWiring = () => fetchApi<any>('/api/skill-wiring/stats');
 export const fetchChains = () => fetchApi<any>('/api/skill-wiring/chains');
+
+// --- Control Panel APIs ---
+
+// Engine status (agent loops + execution state)
+export const fetchEngineStatus = () => fetchApi<any>('/api/engine/status');
+
+// Bulk agent control
+export const startAllAgents = () => fetchApi<any>('/api/agents/start-all', 'POST');
+export const stopAllAgents = () => fetchApi<any>('/api/agents/stop-all', 'POST');
+
+// Execution mode
+export const setExecutionMode = (mode: string) =>
+  fetchApi<any>('/api/engine/mode', 'POST', { mode });
+
+// Execution queue
+export const fetchExecutionQueue = () => fetchApi<any>('/api/execution/queue');
+
+// Execution status (mode, counts, uptime)
+export interface EngineState {
+  mode: string;
+  active_executions: number;
+  queued_executions: number;
+  completed_today: number;
+  failed_today: number;
+  dead_letter_count: number;
+  total_cost_today: number;
+  uptime_seconds: number;
+}
+export const fetchExecutionStatus = () => fetchApi<EngineState>('/api/execution/status');
+
+// Settings
+export const fetchSettings = () => fetchApi<any>('/api/settings');
+
+// State refresh
+export const refreshState = () => fetchApi<any>('/api/state/refresh', 'POST');
+
+// Budget
+export const fetchBudget = () => fetchApi<any>('/api/state/budget');
+
+// Agent assign task
+export const assignAgentTask = (agentId: string, goal: string, projectId?: string) =>
+  fetchApi<any>(`/api/agents/${agentId}/assign-task`, 'POST', { goal, project_id: projectId || null });

@@ -11,6 +11,8 @@ import {
   addMilestone,
   updateMilestone,
   deleteMilestone,
+  fetchDeliverables,
+  fetchProjectTeam,
 } from '../lib/projects-api';
 import type {
   Project,
@@ -19,6 +21,8 @@ import type {
   Milestone,
   MilestoneInput,
   ProjectListFilters,
+  Deliverable,
+  TeamMember,
 } from '../lib/projects-api';
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -309,6 +313,63 @@ export default function ProjectsTab() {
     setCreateForm({ name: '', description: '', status: 'planning', priority: 'medium', owner: '', tags: [] });
     setShowCreateModal(true);
   }, []);
+
+  // --- Deliverables ---
+  const [deliverables, setDeliverables] = useState<Record<string, Deliverable[]>>({});
+  const [deliverablesLoading, setDeliverablesLoading] = useState<string | null>(null);
+
+  const handleDownloadDeliverables = useCallback(async (projectId: string) => {
+    setDeliverablesLoading(projectId);
+    try {
+      const data = await fetchDeliverables(projectId);
+      setDeliverables(prev => ({ ...prev, [projectId]: data.files }));
+      // Trigger download for each file
+      for (const file of data.files) {
+        if (file.url) {
+          const a = document.createElement('a');
+          a.href = file.url;
+          a.download = file.filename;
+          a.click();
+        }
+      }
+    } catch (e: any) {
+      setError(e.message || 'Failed to fetch deliverables');
+    }
+    setDeliverablesLoading(null);
+  }, []);
+
+  // --- Status Controls ---
+  const handleStatusChange = useCallback(async (projectId: string, newStatus: Project['status']) => {
+    try {
+      await updateProject(projectId, { status: newStatus });
+      await loadProjects();
+    } catch (e: any) {
+      setError(e.message || 'Failed to update project status');
+    }
+  }, [loadProjects]);
+
+  // --- Team View ---
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [teamData, setTeamData] = useState<Record<string, TeamMember[]>>({});
+  const [teamLoading, setTeamLoading] = useState<string | null>(null);
+
+  const handleToggleTeam = useCallback(async (projectId: string) => {
+    if (expandedTeam === projectId) {
+      setExpandedTeam(null);
+      return;
+    }
+    setExpandedTeam(projectId);
+    if (!teamData[projectId]) {
+      setTeamLoading(projectId);
+      try {
+        const data = await fetchProjectTeam(projectId);
+        setTeamData(prev => ({ ...prev, [projectId]: data.members }));
+      } catch {
+        setTeamData(prev => ({ ...prev, [projectId]: [] }));
+      }
+      setTeamLoading(null);
+    }
+  }, [expandedTeam, teamData]);
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
@@ -617,6 +678,69 @@ export default function ProjectsTab() {
                   )}
                   <div className="mt-2 text-xs text-nc-text-dim">
                     Updated {formatDate(project.updated_at)}
+                  </div>
+
+                  {/* Status Controls + Deliverables + Team */}
+                  <div className="mt-3 pt-3 border-t border-nc-border space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {project.status === 'active' && (
+                        <button onClick={() => handleStatusChange(project.id, 'paused')}
+                          className="px-2.5 py-1 text-xs font-medium bg-nc-yellow/10 text-yellow-700 border border-nc-yellow/20 rounded-lg hover:bg-nc-yellow/20 transition-colors">
+                          Pause
+                        </button>
+                      )}
+                      {project.status === 'paused' && (
+                        <button onClick={() => handleStatusChange(project.id, 'active')}
+                          className="px-2.5 py-1 text-xs font-medium bg-nc-green/10 text-nc-green border border-nc-green/20 rounded-lg hover:bg-nc-green/20 transition-colors">
+                          Resume
+                        </button>
+                      )}
+                      {(project.status === 'active' || project.status === 'paused') && (
+                        <button onClick={() => handleStatusChange(project.id, 'archived')}
+                          className="px-2.5 py-1 text-xs font-medium bg-nc-red/10 text-nc-red border border-nc-red/20 rounded-lg hover:bg-nc-red/20 transition-colors">
+                          Cancel
+                        </button>
+                      )}
+                      <button onClick={() => handleDownloadDeliverables(project.id)}
+                        disabled={deliverablesLoading === project.id}
+                        className="px-2.5 py-1 text-xs font-medium bg-nc-accent/10 text-nc-accent border border-nc-accent/20 rounded-lg hover:bg-nc-accent/20 transition-colors disabled:opacity-50">
+                        {deliverablesLoading === project.id ? 'Loading...' : 'Download Deliverables'}
+                      </button>
+                      <button onClick={() => handleToggleTeam(project.id)}
+                        className="px-2.5 py-1 text-xs font-medium bg-nc-surface-2 text-nc-text-dim border border-nc-border rounded-lg hover:text-nc-text transition-colors">
+                        {expandedTeam === project.id ? 'Hide Team' : 'View Team'}
+                      </button>
+                    </div>
+
+                    {/* Deliverables list */}
+                    {deliverables[project.id] && deliverables[project.id].length > 0 && (
+                      <div className="text-xs text-nc-text-dim">
+                        {deliverables[project.id].length} deliverable{deliverables[project.id].length !== 1 ? 's' : ''} available
+                      </div>
+                    )}
+
+                    {/* Team expansion */}
+                    {expandedTeam === project.id && (
+                      <div className="pt-2">
+                        {teamLoading === project.id ? (
+                          <span className="text-xs text-nc-text-dim">Loading team...</span>
+                        ) : teamData[project.id] && teamData[project.id].length > 0 ? (
+                          <div className="space-y-1.5">
+                            {teamData[project.id].map((member) => (
+                              <div key={member.agent_id} className="flex items-center gap-2 text-xs">
+                                <div className="w-6 h-6 rounded-full bg-nc-accent/20 text-nc-accent flex items-center justify-center text-[10px] font-semibold">
+                                  {member.agent_name.charAt(0)}
+                                </div>
+                                <span className="text-nc-text font-medium">{member.agent_name}</span>
+                                <span className="text-nc-text-dim">{member.role}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-nc-text-dim">No team members assigned</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

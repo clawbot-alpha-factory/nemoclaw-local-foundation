@@ -298,6 +298,26 @@ export async function assignAgentToProject(projectId: string, agentId: string, r
   return res.json();
 }
 
+// Deliverables
+export interface Deliverable {
+  id: string;
+  filename: string;
+  agent_id?: string;
+  content_type?: string;
+  size?: number;
+  created_at: string;
+  url?: string;
+}
+
+export async function fetchDeliverables(projectId: string): Promise<{ project_id: string; total: number; files: Deliverable[] }> {
+  const res = await fetch(`${API}/${projectId}/deliverables`, { headers: headers() });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || `Failed to fetch deliverables: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchActiveProjects(): Promise<{ projects: Project[]; total: number }> {
   const res = await fetch(`${ORCH_API}/orchestrator/projects/active`, { headers: headers() });
   if (!res.ok) throw new Error(`Failed to fetch active projects: ${res.status}`);

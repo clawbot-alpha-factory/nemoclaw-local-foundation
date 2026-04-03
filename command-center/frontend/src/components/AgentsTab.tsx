@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import type { AgentProfile, OrgLevel, WorkloadEntry } from '@/lib/agents-api';
-import { fetchAgentProfiles, fetchOrgHierarchy, fetchWorkload } from '@/lib/agents-api';
+import type { AgentProfile, OrgLevel, WorkloadEntry, LoopStatus } from '@/lib/agents-api';
+import { fetchAgentProfiles, fetchOrgHierarchy, fetchWorkload, fetchLoopStatus, startAgentLoop, stopAgentLoop } from '@/lib/agents-api';
+import { assignAgentTask } from '@/lib/engine-api';
 
 const STATUS_STYLES: Record<string, { bg: string; dot: string; label: string }> = {
   active: { bg: 'bg-green-50 border border-green-200', dot: 'bg-nc-green', label: 'Active' },
@@ -152,12 +153,18 @@ function AgentDetail({ agent, onClose }: { agent: AgentProfile; onClose: () => v
   );
 }
 
-function AgentCard({ agent, onClick }: { agent: AgentProfile; onClick: () => void }) {
+function AgentCard({
+  agent, onClick, loopRunning, onToggleLoop, loopLoading, onAssignTask,
+}: {
+  agent: AgentProfile; onClick: () => void;
+  loopRunning: boolean; onToggleLoop: () => void; loopLoading: boolean;
+  onAssignTask: (agentId: string) => void;
+}) {
   const activity = agent.activity;
   const statusInfo = STATUS_STYLES[activity?.status || 'idle'];
   return (
-    <button onClick={onClick} className="w-full text-left bg-nc-bg hover:bg-nc-surface border border-nc-border hover:border-nc-accent/30 rounded-xl p-5 transition-all group shadow-sm hover:shadow-md">
-      <div className="flex items-start justify-between mb-3">
+    <div className="w-full text-left bg-nc-bg hover:bg-nc-surface border border-nc-border hover:border-nc-accent/30 rounded-xl p-5 transition-all group shadow-sm hover:shadow-md">
+      <div className="flex items-start justify-between mb-3 cursor-pointer" onClick={onClick}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">{agent.avatar}</span>
           <div>
@@ -166,17 +173,38 @@ function AgentCard({ agent, onClick }: { agent: AgentProfile; onClick: () => voi
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${statusInfo.dot}`} />
+          <span className={`w-2 h-2 rounded-full ${loopRunning ? 'bg-nc-green' : statusInfo.dot}`} />
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${AUTHORITY_LABELS[agent.authority_level]?.color || ''}`}>L{agent.authority_level}</span>
         </div>
       </div>
-      <p className="text-xs text-nc-text-dim leading-relaxed line-clamp-2 mb-4">{agent.role}</p>
+      {/* Loop status badge */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${loopRunning ? 'bg-nc-green/10 text-nc-green border border-nc-green/20' : 'bg-nc-surface-2 text-nc-text-dim border border-nc-border'}`}>
+          {loopRunning ? 'Loop Running' : 'Loop Stopped'}
+        </span>
+      </div>
+      <p className="text-xs text-nc-text-dim leading-relaxed line-clamp-2 mb-4 cursor-pointer" onClick={onClick}>{agent.role}</p>
       <div className="flex items-center justify-between text-[11px] pt-3 border-t border-nc-border">
         <span className="text-nc-text font-medium">{agent.skills.primary_count} skills</span>
         <span className="text-nc-text-dim">{agent.capabilities.length} capabilities</span>
         {activity && <span className="text-nc-text-dim">{activity.total_messages} msgs</span>}
       </div>
-    </button>
+      {/* Controls */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-nc-border">
+        <button onClick={(e) => { e.stopPropagation(); onToggleLoop(); }} disabled={loopLoading}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
+            loopRunning
+              ? 'bg-nc-red/10 text-nc-red border border-nc-red/20 hover:bg-nc-red/20'
+              : 'bg-nc-green/10 text-nc-green border border-nc-green/20 hover:bg-nc-green/20'
+          }`}>
+          {loopLoading ? '...' : loopRunning ? 'Stop' : 'Start'}
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onAssignTask(agent.id); }}
+          className="px-3 py-1 rounded-lg text-xs font-medium bg-nc-accent/10 text-nc-accent border border-nc-accent/20 hover:bg-nc-accent/20 transition-colors">
+          Assign Task
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -263,6 +291,11 @@ export default function AgentsTab() {
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentProfile | null>(null);
   const [view, setView] = useState<ViewMode>('cards');
+  const [loopStates, setLoopStates] = useState<Record<string, boolean>>({});
+  const [loopLoading, setLoopLoading] = useState<string | null>(null);
+  const [assigningAgent, setAssigningAgent] = useState<string | null>(null);
+  const [assignGoal, setAssignGoal] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -274,6 +307,18 @@ export default function AgentsTab() {
       setHierarchy(orgData.hierarchy);
       setWorkload(workloadData.team);
       setSummary(workloadData.summary);
+
+      // Fetch loop status for all agents
+      const loopResults = await Promise.allSettled(
+        agentsData.agents.map((a: AgentProfile) => fetchLoopStatus(a.id))
+      );
+      const states: Record<string, boolean> = {};
+      agentsData.agents.forEach((a: AgentProfile, i: number) => {
+        const result = loopResults[i];
+        states[a.id] = result.status === 'fulfilled' && result.value?.running === true;
+      });
+      setLoopStates(states);
+
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load agent data');
@@ -288,6 +333,32 @@ export default function AgentsTab() {
     const agent = agents.find((a) => a.id === agentId);
     if (agent) setSelectedAgent(agent);
   }, [agents]);
+
+  const handleToggleLoop = useCallback(async (agentId: string) => {
+    const running = loopStates[agentId];
+    setLoopLoading(agentId);
+    try {
+      if (running) await stopAgentLoop(agentId);
+      else await startAgentLoop(agentId);
+      setLoopStates(prev => ({ ...prev, [agentId]: !running }));
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoopLoading(null);
+  }, [loopStates]);
+
+  const handleAssignTask = useCallback(async () => {
+    if (!assigningAgent || !assignGoal.trim()) return;
+    setAssignLoading(true);
+    try {
+      await assignAgentTask(assigningAgent, assignGoal);
+      setAssigningAgent(null);
+      setAssignGoal('');
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setAssignLoading(false);
+  }, [assigningAgent, assignGoal]);
 
   if (loading) return <div className="flex items-center justify-center h-full text-nc-text-dim text-sm">Loading agents...</div>;
   if (error) return <div className="flex items-center justify-center h-full text-nc-red text-sm">{error}</div>;
@@ -329,7 +400,15 @@ export default function AgentsTab() {
         {view === 'cards' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {agents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} onClick={() => setSelectedAgent(agent)} />
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                onClick={() => setSelectedAgent(agent)}
+                loopRunning={loopStates[agent.id] ?? false}
+                onToggleLoop={() => handleToggleLoop(agent.id)}
+                loopLoading={loopLoading === agent.id}
+                onAssignTask={setAssigningAgent}
+              />
             ))}
           </div>
         )}
@@ -345,6 +424,34 @@ export default function AgentsTab() {
         )}
       </div>
       {selectedAgent && <AgentDetail agent={selectedAgent} onClose={() => setSelectedAgent(null)} />}
+
+      {/* Assign Task Modal */}
+      {assigningAgent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setAssigningAgent(null)}>
+          <div className="bg-nc-bg border border-nc-border rounded-xl w-full max-w-md m-4 shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-nc-text mb-3">
+              Assign Task to {agents.find(a => a.id === assigningAgent)?.character_name || assigningAgent}
+            </h3>
+            <textarea
+              value={assignGoal}
+              onChange={(e) => setAssignGoal(e.target.value)}
+              placeholder="Describe the task goal..."
+              rows={3}
+              className="w-full px-3 py-2 bg-nc-surface border border-nc-border rounded-lg text-sm text-nc-text placeholder:text-nc-text-dim focus:outline-none focus:ring-2 focus:ring-nc-accent resize-none"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setAssigningAgent(null)}
+                className="px-4 py-2 text-sm text-nc-text-dim hover:text-nc-text transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleAssignTask} disabled={assignLoading || !assignGoal.trim()}
+                className="px-4 py-2 bg-nc-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+                {assignLoading ? 'Assigning...' : 'Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
