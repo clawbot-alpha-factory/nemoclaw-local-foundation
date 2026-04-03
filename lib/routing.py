@@ -89,7 +89,7 @@ def _llm_cache_key(messages, task_class: str, max_tokens: int) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def call_llm(messages, task_class="moderate", max_tokens=4000):
+def call_llm(messages, task_class="moderate", max_tokens=4000, *, agent_id=None):
     """Route an LLM call through the config-driven routing system.
 
     Automatically traces via Langfuse when configured (set LANGFUSE_PUBLIC_KEY
@@ -104,10 +104,29 @@ def call_llm(messages, task_class="moderate", max_tokens=4000):
         task_class: Routing task class (e.g. 'moderate', 'complex_reasoning',
                     'structured_short', 'general_short', 'premium').
         max_tokens: Maximum tokens for the response.
+        agent_id: Optional agent identifier. When provided, builds enriched
+                  agent context and prepends it as a system message.
 
     Returns:
         Tuple of (response_text, error_string_or_None).
     """
+    # ── Agent context injection ───────────────────────────────────────────
+    if agent_id is not None:
+        try:
+            from lib.agent_context import build_agent_context, format_for_provider
+            provider, _, _ = resolve_from_env_or_config(task_class)
+            ctx = build_agent_context(agent_id, task_class)
+            if ctx:
+                formatted = format_for_provider(ctx, provider)
+                if formatted:
+                    agent_msg = {"role": "system", "content": formatted}
+                    if isinstance(messages, list):
+                        messages = [agent_msg] + list(messages)
+                    else:
+                        messages = [agent_msg] + [messages]
+        except Exception as e:
+            logger.warning("Agent context injection failed for %s: %s", agent_id, e)
+
     # ── Check cache first ─────────────────────────────────────────────────
     use_cache = os.environ.get("NEMOCLAW_LLM_CACHE", "1") != "0"
     cache_key = None
