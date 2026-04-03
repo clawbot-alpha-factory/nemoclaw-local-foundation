@@ -19,6 +19,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
+try:
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+    from lib.prompt_sanitizer import sanitize as sanitize_secrets
+except ImportError:
+    sanitize_secrets = lambda text: text  # noqa: E731 — fallback
+
 import yaml
 from openai import OpenAI
 
@@ -809,6 +816,7 @@ class AgentChatService:
             schema_top=self._schema_top,
         )
         if action_result:
+            action_result = sanitize_secrets(action_result)
             system_prompt += f"\n\nTOOL EXECUTION RESULTS (include these in your response):\n{action_result}"
 
         # Enrich with knowledge base results
@@ -844,7 +852,7 @@ class AgentChatService:
 
                 messages.append({"role": role, "content": f"{prefix}{msg.content}"})
 
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": sanitize_secrets(user_message)})
 
         try:
             response = self._client.chat.completions.create(
@@ -899,6 +907,7 @@ class AgentChatService:
             schema_top=self._schema_top,
         )
         if action_result:
+            action_result = sanitize_secrets(action_result)
             system_prompt += f"\n\nTOOL EXECUTION RESULTS (include these in your response):\n{action_result}"
 
         if self.knowledge_base:
@@ -929,7 +938,7 @@ class AgentChatService:
                     prefix = f"[{msg.sender_name}]: "
                 messages.append({"role": role, "content": f"{prefix}{msg.content}"})
 
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": sanitize_secrets(user_message)})
 
         # ── Stream via call_llm_stream (sync→async bridge) ────────────
         import sys as _sys

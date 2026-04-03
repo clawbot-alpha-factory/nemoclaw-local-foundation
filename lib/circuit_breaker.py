@@ -12,6 +12,8 @@ Usage:
         # Skill is broken, skip execution
 """
 
+import hashlib
+import json
 import logging
 import time
 from typing import Optional
@@ -121,4 +123,99 @@ class SkillCircuitBreaker:
             "open": len(self.get_tripped_skills()),
             "closed": len([b for b in self._breakers.values() if b.state == CircuitBreaker.CLOSED]),
             "half_open": len([b for b in self._breakers.values() if b.state == CircuitBreaker.HALF_OPEN]),
+        }
+
+
+class StepLimitBreaker:
+    """Trips when an execution exceeds its allowed step count.
+
+    Tier limits: {1: 10, 2: 25, 3: 50, 4: 100}, default 50.
+    """
+
+    DEFAULT_TIER_LIMITS = {1: 10, 2: 25, 3: 50, 4: 100}
+
+    def __init__(self, tier_limits: Optional[dict] = None, default_limit: int = 50):
+        self.tier_limits = tier_limits or self.DEFAULT_TIER_LIMITS
+        self.default_limit = default_limit
+        self._counters: dict[str, int] = {}
+
+    def check(self, execution_id: str, tier: Optional[int] = None) -> tuple[bool, str]:
+        """Increment step counter and check limit. Returns (allowed, reason)."""
+        self._counters[execution_id] = self._counters.get(execution_id, 0) + 1
+        limit = self.tier_limits.get(tier, self.default_limit) if tier else self.default_limit
+        count = self._counters[execution_id]
+        if count > limit:
+            reason = f"Step limit {limit} exceeded ({count} steps) for execution {execution_id[:8]}"
+            logger.warning("StepLimitBreaker: %s", reason)
+            return False, reason
+        return True, ""
+
+    def reset(self, execution_id: str):
+        self._counters.pop(execution_id, None)
+
+    def get_state(self) -> dict:
+        return {"active_executions": dict(self._counters)}
+
+
+class CostCeilingBreaker:
+    """Trips when cumulative cost for an execution exceeds the ceiling."""
+
+    def __init__(self, max_cost: float = 5.0):
+        self.max_cost = max_cost
+        self._costs: dict[str, float] = {}
+
+    def add_cost(self, execution_id: str, cost: float):
+        self._costs[execution_id] = self._costs.get(execution_id, 0.0) + cost
+
+    def check(self, execution_id: str) -> tuple[bool, str]:
+        """Returns (allowed, reason)."""
+        current = self._costs.get(execution_id, 0.0)
+        if current > self.max_cost:
+            reason = f"Cost ceiling ${self.max_cost:.2f} exceeded: ${current:.2f} for execution {execution_id[:8]}"
+            logger.warning("CostCeilingBreaker: %s", reason)
+            return False, reason
+        return True, ""
+
+    def reset(self, execution_id: str):
+        self._costs.pop(execution_id, None)
+
+    def get_state(self) -> dict:
+        return {"active_executions": {k: f"${v:.4f}" for k, v in self._costs.items()}, "max_cost": self.max_cost}
+
+
+class RepetitionDetector:
+    """Trips after N identical (tool_name, MD5(inputs)) calls within an execution."""
+
+    def __init__(self, max_repeats: int = 3):
+        self.max_repeats = max_repeats
+        # execution_id -> {hash_key: count}
+        self._calls: dict[str, dict[str, int]] = {}
+
+    def record(self, execution_id: str, tool_name: str, inputs_dict: dict) -> tuple[bool, str]:
+        """Record a call and check for repetition. Returns (allowed, reason)."""
+        inputs_json = json.dumps(inputs_dict, sort_keys=True, default=str)
+        inputs_hash = hashlib.md5(inputs_json.encode()).hexdigest()
+        key = f"{tool_name}:{inputs_hash}"
+
+        if execution_id not in self._calls:
+            self._calls[execution_id] = {}
+        self._calls[execution_id][key] = self._calls[execution_id].get(key, 0) + 1
+        count = self._calls[execution_id][key]
+
+        if count >= self.max_repeats:
+            reason = f"Repetition detected: {tool_name} called {count} times with identical inputs in execution {execution_id[:8]}"
+            logger.warning("RepetitionDetector: %s", reason)
+            return False, reason
+        return True, ""
+
+    def reset(self, execution_id: str):
+        self._calls.pop(execution_id, None)
+
+    def get_state(self) -> dict:
+        return {
+            "active_executions": {
+                eid: {k: v for k, v in calls.items()}
+                for eid, calls in self._calls.items()
+            },
+            "max_repeats": self.max_repeats,
         }

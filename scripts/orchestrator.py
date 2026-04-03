@@ -21,6 +21,7 @@ Usage:
 import argparse
 import copy
 import json
+import operator
 import os
 import re
 import subprocess
@@ -29,6 +30,7 @@ import time
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Annotated, Any, TypedDict
 
 REPO = Path.home() / "nemoclaw-local-foundation"
 SKILLS_DIR = REPO / "skills"
@@ -36,8 +38,10 @@ PYTHON = str(REPO / ".venv313" / "bin" / "python3")
 RUNNER = str(SKILLS_DIR / "skill-runner.py")
 WORKFLOWS_DIR = REPO / "workflows"
 CHECKPOINT_DB = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
+SUPERVISOR_DB = Path.home() / ".nemoclaw" / "checkpoints" / "supervisor.db"
 MEMORY_DIR = Path.home() / ".nemoclaw" / "workspaces"
 CAPABILITY_REGISTRY = REPO / "config" / "agents" / "capability-registry.yaml"
+AGENT_SCHEMA = REPO / "config" / "agents" / "agent-schema.yaml"
 
 _skill_domains_cache = None
 
@@ -693,6 +697,343 @@ def run_workflow(workflow, dry_run=False):
             print(f"    [{info['importance'][0]}] {k} ({info['source']}): {val_preview}")
 
     return failed == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUPERVISOR GRAPH — LangGraph-based multi-agent routing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class SupervisorState(TypedDict):
+    """State for the supervisor graph."""
+    goal: str
+    current_phase: str
+    agent_outputs: dict[str, Any]
+    routing_decisions: Annotated[list[dict], operator.add]
+    workspace_id: str
+    error: str
+
+
+# Agent role → agent_id mapping (from agent-schema.yaml authority hierarchy)
+ROLE_TO_AGENT = {
+    "research":    "strategy_lead",
+    "content":     "narrative_content_lead",
+    "outreach":    "sales_outreach_lead",
+    "engineering": "engineering_lead",
+    "product":     "product_architect",
+    "growth":      "growth_revenue_lead",
+    "operations":  "operations_lead",
+    "marketing":   "marketing_campaigns_lead",
+    "compliance":  "compliance_qa_lead",
+    "social":      "social_media_lead",
+}
+
+
+def _load_agent_roles():
+    """Load agent role descriptions from agent-schema.yaml."""
+    try:
+        with open(AGENT_SCHEMA) as f:
+            schema = yaml.safe_load(f)
+        roles = {}
+        for agent in schema.get("agents", []):
+            aid = agent.get("id", "")
+            roles[aid] = {
+                "role": agent.get("role", ""),
+                "domains": agent.get("domain_boundaries", {}).get("owns", []),
+            }
+        return roles
+    except Exception:
+        return {}
+
+
+class SupervisorGraph:
+    """LangGraph StateGraph with a supervisor node routing to agent workers.
+
+    The supervisor LLM analyzes the goal and decides which agent(s) to activate.
+    Workers execute skills via the existing execute_skill() function.
+    Supports parallel fan-out via LangGraph Send API.
+
+    Usage:
+        sg = SupervisorGraph()
+        result = sg.run("Research AI trends and write a product spec")
+    """
+
+    def __init__(self, task_class: str = "moderate"):
+        self.task_class = task_class
+        self._agent_roles = _load_agent_roles()
+        self._registry_cache = None
+
+    def _load_registry(self):
+        """Load capability registry for skill lookups."""
+        if self._registry_cache is None:
+            try:
+                with open(CAPABILITY_REGISTRY) as f:
+                    self._registry_cache = yaml.safe_load(f)
+            except Exception:
+                self._registry_cache = {}
+        return self._registry_cache
+
+    def _build_graph(self, checkpointer):
+        """Build the LangGraph StateGraph with supervisor + worker nodes."""
+        from langgraph.graph import StateGraph, END
+
+        graph = StateGraph(SupervisorState)
+
+        # Add supervisor node
+        graph.add_node("supervisor", self._supervisor_node)
+
+        # Add worker nodes for each role
+        for role in ROLE_TO_AGENT:
+            graph.add_node(f"worker_{role}", self._make_worker(role))
+
+        # Add aggregator node
+        graph.add_node("aggregate", self._aggregate_node)
+
+        # Entry point
+        graph.set_entry_point("supervisor")
+
+        # Supervisor routes to workers via conditional edges
+        graph.add_conditional_edges(
+            "supervisor",
+            self._route_from_supervisor,
+            {
+                **{f"worker_{role}": f"worker_{role}" for role in ROLE_TO_AGENT},
+                "aggregate": "aggregate",
+                "end": END,
+            },
+        )
+
+        # All workers go to aggregate
+        for role in ROLE_TO_AGENT:
+            graph.add_edge(f"worker_{role}", "aggregate")
+
+        # Aggregate can loop back to supervisor or end
+        graph.add_conditional_edges(
+            "aggregate",
+            self._route_from_aggregate,
+            {"supervisor": "supervisor", "end": END},
+        )
+
+        return graph.compile(checkpointer=checkpointer)
+
+    def _supervisor_node(self, state: SupervisorState) -> dict:
+        """Supervisor: analyze goal and decide which agents to route to."""
+        sys.path.insert(0, str(REPO))
+        from lib.routing import call_llm
+
+        goal = state["goal"]
+        phase = state.get("current_phase", "initial")
+        prior = state.get("agent_outputs", {})
+
+        # Build context from prior outputs
+        prior_summary = ""
+        if prior:
+            parts = []
+            for role, output in prior.items():
+                preview = str(output.get("primary", ""))[:300]
+                parts.append(f"- {role}: {preview}")
+            prior_summary = "\nPrior agent outputs:\n" + "\n".join(parts)
+
+        available_roles = ", ".join(ROLE_TO_AGENT.keys())
+        prompt = (
+            f"You are a supervisor coordinating AI agents.\n\n"
+            f"Goal: {goal}\n"
+            f"Phase: {phase}\n"
+            f"{prior_summary}\n\n"
+            f"Available agent roles: {available_roles}\n\n"
+            f"Decide which agent(s) should work next. "
+            f"Respond with JSON:\n"
+            f'{{"agents": ["role1", "role2"], "reasoning": "...", "done": false}}\n'
+            f"Set done=true if the goal is fully accomplished."
+        )
+
+        response, err = call_llm(
+            [{"role": "user", "content": prompt}],
+            task_class=self.task_class,
+            max_tokens=500,
+        )
+
+        # Parse supervisor decision
+        try:
+            # Strip markdown code fences if present
+            text = response.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            decision = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            decision = {"agents": [], "reasoning": response or str(err), "done": True}
+
+        agents = [a for a in decision.get("agents", []) if a in ROLE_TO_AGENT]
+        done = decision.get("done", False)
+        reasoning = decision.get("reasoning", "")
+
+        new_phase = "done" if done else f"routing_{len(state.get('routing_decisions', []))+1}"
+
+        return {
+            "current_phase": new_phase,
+            "routing_decisions": [{
+                "phase": new_phase,
+                "agents": agents,
+                "reasoning": reasoning,
+                "done": done,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }],
+        }
+
+    def _route_from_supervisor(self, state: SupervisorState) -> list[str] | str:
+        """Route to worker nodes based on supervisor decision. Supports fan-out."""
+        from langgraph.graph import Send
+
+        decisions = state.get("routing_decisions", [])
+        if not decisions:
+            return "end"
+
+        latest = decisions[-1]
+        if latest.get("done", False):
+            return "end" if not state.get("agent_outputs") else "aggregate"
+
+        agents = latest.get("agents", [])
+        if not agents:
+            return "end"
+
+        # Fan-out: send to multiple workers in parallel
+        if len(agents) > 1:
+            return [Send(f"worker_{role}", state) for role in agents]
+
+        return f"worker_{agents[0]}"
+
+    def _make_worker(self, role: str):
+        """Create a worker node function for a specific agent role."""
+        def worker(state: SupervisorState) -> dict:
+            goal = state["goal"]
+            agent_id = ROLE_TO_AGENT[role]
+
+            # Find best skill for this role + goal from registry
+            registry = self._load_registry()
+            skill_id = self._pick_skill(registry, agent_id, goal)
+
+            if not skill_id:
+                return {
+                    "agent_outputs": {
+                        **state.get("agent_outputs", {}),
+                        role: {"primary": f"[No skill found for {role}]", "success": False},
+                    },
+                }
+
+            # Build inputs from goal
+            inputs = {"goal": goal[:500], "context": goal}
+
+            # Inject relevant prior outputs
+            prior = state.get("agent_outputs", {})
+            if prior:
+                combined = "\n\n".join(
+                    f"[{r}]: {str(o.get('primary', ''))[:500]}" for r, o in prior.items()
+                )
+                inputs["prior_context"] = combined[:2000]
+
+            domain = get_skill_domain(skill_id)
+            result = execute_skill(skill_id, inputs, task_domain=domain)
+
+            output = {"success": result["success"], "skill_id": skill_id}
+            if result["success"] and result.get("envelope_path"):
+                try:
+                    with open(result["envelope_path"]) as f:
+                        env = json.load(f)
+                    output["primary"] = env.get("outputs", {}).get("primary", "")[:3000]
+                    output["quality"] = env.get("metrics", {}).get("final_quality_score")
+                    output["envelope_path"] = result["envelope_path"]
+                except Exception:
+                    output["primary"] = result.get("output", "")[:1000]
+            else:
+                output["error"] = result.get("error", "Unknown")
+
+            return {
+                "agent_outputs": {**state.get("agent_outputs", {}), role: output},
+            }
+
+        worker.__name__ = f"worker_{role}"
+        return worker
+
+    def _pick_skill(self, registry: dict, agent_id: str, goal: str) -> str | None:
+        """Pick the best skill for an agent given the goal."""
+        caps = registry.get("capabilities", {})
+        agent_skills = []
+        for cap_name, cap in caps.items():
+            if cap.get("owned_by") == agent_id:
+                agent_skills.append(cap.get("skill"))
+
+        if not agent_skills:
+            # Fallback: search skill_domains for any skill in agent's domain
+            domains = registry.get("skill_domains", {})
+            for sid, domain in domains.items():
+                if agent_id in sid or domain in goal.lower():
+                    return sid
+
+        # Return first available skill (simple heuristic)
+        return agent_skills[0] if agent_skills else None
+
+    def _aggregate_node(self, state: SupervisorState) -> dict:
+        """Aggregate worker outputs — no-op pass-through to let supervisor re-evaluate."""
+        return {}
+
+    def _route_from_aggregate(self, state: SupervisorState) -> str:
+        """After aggregation, check if we need more routing or are done."""
+        decisions = state.get("routing_decisions", [])
+        if not decisions:
+            return "end"
+
+        latest = decisions[-1]
+        if latest.get("done", False):
+            return "end"
+
+        # Limit iterations to prevent infinite loops
+        if len(decisions) >= 5:
+            return "end"
+
+        return "supervisor"
+
+    def run(self, goal: str, workspace_id: str | None = None) -> dict[str, Any]:
+        """Execute the supervisor graph for a goal.
+
+        Returns:
+            dict with keys: success, agent_outputs, routing_decisions, workspace_id
+        """
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        wid = workspace_id or f"sv_{int(time.time())}"
+        SUPERVISOR_DB.parent.mkdir(parents=True, exist_ok=True)
+
+        # Clean previous checkpoint
+        if SUPERVISOR_DB.exists():
+            SUPERVISOR_DB.unlink()
+
+        initial_state: SupervisorState = {
+            "goal": goal,
+            "current_phase": "initial",
+            "agent_outputs": {},
+            "routing_decisions": [],
+            "workspace_id": wid,
+            "error": "",
+        }
+
+        with SqliteSaver.from_conn_string(str(SUPERVISOR_DB)) as checkpointer:
+            app = self._build_graph(checkpointer)
+            config = {"configurable": {"thread_id": wid}}
+            final_state = app.invoke(initial_state, config=config)
+
+        outputs = final_state.get("agent_outputs", {})
+        decisions = final_state.get("routing_decisions", [])
+        succeeded = sum(1 for o in outputs.values() if o.get("success"))
+
+        return {
+            "success": succeeded > 0,
+            "workspace_id": wid,
+            "agent_outputs": outputs,
+            "routing_decisions": decisions,
+            "agents_activated": list(outputs.keys()),
+            "agents_succeeded": succeeded,
+            "agents_total": len(outputs),
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

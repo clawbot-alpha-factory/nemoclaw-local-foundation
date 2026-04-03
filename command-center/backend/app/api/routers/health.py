@@ -115,6 +115,32 @@ async def persistence_status(request: Request):
     }
 
 
+@router.get("/breakers")
+async def breaker_states(request: Request):
+    """All circuit breaker states — failure, step, cost, repetition."""
+    exec_svc = getattr(request.app.state, "execution_service", None)
+    result = {}
+
+    # Failure-based (SkillCircuitBreaker)
+    if exec_svc and exec_svc.circuit_breaker:
+        cb = exec_svc.circuit_breaker
+        result["failure_breaker"] = {"stats": cb.get_stats(), "all_states": cb.get_all_states()}
+    else:
+        result["failure_breaker"] = None
+
+    # Execution-scoped breakers
+    if exec_svc:
+        result["step_limit"] = exec_svc.step_breaker.get_state()
+        result["cost_ceiling"] = exec_svc.cost_breaker.get_state()
+        result["repetition"] = exec_svc.repetition_detector.get_state()
+    else:
+        result["step_limit"] = None
+        result["cost_ceiling"] = None
+        result["repetition"] = None
+
+    return result
+
+
 @router.get("/debug")
 async def debug_state():
     """Raw state dump for debugging. No auth required in dev."""

@@ -377,6 +377,31 @@ class AgentLoopService:
 
         workflow_id = workflow.workflow_id if workflow else None
 
+        # 1b. Confidence-based HITL routing on the plan
+        confidence_score = None
+        confidence_route = None
+        if workflow and workflow.tasks:
+            try:
+                from lib.hitl_interrupt import ConfidenceRouter
+                conf_router = ConfidenceRouter()
+                confidence_score = conf_router.score_confidence(
+                    goal, {"tasks": workflow.tasks, "workflow_id": workflow_id},
+                )
+                confidence_route = conf_router.route(confidence_score)
+                if confidence_route == "human_review":
+                    logger.warning(
+                        "Low confidence (%.2f) on plan for '%s' — would require human review",
+                        confidence_score, goal[:80],
+                    )
+                elif confidence_route == "log_and_proceed":
+                    logger.info(
+                        "Moderate confidence (%.2f) on plan for '%s' — logging and proceeding",
+                        confidence_score, goal[:80],
+                    )
+                # "auto_approve" — proceed silently
+            except Exception as e:
+                logger.warning("Confidence routing failed (proceeding anyway): %s", e)
+
         # 2. Assign tasks to agent via ExecutionService
         if self.execution_service and workflow and workflow.tasks:
             from app.domain.engine_models import ExecutionRequest, LLMTier
@@ -461,6 +486,8 @@ class AgentLoopService:
                     "source": source,
                     "workflow_id": workflow_id,
                     "task_count": len(workflow.tasks) if workflow else 0,
+                    "confidence_score": confidence_score,
+                    "confidence_route": confidence_route,
                 },
             )
 
@@ -704,6 +731,17 @@ class AgentLoopService:
                 action="task_completed",
                 details=f"Workflow {data.get('workflow_id', '?')} completed",
             )
+        # Encode task completion into vector memory
+        if self.vector_memory:
+            try:
+                summary = f"Completed: {data.get('goal', data.get('workflow_id', ''))}"
+                self.vector_memory.encode(
+                    summary,
+                    {"agent_id": data.get("agent_id", "system"), "type": "task_completion"},
+                )
+            except Exception as e:
+                logger.warning("Failed to encode task completion: %s", e)
+
         # Emit agent_idle so other services know this agent is free
         if self.event_bus:
             self.event_bus.emit("agent_idle", {
@@ -790,6 +828,15 @@ class AgentLoopService:
                     # ── CHECKPOINT ──
                     if self.checkpoint_service and loop.ticks % 10 == 0:
                         self.checkpoint_service.save(loop.agent_id, loop.to_checkpoint())
+
+                    # ── MEMORY CONSOLIDATION (every 100 ticks) ──
+                    if loop.ticks % 100 == 0 and self.vector_memory:
+                        try:
+                            await asyncio.to_thread(
+                                self.vector_memory.consolidate, "agent_memory",
+                            )
+                        except Exception as e:
+                            logger.warning("Memory consolidation failed: %s", e)
 
                 except Exception as e:
                     loop.state = LoopState.RECOVERING

@@ -472,6 +472,12 @@ class TaskWorkflowService:
         wf.updated_at = datetime.now(timezone.utc)
         log_path = wf.work_dir / "execution-log.jsonl"
 
+        # For complex workflows (5+ steps), use SupervisorGraph for LLM-driven routing
+        skill_steps = [s for s in wf.plan_steps if s.get("skill_id")]
+        if len(wf.plan_steps) >= 5 and skill_steps:
+            await self._execute_via_supervisor(wf, log_path)
+            return
+
         for step in wf.plan_steps:
             entry: dict[str, Any] = {
                 "step": step["step"],
@@ -514,6 +520,81 @@ class TaskWorkflowService:
             sum(1 for r in wf.execution_results if r.get("success")),
             len(wf.execution_results),
         )
+
+    async def _execute_via_supervisor(self, wf: TaskWorkflow, log_path: Path) -> None:
+        """Use SupervisorGraph for complex workflows with 5+ plan steps.
+
+        The supervisor LLM decides routing instead of sequential execution.
+        """
+        import sys
+        from pathlib import Path as _Path
+        repo = _Path(__file__).resolve().parents[4]
+        sys.path.insert(0, str(repo))
+
+        try:
+            from scripts.orchestrator import SupervisorGraph
+
+            logger.info(
+                "Executing via SupervisorGraph: %s (%d steps)",
+                wf.workflow_id, len(wf.plan_steps),
+            )
+
+            sg = SupervisorGraph(task_class="moderate")
+            result = sg.run(wf.goal, workspace_id=wf.workflow_id)
+
+            # Map supervisor results back to workflow execution_results
+            for role, output in result.get("agent_outputs", {}).items():
+                entry: dict[str, Any] = {
+                    "step": len(wf.execution_results) + 1,
+                    "name": f"supervisor:{role}",
+                    "skill_id": output.get("skill_id"),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "success": output.get("success", False),
+                    "mode": "supervisor_graph",
+                }
+                if output.get("error"):
+                    entry["error"] = output["error"]
+                if output.get("quality"):
+                    entry["quality_score"] = output["quality"]
+
+                wf.execution_results.append(entry)
+                with open(log_path, "a") as f:
+                    f.write(json.dumps(entry, default=str) + "\n")
+
+            # Log routing decisions for audit
+            for decision in result.get("routing_decisions", []):
+                with open(log_path, "a") as f:
+                    f.write(json.dumps({
+                        "type": "routing_decision",
+                        "timestamp": decision.get("timestamp"),
+                        "agents": decision.get("agents"),
+                        "reasoning": decision.get("reasoning", "")[:200],
+                    }, default=str) + "\n")
+
+            logger.info(
+                "SupervisorGraph complete: %s — %d/%d agents succeeded",
+                wf.workflow_id,
+                result.get("agents_succeeded", 0),
+                result.get("agents_total", 0),
+            )
+
+        except ImportError as e:
+            logger.warning("SupervisorGraph unavailable, falling back to sequential: %s", e)
+            # Fallback: run sequentially (re-enter _phase_execute without supervisor)
+            for step in wf.plan_steps:
+                entry = {
+                    "step": step["step"],
+                    "name": step["name"],
+                    "skill_id": step.get("skill_id"),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "success": True,
+                    "note": "Sequential fallback — SupervisorGraph unavailable",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }
+                wf.execution_results.append(entry)
+                with open(log_path, "a") as f:
+                    f.write(json.dumps(entry, default=str) + "\n")
 
     # ── Phase 4: Validate ─────────────────────────────────────────────
 

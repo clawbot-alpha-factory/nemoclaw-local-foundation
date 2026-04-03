@@ -99,6 +99,12 @@ class ExecutionService:
         self.circuit_breaker = None   # SkillCircuitBreaker (set after E-2b init)
         self.skill_metrics = None     # SkillMetrics (set after E-2b init)
 
+        # Execution-scoped breakers
+        from lib.circuit_breaker import StepLimitBreaker, CostCeilingBreaker, RepetitionDetector
+        self.step_breaker = StepLimitBreaker()
+        self.cost_breaker = CostCeilingBreaker()
+        self.repetition_detector = RepetitionDetector()
+
         # Concurrency maxed for all modes
         self._concurrency = {
             ExecutionMode.CONSERVATIVE: 4,
@@ -286,6 +292,35 @@ class ExecutionService:
             logger.warning("Circuit breaker blocked %s (skill=%s)", execution.execution_id[:8], execution.skill_id)
             return
 
+        # Step limit breaker — check before execution
+        tier_num = {LLMTier.LIGHTWEIGHT: 1, LLMTier.STANDARD: 2, LLMTier.COMPLEX: 3, LLMTier.CRITICAL: 4}.get(execution.tier)
+        step_ok, step_reason = self.step_breaker.check(execution.execution_id, tier_num)
+        if not step_ok:
+            execution.status = ExecutionStatus.FAILED
+            execution.error = step_reason
+            execution.completed_at = datetime.utcnow()
+            self.active.pop(execution.execution_id, None)
+            self.history.append(execution)
+            self._daily_failed += 1
+            self.step_breaker.reset(execution.execution_id)
+            logger.warning("Step breaker tripped %s: %s", execution.execution_id[:8], step_reason)
+            return
+
+        # Repetition detector — track (skill_id, inputs) per execution
+        rep_ok, rep_reason = self.repetition_detector.record(
+            execution.execution_id, execution.skill_id, execution.inputs,
+        )
+        if not rep_ok:
+            execution.status = ExecutionStatus.FAILED
+            execution.error = rep_reason
+            execution.completed_at = datetime.utcnow()
+            self.active.pop(execution.execution_id, None)
+            self.history.append(execution)
+            self._daily_failed += 1
+            self.repetition_detector.reset(execution.execution_id)
+            logger.warning("Repetition detector tripped %s: %s", execution.execution_id[:8], rep_reason)
+            return
+
         # Check for better agent before executing
         self._try_delegate(execution)
 
@@ -307,6 +342,13 @@ class ExecutionService:
                 execution.cost = result.get("cost", 0.0)
                 self._daily_completed += 1
                 self._daily_cost += execution.cost
+
+                # Cost ceiling breaker — track and warn
+                self.cost_breaker.add_cost(execution.execution_id, execution.cost)
+                cost_ok, cost_reason = self.cost_breaker.check(execution.execution_id)
+                if not cost_ok:
+                    logger.warning("Cost ceiling exceeded post-execution %s: %s", execution.execution_id[:8], cost_reason)
+
                 logger.info(
                     "Completed %s: output=%s cost=$%.3f",
                     execution.execution_id[:8],
@@ -380,6 +422,11 @@ class ExecutionService:
         execution.completed_at = datetime.utcnow()
         self.active.pop(execution.execution_id, None)
         self.history.append(execution)
+
+        # Clean up execution-scoped breakers
+        self.step_breaker.reset(execution.execution_id)
+        self.cost_breaker.reset(execution.execution_id)
+        self.repetition_detector.reset(execution.execution_id)
 
     async def _invoke_skill(self, execution: TaskExecution) -> dict[str, Any]:
         """

@@ -26,6 +26,10 @@ PYTHON = str(REPO / ".venv313" / "bin" / "python3")
 sys.path.insert(0, str(REPO))
 logger = logging.getLogger("nemoclaw.mcp")
 
+from lib.mcp_gateway import MCPGateway
+
+_gateway = MCPGateway()
+
 SKIP_DIRS = {"__pycache__", "graph-validation"}
 
 
@@ -54,8 +58,27 @@ def load_skill_catalog():
     return skills
 
 
-def invoke_skill(skill_id: str, inputs: dict, timeout: int = 120) -> dict:
-    """Execute a skill via skill-runner.py and return the result."""
+def invoke_skill(skill_id: str, inputs: dict, timeout: int = 120, agent_id: str | None = None) -> dict:
+    """Execute a skill via skill-runner.py with MCP gateway policy enforcement.
+
+    Args:
+        skill_id: Skill to execute.
+        inputs: Input key-value pairs.
+        timeout: Max execution seconds.
+        agent_id: Requesting agent (for permission/rate-limit checks).
+    """
+    # ── Gateway: permission + rate limit ──
+    if agent_id:
+        allowed, reason = _gateway.gate(agent_id, skill_id)
+        if not allowed:
+            logger.warning("Gateway blocked: %s → %s: %s", agent_id, skill_id, reason)
+            return {"success": False, "error": f"Gateway: {reason}"}
+
+    # ── Gateway: sanitize inputs ──
+    inputs, _, warnings = _gateway.sanitize_io(inputs)
+    if warnings:
+        logger.info("Sanitization warnings for %s: %s", skill_id, warnings)
+
     cmd = [PYTHON, str(RUNNER), "--skill", skill_id]
     for k, v in inputs.items():
         cmd.extend(["--input", k, str(v)])
@@ -72,17 +95,29 @@ def invoke_skill(skill_id: str, inputs: dict, timeout: int = 120) -> dict:
                 try:
                     path = line.split(":")[-1].strip().strip('"')
                     if Path(path).exists():
-                        return json.loads(Path(path).read_text())
+                        skill_result = json.loads(Path(path).read_text())
+                        # ── Gateway: audit log ──
+                        _gateway.audit_log(agent_id or "anonymous", skill_id, inputs, skill_result)
+                        return skill_result
                 except Exception:
                     pass
 
         if result.returncode == 0:
-            return {"success": True, "output": output[-2000:]}
-        return {"success": False, "error": output[-1000:]}
+            skill_result = {"success": True, "output": output[-2000:]}
+        else:
+            skill_result = {"success": False, "error": output[-1000:]}
+
+        # ── Gateway: audit log ──
+        _gateway.audit_log(agent_id or "anonymous", skill_id, inputs, skill_result)
+        return skill_result
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": f"Timeout after {timeout}s"}
+        skill_result = {"success": False, "error": f"Timeout after {timeout}s"}
+        _gateway.audit_log(agent_id or "anonymous", skill_id, inputs, skill_result)
+        return skill_result
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        skill_result = {"success": False, "error": str(e)}
+        _gateway.audit_log(agent_id or "anonymous", skill_id, inputs, skill_result)
+        return skill_result
 
 
 def create_mcp_server():
