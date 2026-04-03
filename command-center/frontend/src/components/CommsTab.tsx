@@ -80,28 +80,28 @@ export default function CommsTab() {
           return <ChatThread lane={activeLane} onNewMessage={handleNewMessage} />;
         }
         return (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+          <div className="flex flex-col items-center justify-center h-full text-nc-text-dim">
             <div className="text-5xl mb-4">💬</div>
-            <h3 className="text-lg font-medium text-zinc-400">
+            <h3 className="text-lg font-medium text-nc-text-dim">
               {conversationType === 'group' ? 'Group Channels' : 'Team Chat'}
             </h3>
-            <p className="text-sm text-zinc-600 mt-1">
+            <p className="text-sm text-nc-text-muted mt-1">
               Select a conversation to get started
             </p>
-            <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-zinc-500">
-              <div className="flex items-center gap-2 bg-zinc-800/50 px-3 py-2 rounded-lg">
+            <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-nc-text-dim">
+              <div className="flex items-center gap-2 bg-nc-surface-2 px-3 py-2 rounded-lg">
                 <span>🤖</span>
                 <span>DM any agent directly</span>
               </div>
-              <div className="flex items-center gap-2 bg-zinc-800/50 px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-nc-surface-2 px-3 py-2 rounded-lg">
                 <span>📢</span>
                 <span>All Hands broadcast</span>
               </div>
-              <div className="flex items-center gap-2 bg-zinc-800/50 px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-nc-surface-2 px-3 py-2 rounded-lg">
                 <span>⚔️</span>
                 <span>Watch agent debates</span>
               </div>
-              <div className="flex items-center gap-2 bg-zinc-800/50 px-3 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-nc-surface-2 px-3 py-2 rounded-lg">
                 <span>💡</span>
                 <span>See brainstorm sessions</span>
               </div>
@@ -129,8 +129,7 @@ export default function CommsTab() {
   };
 
   return (
-    <ErrorBoundary fallbackLabel="Communications failed to load">
-    <div className="flex flex-col h-[calc(100vh-3rem)] bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700/50">
+    <div className="flex flex-col h-full bg-nc-bg overflow-hidden">
       {/* Conversation type selector + Quick Task */}
       <div className="flex items-center">
         <div className="flex-1">
@@ -149,14 +148,14 @@ export default function CommsTab() {
 
       {/* Quick Task inline form */}
       {showQuickTask && activeLaneId && (
-        <div className="px-4 py-2 border-b border-zinc-700/50 flex gap-2 items-center bg-zinc-800/40">
+        <div className="px-4 py-2 border-b border-nc-border flex gap-2 items-center bg-nc-surface">
           <input
             type="text"
             value={quickTaskText}
             onChange={(e) => setQuickTaskText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleQuickTask(); }}
             placeholder="Describe the task..."
-            className="flex-1 bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none placeholder:text-zinc-500"
+            className="flex-1 bg-nc-surface-2 text-nc-text text-xs px-3 py-2 rounded-lg border border-nc-border focus:border-nc-accent focus:outline-none placeholder:text-nc-text-muted"
             autoFocus
           />
           <button
@@ -168,7 +167,7 @@ export default function CommsTab() {
           </button>
           <button
             onClick={() => setShowQuickTask(false)}
-            className="text-xs text-zinc-500 hover:text-zinc-400 px-1"
+            className="text-xs text-nc-text-muted hover:text-nc-text-dim px-1"
           >
             ✕
           </button>
@@ -178,7 +177,7 @@ export default function CommsTab() {
       <div className="flex flex-1 min-h-0">
         {/* Lane list — left panel (only for DM/Group views) */}
         {showLaneList && (
-          <div className="w-72 flex-shrink-0 border-r border-zinc-700/50 bg-zinc-900/80">
+          <div className="w-72 flex-shrink-0 border-r border-nc-border bg-nc-surface">
             <LaneList
               activeLaneId={activeLaneId}
               onSelectLane={handleSelectLane}
@@ -214,6 +213,5 @@ export default function CommsTab() {
         />
       )}
     </div>
-    </ErrorBoundary>
   );
 }

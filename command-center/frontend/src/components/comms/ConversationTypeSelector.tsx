@@ -17,15 +17,15 @@ interface Props {
 
 export default function ConversationTypeSelector({ active, onChange }: Props) {
   return (
-    <div className="flex gap-1 px-3 py-2 border-b border-zinc-700/50">
+    <div className="flex gap-2 px-4 py-3 border-b border-nc-border">
       {TYPES.map((t) => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
-          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-full transition-colors ${
             active === t.id
-              ? 'bg-blue-600/20 text-blue-400 ring-1 ring-blue-500/40'
-              : 'text-zinc-400 hover:bg-zinc-700/50 hover:text-zinc-300'
+              ? 'bg-nc-accent text-white'
+              : 'text-nc-text-dim hover:text-nc-text hover:bg-nc-surface-2'
           }`}
         >
           <span>{t.icon}</span>

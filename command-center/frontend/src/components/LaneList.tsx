@@ -61,6 +61,17 @@ function truncate(text: string, max: number): string {
   return text.length > max ? text.slice(0, max) + '...' : text;
 }
 
+const AVATAR_COLORS = [
+  'bg-nc-accent/20', 'bg-nc-green/20', 'bg-nc-yellow/20', 'bg-nc-red/20',
+  'bg-purple-500/20', 'bg-pink-500/20', 'bg-cyan-500/20', 'bg-orange-500/20',
+];
+
+function avatarColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export default function LaneList({
   activeLaneId,
   onSelectLane,
@@ -96,7 +107,7 @@ export default function LaneList({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
+      <div className="flex items-center justify-center h-full text-nc-text-dim text-sm">
         Loading lanes...
       </div>
     );
@@ -104,7 +115,7 @@ export default function LaneList({
 
   if (error) {
     return (
-      <div className="p-4 text-red-400 text-sm">
+      <div className="p-4 text-nc-red text-sm">
         {error}
       </div>
     );
@@ -126,13 +137,13 @@ export default function LaneList({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-700/50 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-200 tracking-wide uppercase">
+      <div className="px-4 py-3 border-b border-nc-border flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-nc-text tracking-wide uppercase">
           Team Chat
         </h2>
         <button
           onClick={() => loadLanes(false)}
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          className="p-1.5 rounded-lg text-nc-text-dim hover:text-nc-text hover:bg-nc-surface-2 transition-colors"
           title="Refresh lanes"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -142,65 +153,65 @@ export default function LaneList({
       </div>
 
       {/* Lane groups */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto py-1">
         {sortedGroups.map(([groupType, groupLanes]) => (
           <div key={groupType}>
-            <div className="px-4 py-2 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+            <div className="text-nc-text-muted text-xs uppercase tracking-wider px-4 py-2 font-medium">
               {LANE_TYPE_LABELS[groupType] || groupType}
             </div>
-            {groupLanes.map((lane) => (
-              <button
-                key={lane.id}
-                onClick={() => onSelectLane(lane.id)}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
-                  activeLaneId === lane.id
-                    ? 'bg-zinc-700/50 border-l-2 border-blue-500'
-                    : 'hover:bg-zinc-800/50 border-l-2 border-transparent'
-                }`}
-              >
-                {/* Avatar */}
-                <span className="text-xl mt-0.5 flex-shrink-0">
-                  {lane.avatar || '💬'}
-                </span>
+            {groupLanes.map((lane) => {
+              const isActive = activeLaneId === lane.id;
+              return (
+                <button
+                  key={lane.id}
+                  onClick={() => onSelectLane(lane.id)}
+                  className={`w-full flex items-center gap-3 mx-2 px-3 py-2.5 text-left transition-colors rounded-lg ${
+                    isActive
+                      ? 'bg-nc-accent/10 border-l-2 border-nc-accent'
+                      : 'hover:bg-nc-surface-2 border-l-2 border-transparent'
+                  }`}
+                  style={{ width: 'calc(100% - 16px)' }}
+                >
+                  {/* Avatar */}
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-base ${avatarColor(lane.id)}`}>
+                    {lane.avatar || '💬'}
+                  </span>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-sm font-medium truncate ${
-                        activeLaneId === lane.id ? 'text-white' : 'text-zinc-300'
-                      }`}
-                    >
-                      {lane.name}
-                    </span>
-                    {lane.last_message && (
-                      <span className="text-[11px] text-zinc-500 flex-shrink-0 ml-2">
-                        {formatTime(lane.last_message.timestamp)}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-medium truncate ${isActive ? 'text-nc-text' : 'text-nc-text'}`}>
+                        {lane.name}
                       </span>
+                      {lane.last_message && (
+                        <span className="text-nc-text-muted text-xs flex-shrink-0 ml-2">
+                          {formatTime(lane.last_message.timestamp)}
+                        </span>
+                      )}
+                    </div>
+                    {lane.last_message ? (
+                      <p className="text-nc-text-dim text-xs truncate mt-0.5">
+                        {lane.last_message.sender_type === 'user'
+                          ? 'You: '
+                          : `${lane.last_message.sender_name}: `}
+                        {truncate(lane.last_message.content, 45)}
+                      </p>
+                    ) : (
+                      <p className="text-nc-text-muted text-xs italic mt-0.5">
+                        No messages yet
+                      </p>
                     )}
                   </div>
-                  {lane.last_message ? (
-                    <p className="text-xs text-zinc-500 truncate mt-0.5">
-                      {lane.last_message.sender_type === 'user'
-                        ? 'You: '
-                        : `${lane.last_message.sender_name}: `}
-                      {truncate(lane.last_message.content, 45)}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-zinc-600 italic mt-0.5">
-                      No messages yet
-                    </p>
-                  )}
-                </div>
 
-                {/* Unread badge */}
-                {lane.unread_count > 0 && (
-                  <span className="flex-shrink-0 bg-blue-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center mt-1">
-                    {lane.unread_count > 9 ? '9+' : lane.unread_count}
-                  </span>
-                )}
-              </button>
-            ))}
+                  {/* Unread badge */}
+                  {lane.unread_count > 0 && (
+                    <span className="flex-shrink-0 bg-nc-accent text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {lane.unread_count > 9 ? '9+' : lane.unread_count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         ))}
       </div>

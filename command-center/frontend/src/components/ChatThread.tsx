@@ -21,17 +21,17 @@ const MSG_TYPE_COLORS: Record<string, string> = {
   chat: '',
   task: 'border-l-2 border-amber-500/60',
   decision: 'border-l-2 border-purple-500/60',
-  approval: 'border-l-2 border-green-500/60',
-  alert: 'border-l-2 border-red-500/60',
-  system: 'border-l-2 border-zinc-500/60',
+  approval: 'border-l-2 border-nc-green/60',
+  alert: 'border-l-2 border-nc-red/60',
+  system: 'border-l-2 border-nc-text-muted/60',
 };
 
 const MSG_TYPE_BADGES: Record<string, { label: string; color: string }> = {
   task: { label: 'TASK', color: 'bg-amber-500/20 text-amber-400' },
   decision: { label: 'DECISION', color: 'bg-purple-500/20 text-purple-400' },
-  approval: { label: 'APPROVAL', color: 'bg-green-500/20 text-green-400' },
-  alert: { label: 'ALERT', color: 'bg-red-500/20 text-red-400' },
-  system: { label: 'SYSTEM', color: 'bg-zinc-500/20 text-zinc-400' },
+  approval: { label: 'APPROVAL', color: 'bg-nc-green/20 text-nc-green' },
+  alert: { label: 'ALERT', color: 'bg-nc-red/20 text-nc-red' },
+  system: { label: 'SYSTEM', color: 'bg-nc-text-muted/20 text-nc-text-muted' },
 };
 
 function formatTimestamp(ts: string): string {
@@ -200,35 +200,35 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-700/50 flex items-center gap-3">
+      <div className="px-4 py-3 border-b border-nc-border flex items-center gap-3">
         <span className="text-xl">{lane.avatar || '💬'}</span>
         <div>
-          <h3 className="text-sm font-semibold text-zinc-200">{lane.name}</h3>
+          <h3 className="text-sm font-semibold text-nc-text">{lane.name}</h3>
           {lane.lane_type === 'dm' && lane.participants.length > 0 && (
-            <p className="text-xs text-zinc-500">Direct message</p>
+            <p className="text-xs text-nc-text-dim">Direct message</p>
           )}
           {lane.lane_type === 'broadcast' && (
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-nc-text-dim">
               {lane.participants.length} team members
             </p>
           )}
           {lane.lane_type === 'system' && (
-            <p className="text-xs text-zinc-500">System notifications</p>
+            <p className="text-xs text-nc-text-dim">System notifications</p>
           )}
         </div>
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 bg-nc-bg">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
+          <div className="flex items-center justify-center h-full text-nc-text-dim text-sm">
             Loading messages...
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500 text-sm">
+          <div className="flex flex-col items-center justify-center h-full text-nc-text-dim text-sm">
             <span className="text-3xl mb-2">{lane.avatar || '💬'}</span>
             <p>No messages yet</p>
-            <p className="text-xs text-zinc-600 mt-1">
+            <p className="text-xs text-nc-text-muted mt-1">
               Send a message to start the conversation
             </p>
           </div>
@@ -245,7 +245,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                 {/* Date separator */}
                 {showDate && (
                   <div className="flex items-center justify-center my-4">
-                    <span className="text-[11px] text-zinc-500 bg-zinc-800/80 px-3 py-1 rounded-full">
+                    <span className="text-[11px] text-nc-text-dim bg-nc-surface-2 px-3 py-1 rounded-full">
                       {formatDateSeparator(msg.timestamp)}
                     </span>
                   </div>
@@ -254,7 +254,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                 {/* System message */}
                 {isSystem ? (
                   <div className="flex justify-center my-2">
-                    <div className="text-xs text-zinc-500 bg-zinc-800/50 px-3 py-1.5 rounded-lg max-w-md text-center">
+                    <div className="text-nc-text-muted text-xs text-center py-1 px-3 max-w-md">
                       {msg.content}
                     </div>
                   </div>
@@ -266,13 +266,13 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                     <div
                       className={`max-w-[75%] ${
                         isUser
-                          ? 'bg-blue-600/80 text-white rounded-2xl rounded-br-md'
-                          : 'bg-zinc-700/60 text-zinc-200 rounded-2xl rounded-bl-md'
-                      } px-3.5 py-2 ${MSG_TYPE_COLORS[msg.message_type] || ''}`}
+                          ? 'bg-nc-accent text-white rounded-2xl rounded-br-md'
+                          : 'bg-nc-surface-2 text-nc-text rounded-2xl rounded-bl-md'
+                      } px-4 py-2.5 ${MSG_TYPE_COLORS[msg.message_type] || ''}`}
                     >
                       {/* Sender name (for non-user messages) */}
                       {!isUser && (
-                        <p className="text-[11px] font-semibold text-blue-400 mb-0.5">
+                        <p className="text-[11px] font-semibold text-nc-accent mb-0.5">
                           {msg.sender_name}
                         </p>
                       )}
@@ -294,7 +294,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                       {/* Timestamp */}
                       <p
                         className={`text-[10px] mt-1 ${
-                          isUser ? 'text-blue-200/60' : 'text-zinc-500'
+                          isUser ? 'text-white/60' : 'text-nc-text-muted'
                         } text-right`}
                       >
                         {formatTimestamp(msg.timestamp)}
@@ -311,7 +311,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
 
       {/* Composer */}
       {lane.lane_type !== 'system' && (
-        <div className="px-4 py-3 border-t border-zinc-700/50">
+        <div className="bg-nc-surface border-t border-nc-border px-4 py-3">
           {/* Type selector dropdown */}
           {showTypeSelector && (
             <div className="mb-2 flex gap-1 flex-wrap">
@@ -324,8 +324,8 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                   }}
                   className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
                     msgType === opt.value
-                      ? 'bg-blue-600/30 text-blue-400 ring-1 ring-blue-500/50'
-                      : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700'
+                      ? 'bg-nc-accent/20 text-nc-accent'
+                      : 'bg-nc-surface-2 text-nc-text-dim hover:bg-nc-surface-2 hover:text-nc-text'
                   }`}
                 >
                   {opt.icon} {opt.label}
@@ -338,7 +338,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
             {/* Type toggle */}
             <button
               onClick={() => setShowTypeSelector(!showTypeSelector)}
-              className="flex-shrink-0 p-2 rounded-lg bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-300 transition-colors"
+              className="flex-shrink-0 p-2 rounded-lg bg-nc-surface-2 hover:bg-nc-surface-2 text-nc-text-dim hover:text-nc-text transition-colors"
               title="Message type"
             >
               <span className="text-sm">{selectedTypeInfo?.icon || '💬'}</span>
@@ -359,7 +359,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                     : 'Type a message...'
                 }
                 rows={1}
-                className="w-full bg-zinc-700/50 text-zinc-200 text-sm px-3.5 py-2.5 rounded-xl border border-zinc-600/50 focus:border-blue-500/50 focus:outline-none resize-none placeholder:text-zinc-500"
+                className="w-full bg-nc-surface-2 text-nc-text text-sm px-4 py-2.5 rounded-xl border border-nc-border focus:border-nc-accent focus:outline-none resize-none placeholder:text-nc-text-muted"
                 style={{
                   minHeight: '40px',
                   maxHeight: '120px',
@@ -376,7 +376,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
             {/* Assign Task button */}
             <button
               onClick={() => setShowTaskForm(!showTaskForm)}
-              className="flex-shrink-0 p-2 rounded-lg bg-zinc-700/50 hover:bg-zinc-700 text-zinc-400 hover:text-amber-400 transition-colors"
+              className="flex-shrink-0 p-2 rounded-lg bg-nc-surface-2 text-nc-text-dim hover:text-amber-400 transition-colors"
               title="Assign Task"
             >
               <span className="text-sm">📋</span>
@@ -388,8 +388,8 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
               disabled={!input.trim() || sending}
               className={`flex-shrink-0 p-2.5 rounded-xl transition-colors ${
                 input.trim() && !sending
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                  : 'bg-zinc-700/50 text-zinc-500 cursor-not-allowed'
+                  ? 'bg-nc-accent hover:bg-nc-accent-dim text-white'
+                  : 'bg-nc-surface-2 text-nc-text-muted cursor-not-allowed'
               }`}
             >
               {sending ? (
@@ -432,12 +432,12 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
 
           {/* Assign Task form */}
           {showTaskForm && (
-            <div className="mt-2 p-3 bg-zinc-800/60 rounded-lg border border-zinc-700/50 space-y-2">
+            <div className="mt-2 p-3 bg-nc-surface rounded-lg border border-nc-border space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-amber-400">📋 Assign Task</span>
                 <button
                   onClick={() => setShowTaskForm(false)}
-                  className="text-xs text-zinc-500 hover:text-zinc-400"
+                  className="text-xs text-nc-text-muted hover:text-nc-text-dim"
                 >
                   ✕
                 </button>
@@ -447,14 +447,14 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 placeholder="Task title..."
-                className="w-full bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none placeholder:text-zinc-500"
+                className="w-full bg-nc-surface-2 text-nc-text text-xs px-3 py-2 rounded-lg border border-nc-border focus:border-nc-accent focus:outline-none placeholder:text-nc-text-muted"
               />
               <textarea
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
                 placeholder="Description (optional)..."
                 rows={2}
-                className="w-full bg-zinc-700/50 text-zinc-200 text-xs px-3 py-2 rounded-lg border border-zinc-600/50 focus:border-amber-500/50 focus:outline-none resize-none placeholder:text-zinc-500"
+                className="w-full bg-nc-surface-2 text-nc-text text-xs px-3 py-2 rounded-lg border border-nc-border focus:border-nc-accent focus:outline-none resize-none placeholder:text-nc-text-muted"
               />
               <button
                 onClick={async () => {
@@ -494,12 +494,12 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
           {/* Type indicator */}
           {msgType !== 'chat' && (
             <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[11px] text-nc-text-muted">
                 Sending as {selectedTypeInfo?.icon} {selectedTypeInfo?.label}
               </span>
               <button
                 onClick={() => setMsgType('chat')}
-                className="text-[11px] text-zinc-500 hover:text-zinc-400"
+                className="text-[11px] text-nc-text-muted hover:text-nc-text-dim"
               >
                 ✕
               </button>
