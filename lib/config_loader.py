@@ -160,8 +160,11 @@ def lookup_skill_domain(skill_id):
 
 
 def get_api_key(provider):
-    """Get the API key for a provider."""
-    env = load_env()
+    """Get the API key for a provider.
+
+    Priority: OS environment variable > config/.env file.
+    This ensures Railway/Docker env vars take precedence over the file.
+    """
     key_map = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
@@ -169,7 +172,12 @@ def get_api_key(provider):
         "nvidia": "NVIDIA_INFERENCE_API_KEY",
     }
     env_var = key_map.get(provider, "")
-    return env.get(env_var, os.environ.get(env_var, ""))
+    # Check OS env first (Railway, Docker, etc.), then fall back to config/.env
+    os_val = os.environ.get(env_var, "")
+    if os_val:
+        return os_val
+    env = load_env()
+    return env.get(env_var, "")
 
 
 def invalidate_all():

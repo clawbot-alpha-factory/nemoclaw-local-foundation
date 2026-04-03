@@ -156,8 +156,8 @@ async def send_message(
         raise HTTPException(status_code=404, detail=f"Lane not found: {lane_id}")
 
     # Validate message content
-    if not body.content or len(body.content.strip()) < 5:
-        raise HTTPException(status_code=400, detail="Message must be at least 5 characters")
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     # Audit: tag user messages with manual trigger
     user_metadata = {**body.metadata, "trigger": "manual", "source": "human"}
