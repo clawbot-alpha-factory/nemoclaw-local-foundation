@@ -342,7 +342,205 @@ export default function ControlPanelTab() {
             </div>
           </div>
         </section>
+
+        {/* ── Time-Travel Debug ──────────────────────────────── */}
+        <section>
+          <h2 className="text-[11px] font-semibold text-nc-text-dim uppercase tracking-wider mb-3">⏪ Time-Travel Debug</h2>
+          <TimeTravelPanel />
+        </section>
       </div>
+    </div>
+  );
+}
+
+/* ─── Time-Travel Debug Panel ──────────────────────────────────────────── */
+function TimeTravelPanel() {
+  const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  const [skillThreads, setSkillThreads] = useState<any[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [agentHistory, setAgentHistory] = useState<any>(null);
+  const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [threadChain, setThreadChain] = useState<any[]>([]);
+  const [restoreMsg, setRestoreMsg] = useState('');
+
+  const loadCheckpoints = useCallback(async () => {
+    try {
+      const [cpRes, skRes] = await Promise.all([
+        fetch('/api/engine/checkpoints', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('cc-token') || ''}` },
+        }),
+        fetch('/api/engine/skill-checkpoints', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('cc-token') || ''}` },
+        }),
+      ]);
+      if (cpRes.ok) {
+        const d = await cpRes.json();
+        setCheckpoints(d.checkpoints || []);
+      }
+      if (skRes.ok) {
+        const d = await skRes.json();
+        setSkillThreads(d.threads || []);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadCheckpoints(); }, [loadCheckpoints]);
+
+  const loadAgentHistory = async (agentId: string) => {
+    setSelectedAgent(agentId);
+    setSelectedThread(null);
+    try {
+      const res = await fetch(`/api/engine/checkpoints/${agentId}/history`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('cc-token') || ''}` },
+      });
+      if (res.ok) setAgentHistory(await res.json());
+    } catch {}
+  };
+
+  const loadThreadChain = async (threadId: string) => {
+    setSelectedThread(threadId);
+    setSelectedAgent(null);
+    try {
+      const res = await fetch(`/api/engine/skill-checkpoints/${threadId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('cc-token') || ''}` },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setThreadChain(d.chain || []);
+      }
+    } catch {}
+  };
+
+  const restoreAgent = async (agentId: string) => {
+    try {
+      const res = await fetch(`/api/engine/checkpoints/${agentId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('cc-token') || ''}` },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setRestoreMsg(`✅ ${agentId} restored from ${d.restored_from} (${d.restored_ticks} ticks)`);
+        setTimeout(() => setRestoreMsg(''), 5000);
+        loadCheckpoints();
+      }
+    } catch {}
+  };
+
+  return (
+    <div className="space-y-4">
+      {restoreMsg && (
+        <div className="bg-nc-green/20 border border-nc-green/40 rounded-lg px-4 py-2 text-sm text-nc-green">
+          {restoreMsg}
+        </div>
+      )}
+
+      {/* Agent Checkpoints */}
+      <div className="bg-nc-surface border border-nc-border rounded-xl p-4">
+        <h3 className="text-xs font-semibold text-nc-text-dim uppercase mb-3">Agent Checkpoints ({checkpoints.length})</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {checkpoints.map((cp) => (
+            <div
+              key={cp.agent_id}
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                selectedAgent === cp.agent_id ? 'bg-nc-accent/20 border border-nc-accent/40' : 'bg-nc-surface-2 hover:bg-nc-surface-3'
+              }`}
+              onClick={() => loadAgentHistory(cp.agent_id)}
+            >
+              <div>
+                <span className="text-nc-text font-medium">{cp.agent_id.replace(/_/g, ' ')}</span>
+                <span className="text-nc-text-dim ml-2">{cp.loop_state}</span>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); restoreAgent(cp.agent_id); }}
+                className="text-[10px] bg-nc-surface-3 hover:bg-nc-accent/30 px-2 py-0.5 rounded text-nc-text-dim hover:text-nc-text"
+              >
+                ⏪ Restore
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Agent History Timeline */}
+      {selectedAgent && agentHistory && (
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-4">
+          <h3 className="text-xs font-semibold text-nc-text-dim uppercase mb-3">
+            📋 {selectedAgent.replace(/_/g, ' ')} — Work History
+          </h3>
+          {agentHistory.current_checkpoint && (
+            <div className="text-xs text-nc-text-dim mb-3 space-y-1">
+              <div>Ticks: <span className="text-nc-text">{agentHistory.current_checkpoint.ticks}</span></div>
+              <div>Tasks executed: <span className="text-nc-text">{agentHistory.current_checkpoint.tasks_executed}</span></div>
+              <div>Last checkpoint: <span className="text-nc-text">{agentHistory.current_checkpoint._checkpoint_time}</span></div>
+            </div>
+          )}
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {(agentHistory.work_history || []).map((day: any) => (
+              <div key={day.date} className="border-l-2 border-nc-accent/30 pl-3">
+                <div className="text-[10px] text-nc-accent font-semibold">{day.date} ({day.total_entries} entries)</div>
+                {(day.entries || []).slice(0, 5).map((entry: any, i: number) => (
+                  <div key={i} className="text-[10px] text-nc-text-dim mt-0.5 truncate">
+                    {entry.action || entry.type || 'event'}: {entry.summary || entry.details || JSON.stringify(entry).slice(0, 80)}
+                  </div>
+                ))}
+              </div>
+            ))}
+            {(agentHistory.work_history || []).length === 0 && (
+              <div className="text-xs text-nc-text-dim">No work history available</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Skill Graph Checkpoints */}
+      {skillThreads.length > 0 && (
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-4">
+          <h3 className="text-xs font-semibold text-nc-text-dim uppercase mb-3">
+            🔗 Skill Execution Threads ({skillThreads.length})
+          </h3>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {skillThreads.map((t) => (
+              <div
+                key={t.thread_id}
+                className={`flex items-center justify-between px-3 py-1.5 rounded text-[10px] cursor-pointer ${
+                  selectedThread === t.thread_id ? 'bg-nc-accent/20' : 'bg-nc-surface-2 hover:bg-nc-surface-3'
+                }`}
+                onClick={() => loadThreadChain(t.thread_id)}
+              >
+                <span className="text-nc-text truncate max-w-[70%]">{t.thread_id}</span>
+                <span className="text-nc-text-dim">{t.checkpoint_count} steps</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Thread Chain Visualization */}
+      {selectedThread && threadChain.length > 0 && (
+        <div className="bg-nc-surface border border-nc-border rounded-xl p-4">
+          <h3 className="text-xs font-semibold text-nc-text-dim uppercase mb-3">
+            🔄 Execution Chain — {threadChain.length} steps
+          </h3>
+          <div className="flex items-center gap-1 flex-wrap">
+            {threadChain.map((cp, i) => (
+              <div key={cp.checkpoint_id} className="flex items-center">
+                <div
+                  className="w-8 h-8 rounded-full bg-nc-accent/20 border border-nc-accent/40 flex items-center justify-center text-[10px] text-nc-accent font-bold"
+                  title={`Step ${cp.step}: ${cp.checkpoint_id.slice(0, 8)}`}
+                >
+                  {cp.step}
+                </div>
+                {i < threadChain.length - 1 && (
+                  <div className="w-4 h-0.5 bg-nc-accent/30" />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[10px] text-nc-text-dim">
+            Thread: {selectedThread.slice(0, 40)}...
+          </div>
+        </div>
+      )}
     </div>
   );
 }

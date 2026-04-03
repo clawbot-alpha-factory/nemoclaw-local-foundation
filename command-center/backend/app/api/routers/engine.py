@@ -133,6 +133,186 @@ async def get_checkpoints(request: Request) -> dict[str, Any]:
     return {"checkpoints": checkpoints, "total": len(checkpoints)}
 
 
+# ── Time-Travel Debugging ─────────────────────────────────────────────
+
+@router.get("/api/engine/checkpoints/{agent_id}")
+async def get_agent_checkpoint(agent_id: str, request: Request) -> dict[str, Any]:
+    """Get full checkpoint data for an agent — state, ticks, tasks, cost."""
+    svc = _get_checkpoint(request)
+    data = svc.load(agent_id)
+    if not data:
+        raise HTTPException(404, f"No checkpoint for agent {agent_id}")
+    return {"agent_id": agent_id, "checkpoint": data}
+
+
+@router.get("/api/engine/checkpoints/{agent_id}/history")
+async def get_agent_checkpoint_history(agent_id: str, request: Request) -> dict[str, Any]:
+    """Get checkpoint history with work log entries for timeline view."""
+    svc = _get_checkpoint(request)
+    data = svc.load(agent_id)
+
+    # Gather work log history for this agent
+    import os
+    from pathlib import Path
+    log_dir = Path.home() / ".nemoclaw" / "work-logs" / agent_id
+    history = []
+    if log_dir.is_dir():
+        for log_file in sorted(log_dir.glob("*.jsonl"), reverse=True)[:7]:  # last 7 days
+            import json as _json
+            try:
+                entries = []
+                for line in log_file.read_text().strip().split("\n"):
+                    if line.strip():
+                        try:
+                            entries.append(_json.loads(line))
+                        except _json.JSONDecodeError:
+                            pass
+                history.append({
+                    "date": log_file.stem,
+                    "entries": entries[-20:],  # last 20 per day
+                    "total_entries": len(entries),
+                })
+            except Exception:
+                pass
+
+    return {
+        "agent_id": agent_id,
+        "current_checkpoint": data,
+        "work_history": history,
+        "history_days": len(history),
+    }
+
+
+@router.post("/api/engine/checkpoints/{agent_id}/restore")
+async def restore_agent_checkpoint(agent_id: str, request: Request) -> dict[str, Any]:
+    """Restore an agent to its last checkpoint state (stop → reload → start)."""
+    loop_svc = _get_loop_service(request)
+    checkpoint_svc = _get_checkpoint(request)
+
+    # Load checkpoint
+    data = checkpoint_svc.load(agent_id)
+    if not data:
+        raise HTTPException(404, f"No checkpoint for agent {agent_id}")
+
+    # Stop agent if running
+    stop_result = await loop_svc.stop_agent(agent_id)
+
+    # Restart with restored state
+    start_result = await loop_svc.start_agent(agent_id)
+
+    return {
+        "agent_id": agent_id,
+        "restored_from": data.get("_checkpoint_time"),
+        "restored_ticks": data.get("ticks", 0),
+        "stop_result": stop_result,
+        "start_result": start_result,
+    }
+
+
+@router.get("/api/engine/skill-checkpoints")
+async def get_skill_checkpoints(request: Request) -> dict[str, Any]:
+    """List LangGraph skill execution checkpoints from SQLite DB."""
+    from pathlib import Path
+    import sqlite3
+
+    db_path = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
+    bak_path = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db.bak"
+
+    # Try active DB first, fall back to backup
+    target = db_path if db_path.exists() and db_path.stat().st_size > 0 else bak_path
+
+    if not target.exists() or target.stat().st_size == 0:
+        return {"threads": [], "total_checkpoints": 0, "db": str(target), "status": "empty"}
+
+    try:
+        conn = sqlite3.connect(str(target))
+        cursor = conn.cursor()
+
+        # Get threads with checkpoint counts
+        cursor.execute("""
+            SELECT thread_id,
+                   COUNT(*) as checkpoint_count,
+                   MIN(checkpoint_id) as first_checkpoint,
+                   MAX(checkpoint_id) as last_checkpoint
+            FROM checkpoints
+            GROUP BY thread_id
+            ORDER BY MAX(rowid) DESC
+            LIMIT 50
+        """)
+        threads = []
+        for row in cursor.fetchall():
+            threads.append({
+                "thread_id": row[0],
+                "checkpoint_count": row[1],
+                "first_checkpoint": row[2],
+                "last_checkpoint": row[3],
+            })
+
+        # Total count
+        cursor.execute("SELECT COUNT(*) FROM checkpoints")
+        total = cursor.fetchone()[0]
+
+        conn.close()
+        return {
+            "threads": threads,
+            "total_checkpoints": total,
+            "db": str(target),
+            "status": "active",
+        }
+    except Exception as e:
+        return {"threads": [], "total_checkpoints": 0, "error": str(e), "status": "error"}
+
+
+@router.get("/api/engine/skill-checkpoints/{thread_id}")
+async def get_skill_checkpoint_chain(thread_id: str, request: Request) -> dict[str, Any]:
+    """Get the checkpoint chain for a specific skill execution thread."""
+    from pathlib import Path
+    import sqlite3
+
+    db_path = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db"
+    bak_path = Path.home() / ".nemoclaw" / "checkpoints" / "langgraph.db.bak"
+    target = db_path if db_path.exists() and db_path.stat().st_size > 0 else bak_path
+
+    if not target.exists() or target.stat().st_size == 0:
+        raise HTTPException(404, "No checkpoint database found")
+
+    try:
+        conn = sqlite3.connect(str(target))
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT checkpoint_id, parent_checkpoint_id, type
+            FROM checkpoints
+            WHERE thread_id = ?
+            ORDER BY rowid ASC
+        """, (thread_id,))
+
+        chain = []
+        for row in cursor.fetchall():
+            chain.append({
+                "checkpoint_id": row[0],
+                "parent_id": row[1],
+                "type": row[2],
+                "step": len(chain) + 1,
+            })
+
+        conn.close()
+
+        if not chain:
+            raise HTTPException(404, f"No checkpoints for thread {thread_id}")
+
+        return {
+            "thread_id": thread_id,
+            "chain": chain,
+            "total_steps": len(chain),
+            "can_replay": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 @router.post("/api/engine/shutdown")
 async def engine_shutdown(request: Request) -> dict[str, Any]:
     """Emergency shutdown — stop all agents and execution."""
