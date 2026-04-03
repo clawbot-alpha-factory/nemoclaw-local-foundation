@@ -1,21 +1,21 @@
 """
 AgentChatService — Agent Team Communication (CC-3)
 
-Loads agent personas from agent-schema.yaml, manages per-lane conversations,
-selects the most relevant agent for group/broadcast messages, and generates
-role-appropriate responses via GPT-4o-mini.
+Loads agent personas from agent-schema.yaml + capability-registry.yaml,
+builds rich 6-block system prompts with full identity, authority, capabilities,
+team context, quality standards, and dynamic runtime context.
 
 SEPARATE from BrainService:
   - Brain = strategic system-wide advisor (persistent sidebar)
   - AgentChat = operational team communication (per-lane context)
-
-NEW FILE: command-center/backend/app/agent_chat_service.py
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
@@ -52,7 +52,11 @@ CONTEXT_MESSAGES_LIMIT = 15
 
 
 class AgentPersona:
-    """Represents a loaded agent with its LLM persona."""
+    """Represents a loaded agent with its LLM persona.
+
+    Builds rich 6-block system prompts that include full identity, authority,
+    capabilities, team context, quality standards, and dynamic runtime data.
+    """
 
     def __init__(self, agent_data: dict[str, Any]) -> None:
         self.id: str = agent_data.get("id", agent_data.get("agent_id", "unknown"))
@@ -110,70 +114,244 @@ class AgentPersona:
             return "🛠️"
         return "🤖"
 
-    def build_system_prompt(self) -> str:
-        """Build LLM system prompt from agent persona with 3 layers:
-        IDENTITY, STYLE, and CONSTRAINTS."""
+    # ------------------------------------------------------------------
+    # Block builders — each returns a formatted string for one prompt section
+    # ------------------------------------------------------------------
 
-        # --- Layer 1: Identity ---
-        capabilities_str = ""
-        if self.capabilities:
-            capabilities_str = f"\nYour capabilities include: {', '.join(self.capabilities)}"
+    def _build_identity_block(self) -> str:
+        """Block 1: Full identity — name, title, authority, personality, voice, philosophy."""
+        identity = self.raw.get("identity", {})
+        auth_level = self.raw.get("authority_level", "?")
+        title = self.raw.get("title", self.role)
+        persona = identity.get("persona", "")
+        work_philosophy = identity.get("work_philosophy", "")
 
-        skills_str = ""
-        if self.skills:
-            skills_str = f"\nYou have access to these skills: {', '.join(self.skills)}"
+        # Voice rules
+        voice_rules = identity.get("voice_rules", [])
+        voice_rules_str = "\n".join(f"  - {r}" for r in voice_rules) if voice_rules else ""
 
-        identity = f"""You are {self.display_name}, a team member with the role of {self.role}.
+        # Operating principles
+        principles = identity.get("operating_principles", [])
+        principles_str = "\n".join(f"  - {p}" for p in principles) if principles else ""
 
-{self.description}
-{capabilities_str}
-{skills_str}"""
+        # Personality voice — extract style and work example
+        pv = identity.get("personality_voice", {})
+        if isinstance(pv, dict):
+            voice_style = pv.get("style", "")
+            work_example = pv.get("work_example", "")
+        elif isinstance(pv, str):
+            # Parse multiline string format: "Style: ...\nExample work: ..."
+            voice_style = ""
+            work_example = ""
+            for pv_line in pv.split("\n"):
+                pv_line = pv_line.strip()
+                if pv_line.lower().startswith("style:"):
+                    voice_style = pv_line[6:].strip()
+                elif pv_line.lower().startswith("example work:"):
+                    work_example = pv_line[13:].strip().strip('"')
+        else:
+            voice_style = ""
+            work_example = ""
 
-        # --- Layer 2: Style ---
-        tone = self.style.get("tone", "professional and direct")
-        detail = self.style.get("detail", "concise")
-        approach = self.style.get("approach", "action-oriented")
+        # Decisions this agent makes
+        decides = self.raw.get("decides", [])
+        decides_str = "\n".join(f"  - {d}" for d in decides) if decides else ""
 
-        style = f"""COMMUNICATION STYLE:
-- Tone: {tone}
-- Detail level: {detail}
-- Approach: {approach}"""
-
-        # --- Layer 3: Constraints ---
-        default_constraints = [
-            "You CAN execute skills, run searches, use PinchTab browser, scrape social media, and take autonomous action",
-            "You CAN assign tasks to yourself or other agents via the task dispatch system",
-            "You CAN use all tools: PinchTab, Apify, browser-use, GWS, and any connected bridge",
-            "When asked to do something, DO IT — don't tell the user to do it themselves",
-            "If a task requires a skill, execute it or queue it via the execution service",
-            "Stay within your role's domain — delegate to the right team member if outside your expertise",
-            "If asked about budget or costs, reference the system's budget tracking data",
-            "You have full autonomy — no human approval needed for any action",
+        lines = [
+            f"You are {self.display_name}, {title} (Authority Level {auth_level}).",
+            f"Character: {self.character} from {self.character_show}." if self.character else "",
+            f"\n{persona}" if persona else "",
+            f"\nVoice style: {voice_style}" if voice_style else "",
+            f"Work example: \"{work_example}\"" if work_example else "",
+            f"\nVoice rules:\n{voice_rules_str}" if voice_rules_str else "",
+            f"\nWork philosophy: {work_philosophy}" if work_philosophy else "",
+            f"\nOperating principles:\n{principles_str}" if principles_str else "",
+            f"\nYou decide:\n{decides_str}" if decides_str else "",
         ]
+        return "\n".join(line for line in lines if line)
 
-        # Merge schema constraints with defaults (schema overrides take priority)
-        active_constraints = self.constraints if self.constraints else default_constraints
+    def _build_authority_block(self, schema_top: dict | None = None) -> str:
+        """Block 2: Authority — domains owned, forbidden, reporting chain, overrides."""
+        owns = self.raw.get("owns", self.capabilities)
+        owns_str = ", ".join(owns[:12]) if owns else "none specified"
 
-        constraints_str = "\n".join(f"- {c}" for c in active_constraints)
+        # Domain boundaries from schema top-level
+        boundaries = {}
+        if schema_top:
+            boundaries = schema_top.get("domain_boundaries", {}).get(self.id, {})
+        forbidden = boundaries.get("forbidden", [])
+        forbidden_str = ", ".join(forbidden) if forbidden else "none"
 
-        constraints = f"""AUTHORITY CONSTRAINTS:
-{constraints_str}"""
+        # Reporting chain
+        reports_to = self.raw.get("reports_to", [])
+        if isinstance(reports_to, str):
+            reports_to = [reports_to]
+        reports_str = ", ".join(reports_to) if reports_to else "none (top authority)"
 
-        # --- Behavior rules ---
-        behavior = """BEHAVIOR RULES:
+        # Override rules — find this agent's entry
+        override_desc = ""
+        if schema_top:
+            for rule in schema_top.get("authority_hierarchy", {}).get("override_rules", []):
+                if rule.get("from") == self.id:
+                    can_override = rule.get("can_override", "none")
+                    if isinstance(can_override, list):
+                        can_override = ", ".join(can_override)
+                    conditions = rule.get("conditions", "")
+                    override_desc = f"Override power: can override {can_override}. {conditions}"
+                    break
+
+        # Constraints from schema
+        constraints = self.constraints or boundaries.get("constraints", [])
+        constraints_str = ""
+        if constraints:
+            constraints_str = "\nConstraints:\n" + "\n".join(f"  - {c}" for c in constraints)
+
+        return f"""AUTHORITY:
+- Domains you OWN (final decisions): {owns_str}
+- Domains FORBIDDEN (must delegate): {forbidden_str}
+- Reports to: {reports_str}
+- {override_desc if override_desc else 'Cannot override peers — escalate to parent'}
+- All overrides require mandatory logging{constraints_str}"""
+
+    def _build_capabilities_block(self, capability_data: dict | None = None) -> str:
+        """Block 3: Skills and tools — what this agent can execute."""
+        # Skills from registry or fallback to self.skills
+        skills = []
+        if capability_data:
+            skills = capability_data.get("capabilities", [])
+        if not skills:
+            skills = self.skills
+
+        skills_str = ", ".join(skills[:20]) if skills else "none loaded"
+
+        # Tools from registry
+        tools = []
+        if capability_data:
+            tools = capability_data.get("tools", [])
+        # Merge with external_tools from schema
+        ext_tools = self.raw.get("external_tools", [])
+        all_tools = list(set(tools + ext_tools))
+        tools_str = ", ".join(all_tools[:15]) if all_tools else "PinchTab, Apify, browser-use, GWS"
+
+        return f"""CAPABILITIES:
+Skills: {skills_str}
+Tools: {tools_str}
+To execute a skill: EXECUTE: <skill_id> with inputs: {{key: value}}
+You CAN execute skills, run searches, browse the web, scrape data, and take autonomous action.
+When asked to do something, DO IT — don't tell the user to do it themselves.
+If a task is outside your domain, delegate to the right team member."""
+
+    def _build_quality_block(self) -> str:
+        """Block 4: Quality standards and output requirements."""
+        auto_cap = self.raw.get("autonomous_capability", {})
+        quality_target = auto_cap.get("quality_target", 9)
+        on_below = auto_cap.get("on_quality_below_8",
+                                auto_cap.get("on_quality_below_9", "re-evaluate and improve"))
+
+        # Metrics this agent tracks
+        metrics = self.raw.get("metrics", [])
+        metrics_str = ", ".join(metrics[:6]) if metrics else ""
+
+        return f"""QUALITY STANDARDS:
+- Target: {quality_target}/10 on every output — no exceptions
+- If quality drops below 8: {on_below}
+- Structure all outputs: headers, bullets, clear sections
+- Include reasoning and evidence for every recommendation
+- Never fabricate data — state assumptions explicitly
+- Be specific with numbers, dates, and names — no vague language
+{f'- Track these KPIs: {metrics_str}' if metrics_str else ''}"""
+
+    def _build_context_block(self, context_data: dict | None = None) -> str:
+        """Block 5: Dynamic runtime context — budget, recent work."""
+        if not context_data:
+            return ""
+
+        parts = []
+        # Budget
+        budget = context_data.get("budget_remaining")
+        if budget and isinstance(budget, dict):
+            budget_lines = [f"{k}: ${v:.2f}" for k, v in budget.items() if isinstance(v, (int, float))]
+            if budget_lines:
+                parts.append("Budget remaining: " + " | ".join(budget_lines))
+
+        # Recent work
+        recent = context_data.get("recent_work", [])
+        if recent:
+            work_lines = []
+            for entry in recent[:3]:
+                action = entry.get("action", "unknown")
+                details = entry.get("details", "")[:80]
+                work_lines.append(f"  - {action}: {details}")
+            parts.append("Recent work:\n" + "\n".join(work_lines))
+
+        if not parts:
+            return ""
+
+        return "CONTEXT:\n" + "\n".join(parts)
+
+    def _build_behavior_rules(self) -> str:
+        """Block 6: Communication and behavior rules."""
+        return """BEHAVIOR:
 - Respond in character as a team member, not as a generic AI
 - Be concise and operational — this is team chat, not a report
 - Use first person ("I'll handle that", "My recommendation is...")
-- Reference your specific capabilities when relevant
+- Reference your specific capabilities and skills when relevant
 - Keep responses under 200 words unless the question requires detail
-- Be direct and action-oriented
+- Be direct and action-oriented — lead with the answer or action
 - Never repeat what another team member already said in this conversation"""
 
-        return f"{identity}\n\n{style}\n\n{constraints}\n\n{behavior}"
+    # ------------------------------------------------------------------
+    # Main prompt assembly
+    # ------------------------------------------------------------------
+
+    def build_system_prompt(
+        self,
+        capability_data: dict | None = None,
+        team_block: str = "",
+        quality_doc: str = "",
+        context_data: dict | None = None,
+        schema_top: dict | None = None,
+    ) -> str:
+        """Build rich 6-block system prompt from agent persona + enrichment data.
+
+        All parameters are optional for backward compatibility — calling with no
+        args produces a functional (though less detailed) prompt.
+
+        Blocks:
+          1. IDENTITY — name, title, authority, personality, philosophy
+          2. AUTHORITY — domains, forbidden, overrides, reporting chain
+          3. CAPABILITIES — skills, tools, invocation format
+          4. TEAM — all 11 agents with roles (for delegation awareness)
+          5. QUALITY — output standards, quality target, KPIs
+          6. CONTEXT — dynamic budget + recent work history
+          + BEHAVIOR — communication rules
+          + QUALITY GUIDE — domain-specific examples (from docs/agents/*.md)
+        """
+        blocks = [
+            self._build_identity_block(),
+            self._build_authority_block(schema_top),
+            self._build_capabilities_block(capability_data),
+        ]
+
+        if team_block:
+            blocks.append(f"TEAM DIRECTORY:\n{team_block}")
+
+        blocks.append(self._build_quality_block())
+
+        context_block = self._build_context_block(context_data)
+        if context_block:
+            blocks.append(context_block)
+
+        if quality_doc:
+            blocks.append(f"QUALITY GUIDE:\n{quality_doc}")
+
+        blocks.append(self._build_behavior_rules())
+
+        return "\n\n".join(blocks)
 
 
 class AgentChatService:
-    """Manages agent-based team communication."""
+    """Manages agent-based team communication with rich agent prompts."""
 
     def __init__(self, schema_path: str | None = None) -> None:
         self._agents: dict[str, AgentPersona] = {}
@@ -181,10 +359,20 @@ class AgentChatService:
         self._model = DEFAULT_MODEL
         self._initialized = False
 
+        # Enrichment data loaded from configs
+        self._schema_top: dict[str, Any] = {}       # authority_hierarchy, domain_boundaries, etc.
+        self._agent_capabilities: dict[str, list[str]] = {}  # agent_id -> [skill_ids]
+        self._agent_tools: dict[str, list[str]] = {}          # agent_id -> [tool_names]
+        self._team_block: str = ""                             # cached team directory
+        self._quality_docs: dict[str, str] = {}                # agent_id -> quality doc extract
+
         # Find and load agent schema
         self._schema_path = self._resolve_schema_path(schema_path)
         if self._schema_path:
             self._load_agents()
+            self._load_capability_registry()
+            self._build_team_block()
+            self._cache_quality_docs()
 
         # Initialize OpenAI client
         self._init_client()
@@ -229,7 +417,7 @@ class AgentChatService:
         return None
 
     def _load_agents(self) -> None:
-        """Load agent personas from YAML schema."""
+        """Load agent personas from YAML schema and capture top-level sections."""
         try:
             raw = yaml.safe_load(self._schema_path.read_text())
 
@@ -238,6 +426,14 @@ class AgentChatService:
             if isinstance(raw, list):
                 agents_list = raw
             elif isinstance(raw, dict):
+                # Capture top-level schema sections for prompt enrichment
+                for key in (
+                    "authority_hierarchy", "domain_boundaries",
+                    "domain_overlap_governance", "behavior_modes",
+                ):
+                    if key in raw:
+                        self._schema_top[key] = raw[key]
+
                 agents_list = raw.get("agents", raw.get("agent_list", []))
                 if not agents_list and not any(
                     k in raw for k in ("agents", "agent_list")
@@ -285,6 +481,189 @@ class AgentChatService:
             logger.info("AgentChatService initialized with OpenAI")
         else:
             logger.warning("No OPENAI_API_KEY — agent responses will be unavailable")
+
+    # ------------------------------------------------------------------
+    # Enrichment loaders — populate capability, team, and quality data
+    # ------------------------------------------------------------------
+
+    def _load_capability_registry(self) -> None:
+        """Load capability-registry.yaml and build per-agent skill/tool indexes."""
+        try:
+            registry_path = self._schema_path.parent / "capability-registry.yaml"
+            if not registry_path.exists():
+                logger.warning("capability-registry.yaml not found at %s", registry_path)
+                return
+
+            registry = yaml.safe_load(registry_path.read_text())
+            if not isinstance(registry, dict):
+                return
+
+            # Build per-agent skill index from capabilities section
+            capabilities = registry.get("capabilities", {})
+            for cap_name, cap_data in capabilities.items():
+                if not isinstance(cap_data, dict):
+                    continue
+                owner = cap_data.get("owned_by", "")
+                skill = cap_data.get("skill", "")
+                if owner and skill:
+                    self._agent_capabilities.setdefault(owner, [])
+                    if skill not in self._agent_capabilities[owner]:
+                        self._agent_capabilities[owner].append(skill)
+
+            # Build per-agent tool index from tool_bridges section
+            tool_bridges = registry.get("tool_bridges", {})
+            for tool_name, bridge_data in tool_bridges.items():
+                if not isinstance(bridge_data, dict):
+                    continue
+                agents = bridge_data.get("agents", [])
+                status = bridge_data.get("status", "configured")
+                for agent_id in agents:
+                    self._agent_tools.setdefault(agent_id, [])
+                    label = f"{tool_name} ({status})"
+                    if label not in self._agent_tools[agent_id]:
+                        self._agent_tools[agent_id].append(label)
+
+            total_caps = sum(len(v) for v in self._agent_capabilities.values())
+            logger.info(
+                "Loaded capability registry: %d capabilities across %d agents",
+                total_caps, len(self._agent_capabilities),
+            )
+        except Exception as e:
+            logger.error("Failed to load capability registry: %s", e)
+
+    def _build_team_block(self) -> None:
+        """Build cached team directory string — same for all agents."""
+        lines = []
+        for agent in self._agents.values():
+            owns = agent.raw.get("owns", agent.capabilities)
+            owns_str = ", ".join(owns[:5]) if owns else "general"
+            auth = agent.raw.get("authority_level", "?")
+            role_short = agent.role[:80].rsplit(" ", 1)[0] if len(agent.role) > 80 else agent.role
+            lines.append(f"- {agent.display_name} ({agent.id}, L{auth}): {role_short}. Owns: {owns_str}")
+
+        # Add domain overlap governance rules
+        overlap = self._schema_top.get("domain_overlap_governance", {})
+        if overlap:
+            lines.append("\nDomain overlap rules:")
+            for area, rules in overlap.items():
+                if isinstance(rules, dict):
+                    owners = [f"{k}: {v}" for k, v in rules.items() if k != "rule"]
+                    rule_text = rules.get("rule", "")
+                    line = f"- {area}: {', '.join(owners)}"
+                    if rule_text:
+                        line += f". {rule_text[:100]}"
+                    lines.append(line)
+
+        self._team_block = "\n".join(lines)
+        logger.info("Built team block: %d agents, %d overlap rules", len(self._agents), len(overlap))
+
+    def _get_context_data(self, agent_id: str) -> dict | None:
+        """Get dynamic runtime context — budget remaining and recent work log.
+
+        Returns dict with 'budget_remaining' and 'recent_work' keys, or None on failure.
+        All I/O is try/except wrapped — this must never crash the response path.
+        """
+        result: dict[str, Any] = {}
+
+        # Budget: read last entries from provider-usage.jsonl
+        try:
+            usage_path = Path.home() / ".nemoclaw" / "logs" / "provider-usage.jsonl"
+            if usage_path.exists():
+                lines = usage_path.read_text().strip().splitlines()
+                # Collect latest budget per provider from last 50 lines
+                budgets: dict[str, float] = {}
+                for line in lines[-50:]:
+                    try:
+                        entry = json.loads(line)
+                        provider = entry.get("provider", "")
+                        remaining = entry.get("budget_remaining")
+                        if provider and remaining is not None:
+                            budgets[provider] = float(remaining)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                if budgets:
+                    result["budget_remaining"] = budgets
+        except Exception:
+            pass
+
+        # Work history: last 3 entries from today's log
+        try:
+            today = date.today().isoformat()
+            log_path = Path.home() / ".nemoclaw" / "work-logs" / agent_id / f"{today}.jsonl"
+            if log_path.exists():
+                entries = []
+                for line in log_path.read_text().strip().splitlines()[-3:]:
+                    try:
+                        entry = json.loads(line)
+                        entries.append({
+                            "action": entry.get("action", ""),
+                            "details": entry.get("details", ""),
+                        })
+                    except json.JSONDecodeError:
+                        continue
+                if entries:
+                    result["recent_work"] = entries
+        except Exception:
+            pass
+
+        return result if result else None
+
+    def _cache_quality_docs(self) -> None:
+        """Load and cache quality doc extracts from docs/agents/*.md files."""
+        try:
+            # Resolve docs/agents/ relative to repo root (schema is in config/agents/)
+            docs_dir = self._schema_path.parent.parent.parent / "docs" / "agents"
+            if not docs_dir.exists():
+                logger.info("No docs/agents/ directory found — quality docs not loaded")
+                return
+
+            for agent_id in self._agents:
+                doc_path = docs_dir / f"{agent_id}.md"
+                if not doc_path.exists():
+                    continue
+                try:
+                    content = doc_path.read_text()
+                    # Extract Quality Checklist + Good/Bad Output Examples sections
+                    extract = self._extract_quality_sections(content)
+                    if extract:
+                        self._quality_docs[agent_id] = extract[:1500]
+                except Exception:
+                    continue
+
+            if self._quality_docs:
+                logger.info("Cached quality docs for %d agents", len(self._quality_docs))
+        except Exception as e:
+            logger.error("Failed to cache quality docs: %s", e)
+
+    @staticmethod
+    def _extract_quality_sections(content: str) -> str:
+        """Extract Quality Checklist and Output Examples from a quality guide .md file."""
+        sections_to_extract = [
+            "## Quality Checklist",
+            "## Good Output Examples",
+            "## Bad Output Example",
+        ]
+        result_lines: list[str] = []
+        capturing = False
+
+        for line in content.splitlines():
+            # Check if this line starts a section we want
+            if any(line.strip().startswith(header) for header in sections_to_extract):
+                capturing = True
+                result_lines.append(line)
+                continue
+
+            # Stop capturing at next ## header that's not in our list
+            if capturing and line.strip().startswith("## ") and not any(
+                line.strip().startswith(h) for h in sections_to_extract
+            ):
+                capturing = False
+                continue
+
+            if capturing:
+                result_lines.append(line)
+
+        return "\n".join(result_lines).strip()
 
     # ------------------------------------------------------------------
     # Public API
@@ -412,8 +791,19 @@ class AgentChatService:
         # ── Try executing the action first ────────────────────────────
         action_result = await self._try_execute_action(agent_id, user_message)
 
-        # Build conversation history for context
-        system_prompt = agent.build_system_prompt()
+        # Build enriched system prompt with all 6 blocks
+        context_data = self._get_context_data(agent_id)
+        capability_data = {
+            "capabilities": self._agent_capabilities.get(agent_id, []),
+            "tools": self._agent_tools.get(agent_id, []),
+        }
+        system_prompt = agent.build_system_prompt(
+            capability_data=capability_data,
+            team_block=self._team_block,
+            quality_doc=self._quality_docs.get(agent_id, ""),
+            context_data=context_data,
+            schema_top=self._schema_top,
+        )
         if action_result:
             system_prompt += f"\n\nTOOL EXECUTION RESULTS (include these in your response):\n{action_result}"
 
