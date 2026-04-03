@@ -1,117 +1,118 @@
-# NemoClaw Model Routing Config v4.0 - Updated 2026-03-27
-# Phase 8: Full 9-alias routing system across OpenAI, Anthropic, Google
-# Cost estimates at 2x real pricing for conservative tracking
-# OpenAI pricing: gpt-5.4 $1.75/$14, gpt-5.4-mini $0.15/$0.60, o3 $10/$40
-# Anthropic pricing: Sonnet $3/$15, Haiku $1/$5, Opus $5/$25
-# Google pricing: Gemini 2.5 Pro $1.25/$10, Gemini 2.5 Flash $0.15/$0.60
+# NemoClaw Model Routing Config v5.0 — Quality-First (2026-04-03)
+# PRINCIPLE: Quality over cost. Sonnet 4.6 is the default workhorse.
+# Claude Code + Codex are the best agentic executors (tier 3/4 chains).
+# Mini/Haiku/Flash reserved for fallback only — never primary.
+#
+# Pricing (per 1M tokens: input/output):
+# OpenAI:    gpt-5.4 $2.50/$15, gpt-5.4-mini $0.75/$4.50, o3 $2/$8
+# Anthropic: Sonnet 4.6 $3/$15, Haiku 4.5 $1/$5, Opus 4.6 $5/$25
+# Google:    Gemini 2.5 Pro $1.25/$10, Gemini 2.5 Flash $0.30/$2.50
 
 providers:
   cheap_openai:
     provider: openai
     model: gpt-5.4-mini
     max_tokens: 8192
-    estimated_cost_per_call: 0.0004
-    notes: Default path. Classification, structured output, short tasks.
+    estimated_cost_per_call: 0.003
+    notes: Structured output, classification. Fallback tier only.
 
   reasoning_openai:
     provider: openai
     model: gpt-5.4
     max_tokens: 16384
-    estimated_cost_per_call: 0.010
-    notes: Heavy reasoning, coding, agentic tasks via OpenAI.
+    estimated_cost_per_call: 0.015
+    notes: Full GPT-5.4. Fastest agent loops, strong agentic capability.
 
   reasoning_o3:
     provider: openai
     model: o3
     max_tokens: 16384
     estimated_cost_per_call: 0.060
-    notes: Deep STEM reasoning, math, multi-step logic. Use sparingly — expensive.
+    notes: Deep STEM reasoning, math, multi-step logic.
 
   cheap_claude:
     provider: anthropic
     model: claude-haiku-4-5-20251001
     max_tokens: 8192
-    estimated_cost_per_call: 0.008
-    notes: Moderate complexity tasks. Fast, cheap Claude. ~$0.005-0.01/call typical.
+    estimated_cost_per_call: 0.005
+    notes: Fallback only. Not used for primary routing.
 
   reasoning_claude:
     provider: anthropic
     model: claude-sonnet-4-6
     max_tokens: 16384
     estimated_cost_per_call: 0.060
-    notes: Complex reasoning, long context, code, synthesis. ~$0.03-0.08/call typical.
+    notes: PRIMARY WORKHORSE. #1 coding model, best reasoning, best synthesis.
 
   premium_claude:
     provider: anthropic
     model: claude-opus-4-6
     max_tokens: 16384
     estimated_cost_per_call: 0.200
-    notes: Highest quality Claude. EXPENSIVE — ~$0.15-0.35/call. Reserved for final production review only.
+    notes: Highest quality. Architecture, strategic decisions, final review.
 
   cheap_google:
     provider: google
     model: gemini-2.5-flash
     max_tokens: 8192
-    estimated_cost_per_call: 0.0004
-    notes: Fast, cheap Google tasks. Strong multimodal and long context.
+    estimated_cost_per_call: 0.002
+    notes: Vision, multimodal, long context. Best value for these tasks.
 
   reasoning_google:
     provider: google
     model: gemini-2.5-pro
     max_tokens: 16384
-    estimated_cost_per_call: 0.008
-    notes: Google flagship. Long context, complex reasoning, multimodal.
+    estimated_cost_per_call: 0.010
+    notes: 1M context window. Long document processing, multimodal pro.
 
   fallback_openai:
     provider: openai
     model: gpt-5.4-mini
     max_tokens: 8192
-    estimated_cost_per_call: 0.0004
-    notes: Fallback for any provider failure. Always available.
+    estimated_cost_per_call: 0.003
+    notes: Fallback for any provider failure.
 
   fallback_nvidia:
     provider: nvidia
     model: nvidia/nvidia-nemotron-nano-9b-v2
     max_tokens: 16384
     estimated_cost_per_call: 0.0
-    notes: Free fallback when OpenAI budget exhausted. 40 RPM limit.
+    notes: Free fallback when all budgets exhausted. 40 RPM limit.
 
-  # NVIDIA NIM — free tier (40 RPM, trial service)
   cheap_nvidia:
     provider: nvidia
     model: nvidia/nvidia-nemotron-nano-9b-v2
     max_tokens: 16384
     estimated_cost_per_call: 0.0
-    notes: Fast 9B hybrid Mamba-Transformer. Free NIM API. Tier 1 alternative.
+    notes: Free tier fallback only.
 
   reasoning_nvidia:
     provider: nvidia
     model: nvidia/nemotron-3-nano-30b-a3b
     max_tokens: 32768
     estimated_cost_per_call: 0.0
-    notes: 30B MoE (3.5B active), 1M context. Free NIM API. Tier 2/3 candidate.
+    notes: 30B MoE, 1M context. Free fallback for tier 2/3.
 
 routing_rules:
-  # Tier 1 — Fast (single call, no review, no critical work)
-  structured_short:   cheap_openai
-  general_short:      cheap_openai
-  vision:             cheap_google
+  # Tier 1 — Fast but capable (Sonnet for general, mini for structured only)
+  structured_short:   cheap_openai        # gpt-5.4-mini OK for classification/JSON
+  general_short:      reasoning_claude    # Sonnet 4.6 — quality matters here
+  vision:             cheap_google        # Gemini Flash — best multimodal value
 
-  # Tier 2 — Moderate (single call, everyday workhorse)
-  moderate:           cheap_claude
-  long_document:      reasoning_google
+  # Tier 2 — Workhorse (Sonnet everywhere)
+  moderate:           reasoning_claude    # Sonnet 4.6 — the default for real work
+  long_document:      reasoning_google    # Gemini Pro — 1M context window
 
-  # Tier 3 — Advanced (chain-routed via model-rankings.yaml when task_domain set)
-  complex_reasoning:  reasoning_claude
-  code:               reasoning_openai
-  agentic:            reasoning_claude
-  deep_reasoning:     reasoning_o3
+  # Tier 3 — Advanced (chain-routed + Claude Code/Codex for agentic)
+  complex_reasoning:  reasoning_claude    # Sonnet 4.6 — top reasoning
+  code:               reasoning_claude    # Sonnet 4.6 — #1 coding model (benchmarks)
+  agentic:            reasoning_openai    # GPT-5.4 — fastest for agent loops
+  deep_reasoning:     reasoning_o3        # o3 — purpose-built for STEM/logic
 
-  # Tier 4 — Strategic (chain-routed via model-rankings.yaml, best-of-best)
-  premium:            premium_claude
-  strategic:          premium_claude
+  # Tier 4 — Strategic (Opus + chain routing with Claude Code/Codex executors)
+  premium:            premium_claude      # Opus 4.6 — best quality
+  strategic:          premium_claude      # Opus 4.6 — best quality
 
-# Maps each task_class to a tier number. Tier 3/4 eligible for chain routing.
 tier_mapping:
   structured_short:   1
   general_short:      1
@@ -126,8 +127,8 @@ tier_mapping:
   strategic:          4
 
 defaults:
-  default_alias: cheap_openai
-  active_provider: openai
+  default_alias: reasoning_claude   # Sonnet 4.6 is the default — quality first
+  active_provider: anthropic
   fallback_chain:
-    - fallback_openai
-    - fallback_nvidia   # Free tier: use when OpenAI budget exhausted
+    - fallback_openai    # gpt-5.4-mini if Anthropic fails
+    - fallback_nvidia    # Free tier if both fail

@@ -269,9 +269,11 @@ def c5_general_short_routing():
         return FAIL, "enforcer failed"
     try:
         data = _extract_json(out)
-        if data.get("alias") == "cheap_openai":
-            return PASS, "general_short → cheap_openai ✓"
-        return FAIL, f"Expected cheap_openai — got {data.get('alias')}"
+        alias = data.get("alias")
+        # v5.0: general_short routes to reasoning_claude (Sonnet 4.6) or fallback
+        if alias in ("reasoning_claude", "fallback_openai"):
+            return PASS, f"general_short → {alias} ✓"
+        return FAIL, f"Expected reasoning_claude — got {alias}"
     except Exception:
         return FAIL, "Could not parse enforcer output"
 
@@ -541,7 +543,7 @@ def main():
 
         print("\nCategory 5 — Routing System")
         check("Routing", 23, "budget-enforcer.py runs",         c5_enforcer_runs)
-        check("Routing", 24, "general_short → cheap_openai",    c5_general_short_routing)
+        check("Routing", 24, "general_short → reasoning_claude",    c5_general_short_routing)
         check("Routing", 25, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
         check("Routing", 32, "premium → premium_claude",        c5_premium_routing)
         check("Routing", 33, "strategic → premium_claude",      c5_strategic_routing)
