@@ -481,17 +481,17 @@ class AgentLoopService:
             self.execution_service.submit(request)
 
     def _on_budget_warning(self, event) -> None:
-        """Broadcast budget alert to all running agents."""
+        """Send budget alert to system lane (once, not per-agent)."""
         data = event.data
         msg = f"Budget warning: {data.get('provider', '?')} at {data.get('usage_pct', '?')}% — {data.get('message', '')}"
         logger.warning(msg)
         if self.notification_service:
-            for agent_id in list(self.loops.keys()):
-                self.notification_service.notify_user(
-                    agent_id=agent_id,
-                    category="budget_alert",
-                    message=msg,
-                )
+            self.notification_service.notify_user(
+                agent_id="executive_operator",
+                category="blocker",
+                message=msg,
+                priority="high",
+            )
 
     def _on_content_viral(self, event) -> None:
         """Notify social_media_lead and growth_revenue_lead of viral content."""
@@ -502,7 +502,7 @@ class AgentLoopService:
             for agent_id in ["social_media_lead", "growth_revenue_lead"]:
                 self.notification_service.notify_user(
                     agent_id=agent_id,
-                    category="viral_content",
+                    category="discovery",
                     message=msg,
                 )
 
@@ -546,12 +546,15 @@ class AgentLoopService:
                 details=f"Workflow {data.get('workflow_id', '?')} failed: {data.get('error', 'unknown')}",
             )
         if self.notification_service:
-            self.notification_service.broadcast_all_hands(
-                agent_id=data.get("agent_id", "system"),
-                message=f"Workflow failed: {data.get('goal', '?')[:80]} — {data.get('error', '')}",
-                category="blocker",
-                priority="high",
-            )
+            agent_id = data.get("agent_id", "system")
+            from app.services.agent_notification_service import VALID_AGENTS
+            if agent_id in VALID_AGENTS:
+                self.notification_service.notify_user(
+                    agent_id=agent_id,
+                    category="task_failed",
+                    message=f"Workflow failed: {data.get('goal', '?')[:80]} — {data.get('error', '')}",
+                    priority="high",
+                )
 
     # ── Main Loop ──────────────────────────────────────────────────────
 
@@ -586,35 +589,16 @@ class AgentLoopService:
                         if result.get("success"):
                             loop.tasks_executed += 1
                             loop.total_cost += result.get("cost", 0.0)
-                            # Notify user of task completion
-                            if self.notification_service:
-                                summary = action.get("description", "Task completed")
-                                self.notification_service.notify_user(
-                                    agent_id=loop.agent_id,
-                                    category="task_complete",
-                                    message=summary,
-                                )
                         else:
                             loop.tasks_failed += 1
                             loop.last_error = result.get("error", "")
                             error = result.get("error", "Unknown error")
-                            # Send blocker alert on failure
-                            if self.notification_service:
+                            # Only send blocker for real failures (not generic)
+                            if self.notification_service and error != "Unknown error":
                                 self.notification_service.send_blocker_alert(
                                     agent_id=loop.agent_id,
                                     blocker=f"Task failed: {error}",
                                 )
-                                # Ask domain peers to retry the failed skill
-                                skill_id = action.get("skill_id", "")
-                                if skill_id:
-                                    from app.services.agent_notification_service import AGENT_DOMAINS
-                                    domains = AGENT_DOMAINS.get(loop.agent_id, [])
-                                    for domain in domains[:1]:  # primary domain only
-                                        self.notification_service.notify_domain_peers(
-                                            agent_id=loop.agent_id,
-                                            domain=domain,
-                                            message=f"Skill [{skill_id}] failed — can you retry? Error: {error}",
-                                        )
 
                         loop.current_task = None
                     else:
@@ -623,8 +607,8 @@ class AgentLoopService:
                         loop.idle_hunts += 1
                         await self._idle_hunt(loop)
 
-                    # ── DAILY DIGEST (every 50 ticks) ──
-                    if self.notification_service and loop.ticks % 50 == 0:
+                    # ── DAILY DIGEST (every 500 ticks ~40-80 min) ──
+                    if self.notification_service and loop.ticks % 500 == 0:
                         self.notification_service.send_daily_digest(loop.agent_id)
 
                     # ── CHECKPOINT ──
@@ -792,84 +776,51 @@ class AgentLoopService:
         return len(agents) >= 2
 
     async def _learn(self, loop: AgentLoop, action: dict[str, Any], result: dict[str, Any]):
-        """Learn: record outcome and ALWAYS broadcast to all-hands (no tier gates)."""
+        """Learn: record outcome. Only broadcast meaningful results (not every tick)."""
         if not self.memory_service:
             return
 
         skill_id = action.get("skill_id", "")
+        description = action.get("description", "")
 
         if result.get("success"):
             key = f"success_{action.get('type', 'unknown')}_{loop.ticks}"
             self.memory_service.learn(
                 loop.agent_id,
                 key=key,
-                value=f"Completed: {action.get('description', '')}",
+                value=f"Completed: {description}",
                 source="loop",
                 importance=0.5,
             )
-            # Fully open: broadcast ALL completions to all-hands (no tier check)
-            if self.notification_service:
-                self.notification_service.broadcast_all_hands(
+            # Only broadcast completions with a real description (not generic)
+            if self.notification_service and description and len(description) > 10:
+                self.notification_service.notify_user(
                     agent_id=loop.agent_id,
-                    message=f"Completed [{skill_id or 'task'}]: {action.get('description', '')}",
-                    category="completion",
-                    priority="normal",
+                    category="task_complete",
+                    message=f"Completed [{skill_id or 'task'}]: {description}",
                 )
         else:
+            error_msg = result.get("error", "unknown")
             key = f"failure_{action.get('type', 'unknown')}_{loop.ticks}"
             self.memory_service.learn(
                 loop.agent_id,
                 key=key,
-                value=f"Failed: {result.get('error', 'unknown')}",
+                value=f"Failed: {error_msg}",
                 source="loop",
                 importance=1.0,
             )
-            # Broadcast failures too — full transparency
-            if self.notification_service:
-                self.notification_service.broadcast_all_hands(
+            # Failures go to system lane (not all-hands broadcast)
+            if self.notification_service and error_msg != "unknown":
+                self.notification_service.notify_user(
                     agent_id=loop.agent_id,
-                    message=f"Failed [{skill_id or 'task'}]: {result.get('error', 'unknown')}",
-                    category="blocker",
+                    category="task_failed",
+                    message=f"Failed [{skill_id or 'task'}]: {error_msg}",
                     priority="high",
                 )
 
     async def _idle_hunt(self, loop: AgentLoop):
-        """Idle: hunt for opportunities — notify peers on ALL events, run browser tasks."""
+        """Idle: silently wait for work. No broadcasting, no peer spam."""
         logger.debug(
             "Agent %s idle hunt #%d: %s",
             loop.agent_id, loop.idle_hunts, loop.idle_behavior,
         )
-
-        from app.services.agent_notification_service import AGENT_DOMAINS
-        domains = AGENT_DOMAINS.get(loop.agent_id, [])
-
-        # Notify domain peers on EVERY idle hunt — completions, offers, opportunities
-        if self.notification_service and domains:
-            for domain in domains:
-                self.notification_service.notify_domain_peers(
-                    agent_id=loop.agent_id,
-                    domain=domain,
-                    message=f"Idle and available — can pick up overflow work in {domain}",
-                )
-
-        # Broadcast idle availability to all-hands
-        if self.notification_service and loop.idle_hunts % 3 == 0:
-            self.notification_service.broadcast_all_hands(
-                agent_id=loop.agent_id,
-                message=f"Available for work — {loop.idle_behavior}",
-                category="idle_offer",
-                priority="low",
-            )
-
-        # Run autonomous browser task if tool_access_service available
-        if self.tool_access_service and loop.idle_hunts % 10 == 0:
-            try:
-                result, error = await self.tool_access_service.run_browser_task(
-                    agent_id=loop.agent_id,
-                    url="about:blank",
-                    actions=[],
-                )
-                if error:
-                    logger.debug("Idle browser check for %s: %s", loop.agent_id, error)
-            except Exception as e:
-                logger.debug("Idle browser check for %s failed: %s", loop.agent_id, e)

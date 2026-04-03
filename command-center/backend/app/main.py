@@ -265,6 +265,13 @@ async def lifespan(app: FastAPI):
         participants=[],
         avatar="\U0001f514",
     )
+    message_store.create_lane(
+        lane_id="watercooler",
+        name="Watercooler",
+        lane_type=LaneType.GROUP,
+        participants=all_agent_ids,
+        avatar="\u2615",
+    )
 
     logger.info(
         "CC-3: MessageStore initialized (%d lanes), AgentChatService %s (%d agents)",

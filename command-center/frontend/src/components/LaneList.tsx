@@ -6,6 +6,24 @@ import { fetchLanes } from '@/lib/comms-api';
 
 const POLL_INTERVAL = 10000;
 
+// Canonical valid agent IDs — must match backend VALID_AGENTS
+const VALID_AGENT_IDS = new Set([
+  'executive_operator', 'strategy_lead', 'operations_lead',
+  'product_architect', 'growth_revenue_lead', 'narrative_content_lead',
+  'engineering_lead', 'sales_outreach_lead', 'marketing_campaigns_lead',
+  'client_success_lead', 'social_media_lead',
+]);
+
+// Only these lane IDs are allowed in the UI
+const VALID_LANE_IDS = new Set([
+  'all-hands', 'system', 'watercooler',
+  ...Array.from(VALID_AGENT_IDS).map(id => `dm-${id}`),
+]);
+
+function isValidLane(lane: Lane): boolean {
+  return VALID_LANE_IDS.has(lane.id);
+}
+
 interface LaneListProps {
   activeLaneId: string | null;
   onSelectLane: (laneId: string) => void;
@@ -92,9 +110,10 @@ export default function LaneList({
     );
   }
 
-  // Group lanes by type
+  // Filter to valid lanes only, then group by type
+  const validLanes = lanes.filter(isValidLane);
   const grouped: Record<string, Lane[]> = {};
-  for (const lane of lanes) {
+  for (const lane of validLanes) {
     const group = lane.lane_type === 'group' ? 'broadcast' : lane.lane_type;
     if (!grouped[group]) grouped[group] = [];
     grouped[group].push(lane);

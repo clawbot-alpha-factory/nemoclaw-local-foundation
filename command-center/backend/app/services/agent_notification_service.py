@@ -12,7 +12,9 @@ NEW FILE: command-center/backend/app/services/agent_notification_service.py
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,15 +29,12 @@ NOTIFICATION_CATEGORIES = {
     "recommendation",
     "upgrade_request",
     "tech_discovery",
-    # Open communication categories (2026-04-03)
     "completion",
     "idea",
     "challenge",
     "win",
     "request_help",
     "discovery",
-    "idle_offer",
-    "opportunity",
 }
 
 PRIORITY_LEVELS = {"low", "normal", "high", "urgent"}
@@ -55,6 +54,9 @@ AGENT_NAMES = {
     "social_media_lead": "Zara (Social Media Lead)",
 }
 
+
+# Canonical set of valid employee agent IDs (the ONLY agents that can communicate)
+VALID_AGENTS = set(AGENT_NAMES.keys())
 
 # Agent → domain mapping (mirrors config/agents/agent-schema.yaml preferred_domains)
 AGENT_DOMAINS = {
@@ -80,6 +82,11 @@ class AgentNotificationService:
     in the Command Center chat UI and are available over WebSocket.
     """
 
+    # Rate limiting: max 1 broadcast per agent per 60s
+    BROADCAST_COOLDOWN = 60
+    # Dedup: reject identical content within 5 minutes
+    DEDUP_WINDOW = 300
+
     def __init__(
         self,
         message_store,
@@ -87,6 +94,10 @@ class AgentNotificationService:
     ):
         self.message_store = message_store
         self.activity_log = activity_log_service
+        # Rate limiting: agent_id -> last broadcast timestamp
+        self._last_broadcast: dict[str, float] = {}
+        # Dedup: set of (agent_id, content_hash) -> timestamp
+        self._recent_hashes: dict[str, float] = {}
         # Ensure the all-hands broadcast lane exists
         self.message_store.create_lane(
             lane_id="all-hands",
@@ -95,6 +106,36 @@ class AgentNotificationService:
             participants=list(AGENT_NAMES.keys()),
         )
         logger.info("AgentNotificationService initialized")
+
+    def _validate_agent(self, agent_id: str) -> str | None:
+        """Return error string if agent_id is not a valid employee."""
+        if agent_id not in VALID_AGENTS and agent_id != "system":
+            return f"Invalid agent: {agent_id}"
+        return None
+
+    def _is_rate_limited(self, agent_id: str) -> bool:
+        """Check if agent is broadcasting too fast."""
+        now = time.time()
+        last = self._last_broadcast.get(agent_id, 0)
+        return (now - last) < self.BROADCAST_COOLDOWN
+
+    def _is_duplicate(self, agent_id: str, content: str) -> bool:
+        """Check if same content was sent by this agent recently."""
+        now = time.time()
+        h = hashlib.md5(f"{agent_id}:{content}".encode()).hexdigest()
+        # Clean expired entries
+        self._recent_hashes = {
+            k: v for k, v in self._recent_hashes.items()
+            if now - v < self.DEDUP_WINDOW
+        }
+        if h in self._recent_hashes:
+            return True
+        self._recent_hashes[h] = now
+        return False
+
+    def _record_broadcast(self, agent_id: str) -> None:
+        """Record broadcast timestamp for rate limiting."""
+        self._last_broadcast[agent_id] = time.time()
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -106,6 +147,9 @@ class AgentNotificationService:
         priority: str = "normal",
     ) -> dict[str, Any]:
         """Write a notification to the 'system' lane for the user."""
+        err = self._validate_agent(agent_id)
+        if err:
+            return {"success": False, "reason": err}
         if category not in NOTIFICATION_CATEGORIES:
             return {"success": False, "reason": f"Invalid category: {category}"}
         if priority not in PRIORITY_LEVELS:
@@ -138,6 +182,13 @@ class AgentNotificationService:
         message: str,
     ) -> dict[str, Any]:
         """Write a direct message from one agent to another's DM lane."""
+        err = self._validate_agent(from_agent)
+        if err:
+            return {"success": False, "reason": err}
+        if to_agent not in VALID_AGENTS:
+            return {"success": False, "reason": f"Invalid recipient: {to_agent}"}
+        if self._is_duplicate(from_agent, message):
+            return {"success": False, "reason": "Duplicate message suppressed"}
         from_name = AGENT_NAMES.get(from_agent, from_agent)
         lane_id = f"dm-{to_agent}"
 
@@ -175,11 +226,22 @@ class AgentNotificationService:
         """
         Broadcast a message to the all-hands lane visible to every agent.
 
-        Fully open — no tier checks, no priority gates. Every agent broadcasts
-        every task completion, blocker, idea, challenge, win, and help request.
+        Rate limited: max 1 broadcast per agent per 60s (urgent bypasses).
+        Dedup: identical content within 5 minutes is suppressed.
         """
+        err = self._validate_agent(agent_id)
+        if err:
+            return {"success": False, "reason": err}
+        if not message or len(message.strip()) < 5:
+            return {"success": False, "reason": "Message too short"}
         if priority not in PRIORITY_LEVELS:
             priority = "normal"
+        # Rate limit (urgent messages bypass)
+        if priority != "urgent" and self._is_rate_limited(agent_id):
+            return {"success": False, "reason": "Rate limited — max 1 broadcast/60s"}
+        # Dedup
+        if self._is_duplicate(agent_id, message):
+            return {"success": False, "reason": "Duplicate broadcast suppressed"}
 
         agent_name = AGENT_NAMES.get(agent_id, agent_id)
         prefix = _priority_prefix(priority)
@@ -197,6 +259,7 @@ class AgentNotificationService:
         if not msg:
             return {"success": False, "reason": "Failed to write to all-hands lane"}
 
+        self._record_broadcast(agent_id)
         logger.info("broadcast_all_hands: %s → all-hands [%s/%s]", agent_id, category, priority)
         return {"success": True, "message_id": msg.id}
 

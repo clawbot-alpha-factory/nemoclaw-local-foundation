@@ -5,11 +5,12 @@ Instead of agents sending DMs to specific peers, they publish to a shared pool.
 Each agent subscribes to message types relevant to their role.
 """
 
+import hashlib
 import json
 import logging
 import time
 import uuid
-from collections import deque
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -42,18 +43,56 @@ POOL_LOG = Path.home() / ".nemoclaw" / "logs" / "message-pool.jsonl"
 class MessagePoolService:
     """Shared message pool with pub/sub for agent communication."""
 
+    # Rate limit: max 10 messages per agent per hour
+    RATE_LIMIT_PER_HOUR = 10
+    RATE_LIMIT_WINDOW = 3600
+    # Dedup: hash last 50 messages
+    DEDUP_BUFFER_SIZE = 50
+
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
         self._pool: deque = deque(maxlen=max_size)
         self._subscriptions: dict[str, list[str]] = dict(DEFAULT_SUBSCRIPTIONS)
+        # Rate limiting: agent_id -> list of timestamps
+        self._rate_log: dict[str, list[float]] = defaultdict(list)
+        # Dedup: recent content hashes
+        self._recent_hashes: deque = deque(maxlen=self.DEDUP_BUFFER_SIZE)
         POOL_LOG.parent.mkdir(parents=True, exist_ok=True)
         logger.info("MessagePoolService initialized")
 
+    def _is_rate_limited(self, agent_id: str) -> bool:
+        """Check if agent has exceeded 10 messages/hour."""
+        now = time.time()
+        cutoff = now - self.RATE_LIMIT_WINDOW
+        timestamps = self._rate_log[agent_id]
+        self._rate_log[agent_id] = [t for t in timestamps if t > cutoff]
+        return len(self._rate_log[agent_id]) >= self.RATE_LIMIT_PER_HOUR
+
+    def _is_duplicate(self, content: str) -> bool:
+        """Check if content hash is in recent buffer."""
+        h = hashlib.md5(content.encode()).hexdigest()
+        if h in self._recent_hashes:
+            return True
+        self._recent_hashes.append(h)
+        return False
+
     def publish(self, agent_id: str, message_type: str, content: str, tags: Optional[list] = None):
         """Publish a message to the shared pool."""
+        from app.services.agent_notification_service import VALID_AGENTS
+        if agent_id not in VALID_AGENTS:
+            logger.warning("Rejected pool message from non-employee: %s", agent_id)
+            return
         if message_type not in MESSAGE_TYPES:
             logger.warning(f"Unknown message type: {message_type}")
             return
+        if self._is_rate_limited(agent_id):
+            logger.warning("Rate limited pool message from %s", agent_id)
+            return
+        if self._is_duplicate(content):
+            logger.debug("Duplicate pool message suppressed from %s", agent_id)
+            return
+
+        self._rate_log[agent_id].append(time.time())
 
         msg = {
             "id": str(uuid.uuid4())[:12],

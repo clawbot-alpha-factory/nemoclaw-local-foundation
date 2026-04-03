@@ -36,6 +36,13 @@ const MSG_TYPE_BADGES: Record<string, { label: string; color: string }> = {
 
 function formatTimestamp(ts: string): string {
   const d = new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return 'now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -109,7 +116,7 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
     inputRef.current?.focus();
   }, [lane.id]);
 
-  // Handle incoming WS messages
+  // Handle incoming WS messages with content dedup
   useEffect(() => {
     function handleWsMessage(event: CustomEvent<CommsMessage>) {
       if (!event.detail?.lane_id) return;
@@ -118,6 +125,14 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
         setMessages((prev) => {
           // Dedupe by ID
           if (prev.some((m) => m.id === msg.id)) return prev;
+          // Content dedup: if same sender+content within 2 seconds, skip
+          const recent = prev.filter(
+            (m) =>
+              m.sender_id === msg.sender_id &&
+              m.content === msg.content &&
+              Math.abs(new Date(msg.timestamp).getTime() - new Date(m.timestamp).getTime()) < 2000
+          );
+          if (recent.length > 0) return prev;
           return [...prev, msg];
         });
       }
