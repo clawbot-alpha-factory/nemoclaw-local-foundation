@@ -470,11 +470,9 @@ def decompose_with_llm(goal, extra_inputs=None):
             if "OPENAI_API_KEY" in line and "=" in line:
                 api_key = line.strip().split("=", 1)[1].strip()
 
-    if not api_key:
-        return None, "No OpenAI API key found"
-
-    from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    # Use lib.routing.call_llm for provider-agnostic LLM calls
+    import sys; sys.path.insert(0, str(REPO))
+    from lib.routing import call_llm as _route_llm
 
     prompt = f"""You are a task decomposition engine. Break a goal into atomic tasks.
 
@@ -507,16 +505,15 @@ Rules:
 - Order tasks logically
 """
 
-    import sys; sys.path.insert(0, str(REPO))
-    from lib.routing import resolve_alias
-    _, _td_model, _ = resolve_alias("general_short")
-    resp = client.chat.completions.create(
-        model=_td_model,
-        max_completion_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
+    text, err = _route_llm(
+        [{"role": "user", "content": prompt}],
+        task_class="general_short",
+        max_tokens=2000,
     )
+    if err or not text:
+        return None, f"LLM decomposition failed: {err}"
 
-    text = resp.choices[0].message.content.strip()
+    text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 

@@ -28,14 +28,23 @@ logger = logging.getLogger("cc.agent_chat")
 
 # Cost control: resolved from routing config (L-003)
 def _resolve_chat_model():
+    """Resolve the chat model — must be compatible with the OpenAI client.
+    If routing returns an Anthropic model, fall back to gpt-5.4-mini for chat.
+    Agent chat uses OpenAI SDK; skill execution uses lib.routing (provider-agnostic).
+    """
     try:
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
         from lib.routing import resolve_alias
-        _, model, _ = resolve_alias("general_short")
-        return model
+        provider, model, _ = resolve_alias("general_short")
+        # OpenAI client can only use OpenAI models
+        if provider == "openai":
+            return model
+        # For Anthropic/Google, fall back to gpt-5.4 for chat (capable + compatible)
+        _, fallback, _ = resolve_alias("agentic")  # gpt-5.4
+        return fallback if fallback else "gpt-5.4"
     except Exception:
-        return ""
+        return "gpt-5.4"
 
 DEFAULT_MODEL = _resolve_chat_model()
 DEFAULT_MAX_TOKENS = 800
