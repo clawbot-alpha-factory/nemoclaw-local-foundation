@@ -520,7 +520,10 @@ async def lifespan(app: FastAPI):
     # ── Tool Access Service — direct tool access from agent loops ──
     app.state.tool_access_service = ToolAccessService(Path(__file__).resolve().parents[3])
     app.state.agent_loop_service.tool_access_service = app.state.tool_access_service
-    logger.info("E-9: Skill Agent Mapping + Chain Wiring + ToolAccessService initialized")
+    # Wire tool access to agent chat so agents can actually execute actions
+    agent_chat_service.tool_access_service = app.state.tool_access_service
+    agent_chat_service.execution_service = app.state.execution_service
+    logger.info("E-9: Skill Agent Mapping + Chain Wiring + ToolAccessService initialized (wired to chat)")
 
     # ── E-10: Revenue Engine ──
     app.state.event_bus = EventBusService()
