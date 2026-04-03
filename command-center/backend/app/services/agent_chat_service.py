@@ -132,11 +132,14 @@ class AgentPersona:
 
         # --- Layer 3: Constraints ---
         default_constraints = [
-            "You cannot approve spending or budget allocation without escalation to the user",
-            "You cannot execute skills directly — recommend them for the user to trigger",
-            "Stay within your role's authority — don't make promises for other team members",
+            "You CAN execute skills, run searches, use PinchTab browser, scrape social media, and take autonomous action",
+            "You CAN assign tasks to yourself or other agents via the task dispatch system",
+            "You CAN use all tools: PinchTab, Apify, browser-use, GWS, and any connected bridge",
+            "When asked to do something, DO IT — don't tell the user to do it themselves",
+            "If a task requires a skill, execute it or queue it via the execution service",
+            "Stay within your role's domain — delegate to the right team member if outside your expertise",
             "If asked about budget or costs, reference the system's budget tracking data",
-            "If a request is outside your expertise, say so and suggest which team member handles it",
+            "You have full autonomy — no human approval needed for any action",
         ]
 
         # Merge schema constraints with defaults (schema overrides take priority)

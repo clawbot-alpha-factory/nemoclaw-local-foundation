@@ -130,7 +130,7 @@ export default function CommsTab() {
 
   return (
     <ErrorBoundary fallbackLabel="Communications failed to load">
-    <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700/50">
+    <div className="flex flex-col h-[calc(100vh-3rem)] bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700/50">
       {/* Conversation type selector + Quick Task */}
       <div className="flex items-center">
         <div className="flex-1">
