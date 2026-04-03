@@ -1024,3 +1024,106 @@ Reply with ONLY the agent ID (e.g., "agent-01"). Nothing else."""
         except Exception as e:
             logger.error("Agent selection failed: %s", e)
             return participant_ids[0]
+
+    # ── Peer Review (Group Collaboration) ────────────────────────────
+
+    async def trigger_peer_review(
+        self,
+        lane_id: str,
+        agent_id: str,
+        deliverable_summary: str,
+        message_store=None,
+        notification_service=None,
+    ) -> dict[str, Any]:
+        """Post a deliverable to the team channel and prompt a peer to critique it.
+
+        Identifies the best reviewer by domain adjacency (shared domains),
+        preferring agents already in the channel.
+        """
+        from app.services.agent_notification_service import AGENT_DOMAINS, AGENT_NAMES
+        from app.domain.comms_models import SenderType, MessageType
+
+        if not message_store:
+            return {"success": False, "error": "no message_store"}
+
+        lane = message_store.get_lane(lane_id)
+        if not lane:
+            return {"success": False, "error": f"lane {lane_id} not found"}
+
+        # Score peers by domain overlap with the author
+        author_domains = set(AGENT_DOMAINS.get(agent_id, []))
+        candidates: dict[str, int] = {}
+        for peer_id, peer_domains in AGENT_DOMAINS.items():
+            if peer_id == agent_id:
+                continue
+            overlap = len(author_domains & set(peer_domains))
+            if overlap > 0:
+                score = overlap
+                if peer_id in lane.participants:
+                    score += 2  # prefer in-channel peers
+                candidates[peer_id] = score
+
+        if not candidates:
+            # Fallback: pick any lane participant that isn't the author
+            others = [p for p in lane.participants if p != agent_id]
+            if not others:
+                return {"success": False, "error": "no reviewers available"}
+            reviewer_id = others[0]
+        else:
+            reviewer_id = max(candidates, key=candidates.get)
+
+        # Post deliverable to team channel
+        author_name = AGENT_NAMES.get(agent_id, agent_id)
+        message_store.add_message(
+            lane_id=lane_id,
+            sender_id=agent_id,
+            sender_name=author_name,
+            sender_type=SenderType.AGENT,
+            content=f"**Deliverable for review:**\n\n{deliverable_summary[:1500]}",
+            message_type=MessageType.CHAT,
+            metadata={"deliverable": True, "awaiting_review_from": reviewer_id},
+        )
+
+        # Build review prompt
+        reviewer_name = AGENT_NAMES.get(reviewer_id, reviewer_id)
+        review_prompt = (
+            f"You are reviewing a deliverable from {author_name} in a team channel.\n\n"
+            f"DELIVERABLE:\n{deliverable_summary[:2000]}\n\n"
+            "As a peer reviewer, provide a concise critique:\n"
+            "1. **Strengths** — what works well (1-2 points)\n"
+            "2. **Weaknesses** — gaps or risks (1-2 points)\n"
+            "3. **Recommendation** — specific improvement or next step\n\n"
+            "Keep it under 150 words. Be direct and constructive."
+        )
+
+        # Get context from the team channel
+        context = message_store.get_context_messages(lane_id)
+
+        # Generate reviewer's critique
+        review_text = None
+        try:
+            review_text = await self.generate_response(
+                agent_id=reviewer_id,
+                user_message=review_prompt,
+                context_messages=context,
+            )
+        except Exception as e:
+            logger.error("Peer review generation failed for %s: %s", reviewer_id, e)
+
+        if review_text:
+            message_store.add_message(
+                lane_id=lane_id,
+                sender_id=reviewer_id,
+                sender_name=reviewer_name,
+                sender_type=SenderType.AGENT,
+                content=review_text,
+                message_type=MessageType.CHAT,
+                metadata={"peer_review": True, "reviewing": agent_id},
+            )
+
+        return {
+            "success": bool(review_text),
+            "reviewer_id": reviewer_id,
+            "review_posted": bool(review_text),
+            "lane_id": lane_id,
+        }

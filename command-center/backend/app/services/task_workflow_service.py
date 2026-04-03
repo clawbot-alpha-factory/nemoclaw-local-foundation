@@ -60,9 +60,40 @@ class TaskWorkflow:
         self.validation: dict[str, Any] = {}
         self.error: str | None = None
 
+        # Collaboration
+        self.team_lane_id: str | None = None
+
         # File paths
         self.work_dir = WORKFLOWS_DIR / self.workflow_id
         self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def from_summary(summary_path: Path) -> TaskWorkflow | None:
+        """Reconstruct a TaskWorkflow from a summary.json on disk."""
+        try:
+            data = json.loads(summary_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+
+        wf = object.__new__(TaskWorkflow)
+        wf.workflow_id = data.get("workflow_id", summary_path.parent.name)
+        wf.goal = data.get("goal", "")
+        wf.agent_id = data.get("agent_id", "unknown")
+        wf.project_id = data.get("project_id", "default")
+        wf.phase = WorkflowPhase.COMPLETED if data.get("completed_at") else WorkflowPhase.FAILED
+        wf.created_at = datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(timezone.utc)
+        wf.updated_at = wf.created_at
+        wf.completed_at = datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+
+        wf.approaches = [{}] * data.get("approaches", 0) if isinstance(data.get("approaches"), int) else data.get("approaches", [])
+        wf.plan_steps = [{}] * data.get("plan_steps", 0) if isinstance(data.get("plan_steps"), int) else data.get("plan_steps", [])
+        wf.execution_results = data.get("execution_results", [])
+        wf.validation = data.get("validation", {})
+        wf.error = data.get("error")
+
+        wf.team_lane_id = data.get("team_lane_id")
+        wf.work_dir = summary_path.parent
+        return wf
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +110,7 @@ class TaskWorkflow:
             "executions_count": len(self.execution_results),
             "validation": self.validation,
             "error": self.error,
+            "team_lane_id": getattr(self, "team_lane_id", None),
             "files": self._file_paths(),
         }
 
@@ -112,7 +144,8 @@ class TaskWorkflowService:
         self.brain_service = brain_service
         self._workflows: dict[str, TaskWorkflow] = {}
         WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
-        logger.info("TaskWorkflowService initialized (dir=%s)", WORKFLOWS_DIR)
+        self._scan_disk()
+        logger.info("TaskWorkflowService initialized (dir=%s, loaded=%d)", WORKFLOWS_DIR, len(self._workflows))
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -198,7 +231,76 @@ class TaskWorkflowService:
         wfs = self._workflows.values()
         if agent_id:
             wfs = [w for w in wfs if w.agent_id == agent_id]
-        return [w.to_dict() for w in wfs]
+        return sorted(
+            [w.to_dict() for w in wfs],
+            key=lambda d: d.get("created_at", ""),
+            reverse=True,
+        )
+
+    def list_artifacts(self, workflow_id: str) -> list[dict[str, Any]]:
+        """List artifact files for a workflow."""
+        wf_dir = WORKFLOWS_DIR / workflow_id
+        if not wf_dir.is_dir():
+            return []
+        files: list[dict[str, Any]] = []
+        for p in sorted(wf_dir.iterdir()):
+            if p.is_file():
+                stat = p.stat()
+                files.append({
+                    "name": p.name,
+                    "size_bytes": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                })
+        return files
+
+    def get_artifact(self, workflow_id: str, filename: str) -> str | None:
+        """Read artifact file content. Returns None if not found. Guards path traversal."""
+        if "/" in filename or "\\" in filename or ".." in filename:
+            return None
+        path = WORKFLOWS_DIR / workflow_id / filename
+        if not path.is_file():
+            return None
+        try:
+            return path.read_text()
+        except OSError:
+            return None
+
+    # ── Disk Scan ─────────────────────────────────────────────────────
+
+    def _scan_disk(self) -> None:
+        """Load existing workflows from disk — uses summary.json if available, falls back to dir metadata."""
+        if not WORKFLOWS_DIR.is_dir():
+            return
+        for d in WORKFLOWS_DIR.iterdir():
+            if not d.is_dir() or d.name in self._workflows:
+                continue
+            summary = d / "summary.json"
+            if summary.is_file():
+                wf = TaskWorkflow.from_summary(summary)
+                if wf:
+                    self._workflows[wf.workflow_id] = wf
+            else:
+                # No summary.json — reconstruct minimal workflow from files present
+                files = [f.name for f in d.iterdir() if f.is_file()]
+                if files:
+                    wf = object.__new__(TaskWorkflow)
+                    wf.workflow_id = d.name
+                    wf.goal = "(restored from disk)"
+                    wf.agent_id = "unknown"
+                    wf.project_id = "default"
+                    wf.phase = WorkflowPhase.BRAINSTORM
+                    wf.created_at = datetime.fromtimestamp(d.stat().st_ctime, tz=timezone.utc)
+                    wf.updated_at = wf.created_at
+                    wf.completed_at = None
+                    wf.approaches = []
+                    wf.plan_steps = []
+                    wf.execution_results = []
+                    wf.validation = {}
+                    wf.error = None
+                    wf.team_lane_id = None
+                    wf.work_dir = d
+                    self._workflows[wf.workflow_id] = wf
+        logger.info("Disk scan: loaded %d workflows from %s", len(self._workflows), WORKFLOWS_DIR)
 
     # ── Phase 1: Brainstorm ───────────────────────────────────────────
 

@@ -58,7 +58,27 @@ class MessagePoolService:
         # Dedup: recent content hashes
         self._recent_hashes: deque = deque(maxlen=self.DEDUP_BUFFER_SIZE)
         POOL_LOG.parent.mkdir(parents=True, exist_ok=True)
-        logger.info("MessagePoolService initialized")
+        self._restore_from_disk()
+        logger.info("MessagePoolService initialized (restored=%d)", len(self._pool))
+
+    def _restore_from_disk(self) -> None:
+        """Load last 100 messages from JSONL log into the pool."""
+        try:
+            if not POOL_LOG.is_file():
+                return
+            lines = POOL_LOG.read_text().splitlines()
+            for line in lines[-100:]:
+                if not line.strip():
+                    continue
+                try:
+                    msg = json.loads(line)
+                    self._pool.append(msg)
+                    h = hashlib.md5(msg.get("content", "").encode()).hexdigest()
+                    self._recent_hashes.append(h)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        except Exception:
+            logger.warning("Failed to restore message pool from disk")
 
     def _is_rate_limited(self, agent_id: str) -> bool:
         """Check if agent has exceeded 10 messages/hour."""
@@ -111,6 +131,35 @@ class MessagePoolService:
                 f.write(json.dumps(msg) + "\n")
         except Exception:
             pass
+
+    def publish_to_channel(
+        self,
+        agent_id: str,
+        message_type: str,
+        content: str,
+        team_lane_id: str,
+        message_store=None,
+        tags: Optional[list] = None,
+    ):
+        """Publish to the shared pool AND post to a team channel."""
+        self.publish(agent_id, message_type, content, tags)
+        if message_store and team_lane_id:
+            try:
+                from app.services.agent_notification_service import AGENT_NAMES
+                from app.domain.comms_models import SenderType, MessageType as MsgType
+
+                display = AGENT_NAMES.get(agent_id, agent_id)
+                message_store.add_message(
+                    lane_id=team_lane_id,
+                    sender_id=agent_id,
+                    sender_name=display,
+                    sender_type=SenderType.AGENT,
+                    content=content,
+                    message_type=MsgType.SYSTEM,
+                    metadata={"pool_message": True, "pool_type": message_type},
+                )
+            except Exception as e:
+                logger.warning("publish_to_channel failed for %s: %s", team_lane_id, e)
 
     def subscribe(self, agent_id: str, message_types: list[str]):
         """Set custom subscriptions for an agent."""

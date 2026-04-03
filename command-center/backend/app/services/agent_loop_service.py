@@ -202,6 +202,7 @@ class AgentLoopService:
         self._shutdown = False
         self._skill_failure_counts: dict[str, int] = {}
         self._last_proactive_tick: dict[str, int] = {}  # Rate limit: 1 proactive task per 10 ticks
+        self._workflow_channels: dict[str, str] = {}  # workflow_id -> team_lane_id
 
         logger.info(
             "AgentLoopService initialized (%d eligible agents)",
@@ -400,6 +401,50 @@ class AgentLoopService:
                 queued, len(workflow.tasks), agent_id, workflow_id[:8],
             )
 
+        # 2b. Create team channel for collaboration-worthy tasks
+        team_lane_id = None
+        if workflow and workflow.tasks and self.notification_service:
+            skill_ids = [
+                t.get("skill", t.get("skill_id", "")) or ""
+                for t in workflow.tasks
+            ]
+            is_collab = (
+                len(workflow.tasks) >= 3
+                or any(self._is_high_tier_skill(sid) for sid in skill_ids if sid)
+            )
+            if is_collab:
+                adjacent = self._find_adjacent_agents(agent_id, skill_ids)
+                if adjacent:
+                    team_agents = [agent_id] + adjacent
+                    team_lane_id = self.notification_service.create_task_channel(
+                        task_name=goal[:60],
+                        agent_ids=team_agents,
+                        lead_agent=agent_id,
+                    )
+                    self._workflow_channels[workflow_id] = team_lane_id
+                    # Post plan summary to team channel
+                    task_names = [t.get("name", t.get("skill_id", "?")) for t in workflow.tasks]
+                    summary = f"**Workflow Plan** — {goal[:120]}\n\n"
+                    summary += "\n".join(f"{i+1}. {n}" for i, n in enumerate(task_names))
+                    summary += f"\n\n_{len(workflow.tasks)} steps, lead: {agent_id}_"
+                    try:
+                        from app.domain.comms_models import SenderType, MessageType
+                        self.notification_service.message_store.add_message(
+                            lane_id=team_lane_id,
+                            sender_id="system",
+                            sender_name="System",
+                            sender_type=SenderType.SYSTEM,
+                            content=summary,
+                            message_type=MessageType.SYSTEM,
+                            metadata={"plan_summary": True, "workflow_id": workflow_id},
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to post plan summary: %s", e)
+                    logger.info(
+                        "dispatch_task: created team channel %s with %d agents for %s",
+                        team_lane_id, len(team_agents), workflow_id[:8],
+                    )
+
         # 3. Log to activity log
         if self.activity_log_service:
             await self.activity_log_service.append(
@@ -434,6 +479,7 @@ class AgentLoopService:
             "agent_id": agent_id,
             "source": source,
             "task_count": len(workflow.tasks) if workflow else 0,
+            "team_lane_id": team_lane_id,
         }
 
     # ── Event Bus Integration ─────────────────────────────────────────
@@ -454,20 +500,34 @@ class AgentLoopService:
         logger.info("AgentLoopService subscribed to 9 event types")
 
     def _on_skill_completed(self, event) -> None:
-        """Log completed skill to work log and reset failure counter."""
+        """Log completed skill to work log, reset failure counter, notify team channel."""
         data = event.data
         skill_id = data.get("skill_id", "")
+        agent_id = data.get("agent_id", "system")
         if skill_id and skill_id in self._skill_failure_counts:
             del self._skill_failure_counts[skill_id]
-        if not self.work_log_service:
-            return
-        self.work_log_service.log_work(
-            agent_id=data.get("agent_id", "system"),
-            project_id=data.get("project_id", "default"),
-            action="skill_completed",
-            details=f"Skill {skill_id or '?'} completed successfully",
-            artifacts=data.get("artifacts"),
-        )
+        if self.work_log_service:
+            self.work_log_service.log_work(
+                agent_id=agent_id,
+                project_id=data.get("project_id", "default"),
+                action="skill_completed",
+                details=f"Skill {skill_id or '?'} completed successfully",
+                artifacts=data.get("artifacts"),
+            )
+
+        # Post completion to team channel if one exists for this workflow
+        workflow_id = data.get("workflow_id", "")
+        team_lane_id = self._workflow_channels.get(workflow_id) if workflow_id else None
+        if team_lane_id and self.message_pool:
+            content = f"Skill `{skill_id}` completed by {agent_id}"
+            store = getattr(self.notification_service, "message_store", None) if self.notification_service else None
+            self.message_pool.publish_to_channel(
+                agent_id=agent_id,
+                message_type="completion",
+                content=content,
+                team_lane_id=team_lane_id,
+                message_store=store,
+            )
 
     def _on_skill_failed(self, event) -> None:
         """Log failed skill, track consecutive failures, escalate at 3."""
@@ -907,6 +967,35 @@ class AgentLoopService:
             return False
         agents = self.skill_agent_mapping.get_skill_agents(skill_id)
         return len(agents) >= 2
+
+    def _find_adjacent_agents(self, agent_id: str, skill_ids: list[str], max_peers: int = 3) -> list[str]:
+        """Find 2-3 agents most relevant to a set of skills via shared skills and domains."""
+        from app.services.agent_notification_service import AGENT_DOMAINS
+
+        candidates: dict[str, int] = {}
+
+        # Signal 1: shared skills (+2 per shared skill)
+        if self.skill_agent_mapping:
+            for sid in skill_ids:
+                if not sid:
+                    continue
+                peers = self.skill_agent_mapping.get_skill_agents(sid)
+                for peer in peers:
+                    if peer != agent_id:
+                        candidates[peer] = candidates.get(peer, 0) + 2
+
+        # Signal 2: shared domains (+1 per shared domain)
+        agent_domains = set(AGENT_DOMAINS.get(agent_id, []))
+        for peer_id, peer_domains in AGENT_DOMAINS.items():
+            if peer_id == agent_id:
+                continue
+            overlap = len(agent_domains & set(peer_domains))
+            if overlap > 0:
+                candidates[peer_id] = candidates.get(peer_id, 0) + overlap
+
+        # Sort by score descending, return top N
+        ranked = sorted(candidates, key=candidates.get, reverse=True)
+        return ranked[:max_peers]
 
     async def _learn(self, loop: AgentLoop, action: dict[str, Any], result: dict[str, Any]):
         """Learn: record outcome. Only broadcast meaningful results (not every tick)."""

@@ -31,7 +31,8 @@ class WorkspaceService:
         self.persist_dir = persist_dir or (Path.home() / ".nemoclaw" / "workspaces")
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self.workspaces: dict[str, dict[str, Any]] = {}
-        logger.info("WorkspaceService initialized")
+        self._restore_from_disk()
+        logger.info("WorkspaceService initialized (restored=%d)", len(self.workspaces))
 
     def write(
         self,
@@ -71,6 +72,34 @@ class WorkspaceService:
     def read_all(self, workflow_id: str, namespace: str = "") -> dict[str, Any]:
         """Read entire workspace, optionally filtered by namespace."""
         return self.read(workflow_id, namespace=namespace)
+
+    def _restore_from_disk(self) -> None:
+        """Load workspace JSON files from persist_dir.
+
+        Supports two layouts:
+          - flat:   {persist_dir}/{workflow_id}.json
+          - nested: {persist_dir}/{workflow_id}/shared.json
+        """
+        try:
+            # Flat files: persist_dir/*.json
+            for path in self.persist_dir.glob("*.json"):
+                try:
+                    data = json.loads(path.read_text())
+                    self.workspaces[path.stem] = data
+                except (json.JSONDecodeError, OSError):
+                    logger.warning("Skipping corrupt workspace file: %s", path.name)
+            # Nested dirs: persist_dir/*/shared.json
+            for path in self.persist_dir.glob("*/shared.json"):
+                wf_id = path.parent.name
+                if wf_id in self.workspaces:
+                    continue
+                try:
+                    data = json.loads(path.read_text())
+                    self.workspaces[wf_id] = data
+                except (json.JSONDecodeError, OSError):
+                    logger.warning("Skipping corrupt workspace file: %s", path)
+        except Exception:
+            logger.warning("Failed to restore workspaces from disk")
 
     def _persist(self, workflow_id: str):
         """Save workspace to disk."""

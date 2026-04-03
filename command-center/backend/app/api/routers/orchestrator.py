@@ -11,8 +11,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.orchestrator")
 
@@ -69,10 +72,17 @@ def _get_multi(request: Request):
     return svc
 
 
+def _get_task_workflow(request: Request):
+    svc = getattr(request.app.state, "task_workflow_service", None)
+    if svc is None:
+        raise HTTPException(503, "TaskWorkflowService not initialized")
+    return svc
+
+
 # ── Orchestrator Endpoints ─────────────────────────────────────────────
 
 
-@router.post("/api/orchestrator/plan")
+@router.post("/api/orchestrator/plan", dependencies=[Depends(require_auth)])
 async def create_plan(body: PlanRequest, request: Request) -> dict[str, Any]:
     """Decompose a goal into an executable plan with cost estimate."""
     svc = _get_orchestrator(request)
@@ -80,7 +90,7 @@ async def create_plan(body: PlanRequest, request: Request) -> dict[str, Any]:
     return workflow.to_dict()
 
 
-@router.post("/api/orchestrator/execute")
+@router.post("/api/orchestrator/execute", dependencies=[Depends(require_auth)])
 async def execute_plan(request: Request, workflow_id: str = "") -> dict[str, Any]:
     """Approve and execute a planned workflow."""
     svc = _get_orchestrator(request)
@@ -91,25 +101,46 @@ async def execute_plan(request: Request, workflow_id: str = "") -> dict[str, Any
     return workflow.to_dict()
 
 
-@router.get("/api/orchestrator/workflows")
+@router.get("/api/orchestrator/workflows", dependencies=[Depends(require_auth)])
 async def list_workflows(request: Request) -> dict[str, Any]:
-    """List all workflows."""
-    svc = _get_orchestrator(request)
+    """List all workflows (scanned from disk + in-memory)."""
+    svc = _get_task_workflow(request)
     workflows = svc.list_workflows()
     return {"workflows": workflows, "total": len(workflows)}
 
 
-@router.get("/api/orchestrator/{workflow_id}")
+@router.get("/api/orchestrator/{workflow_id}", dependencies=[Depends(require_auth)])
 async def get_workflow(workflow_id: str, request: Request) -> dict[str, Any]:
     """Get a specific workflow."""
-    svc = _get_orchestrator(request)
+    svc = _get_task_workflow(request)
     wf = svc.get_workflow(workflow_id)
     if not wf:
         raise HTTPException(404, f"Workflow {workflow_id} not found")
-    return wf.to_dict()
+    return wf
 
 
-@router.post("/api/orchestrator/{workflow_id}/cancel")
+@router.get("/api/orchestrator/{workflow_id}/artifacts", dependencies=[Depends(require_auth)])
+async def list_artifacts(workflow_id: str, request: Request) -> dict[str, Any]:
+    """List artifact files for a workflow."""
+    svc = _get_task_workflow(request)
+    files = svc.list_artifacts(workflow_id)
+    if not files:
+        raise HTTPException(404, f"No artifacts found for workflow {workflow_id}")
+    return {"workflow_id": workflow_id, "files": files}
+
+
+@router.get("/api/orchestrator/{workflow_id}/artifacts/{filename}", dependencies=[Depends(require_auth)])
+async def get_artifact(workflow_id: str, filename: str, request: Request):
+    """Serve a workflow artifact file as text."""
+    svc = _get_task_workflow(request)
+    content = svc.get_artifact(workflow_id, filename)
+    if content is None:
+        raise HTTPException(404, f"Artifact {filename} not found in workflow {workflow_id}")
+    media = "application/json" if filename.endswith(".json") else "text/markdown"
+    return PlainTextResponse(content, media_type=media)
+
+
+@router.post("/api/orchestrator/{workflow_id}/cancel", dependencies=[Depends(require_auth)])
 async def cancel_workflow(workflow_id: str, request: Request) -> dict[str, Any]:
     """Cancel a workflow."""
     svc = _get_orchestrator(request)
@@ -122,7 +153,7 @@ async def cancel_workflow(workflow_id: str, request: Request) -> dict[str, Any]:
 # ── Lifecycle Endpoints ────────────────────────────────────────────────
 
 
-@router.post("/api/projects/create-with-lifecycle")
+@router.post("/api/projects/create-with-lifecycle", dependencies=[Depends(require_auth)])
 async def create_project_with_lifecycle(
     body: CreateProjectRequest, request: Request
 ) -> dict[str, Any]:
@@ -156,7 +187,7 @@ async def create_project_with_lifecycle(
     }
 
 
-@router.get("/api/projects/{project_id}/lifecycle")
+@router.get("/api/projects/{project_id}/lifecycle", dependencies=[Depends(require_auth)])
 async def get_project_lifecycle(
     project_id: str, request: Request
 ) -> dict[str, Any]:
@@ -168,7 +199,7 @@ async def get_project_lifecycle(
     return lifecycle
 
 
-@router.post("/api/projects/{project_id}/advance-stage")
+@router.post("/api/projects/{project_id}/advance-stage", dependencies=[Depends(require_auth)])
 async def advance_project_stage(
     project_id: str, request: Request, force: bool = False
 ) -> dict[str, Any]:
@@ -180,7 +211,7 @@ async def advance_project_stage(
     return result
 
 
-@router.get("/api/orchestrator/projects/active")
+@router.get("/api/orchestrator/projects/active", dependencies=[Depends(require_auth)])
 async def get_active_with_allocation(request: Request) -> dict[str, Any]:
     """Get active projects with resource allocation data."""
     multi = _get_multi(request)
@@ -192,7 +223,7 @@ async def get_active_with_allocation(request: Request) -> dict[str, Any]:
     }
 
 
-@router.get("/api/projects/{project_id}/team")
+@router.get("/api/projects/{project_id}/team", dependencies=[Depends(require_auth)])
 async def get_project_team(
     project_id: str, request: Request
 ) -> dict[str, Any]:

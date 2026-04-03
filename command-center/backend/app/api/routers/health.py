@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
@@ -100,6 +100,19 @@ async def prometheus_metrics():
     lines.append(f"nemoclaw_ws_clients {ws_manager.connection_count}")
 
     return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")
+
+
+@router.get("/persistence")
+async def persistence_status(request: Request):
+    """Counts of items restored from disk on startup."""
+    wf_svc = getattr(request.app.state, "task_workflow_service", None)
+    mp_svc = getattr(request.app.state, "message_pool", None)
+    ws_svc = getattr(request.app.state, "workspace_service", None)
+    return {
+        "workflows": len(wf_svc._workflows) if wf_svc else 0,
+        "messages": len(mp_svc._pool) if mp_svc else 0,
+        "workspaces": len(ws_svc.workspaces) if ws_svc else 0,
+    }
 
 
 @router.get("/debug")

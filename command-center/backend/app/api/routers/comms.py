@@ -77,6 +77,76 @@ def _get_notification_service(request: Request):
     return getattr(request.app.state, "notification_service", None)
 
 
+async def _maybe_trigger_team_review(
+    request: Request,
+    lane_id: str,
+    responder_id: str,
+    agent_msg,
+    dispatch_result: dict | None,
+) -> None:
+    """If this DM response belongs to a collaboration-worthy task, auto-post to team channel and trigger peer review."""
+    try:
+        # Guard: don't trigger reviews from within team channels (prevents recursion)
+        if lane_id.startswith("team-"):
+            return
+
+        # Find team_lane_id from dispatch result (same request cycle)
+        team_lane_id = None
+        if dispatch_result:
+            team_lane_id = dispatch_result.get("team_lane_id")
+
+        # Fallback: look up via agent_loop_service workflow channels
+        if not team_lane_id:
+            loop_svc = getattr(request.app.state, "agent_loop_service", None)
+            if loop_svc and dispatch_result:
+                wf_id = dispatch_result.get("workflow_id", "")
+                if wf_id:
+                    team_lane_id = loop_svc._workflow_channels.get(wf_id)
+
+        if not team_lane_id:
+            return
+
+        store = getattr(request.app.state, "message_store", None)
+        agent_service = getattr(request.app.state, "agent_chat_service", None)
+        if not store or not agent_service:
+            return
+
+        # Post response summary to team channel
+        from app.services.agent_notification_service import AGENT_NAMES
+        display = AGENT_NAMES.get(responder_id, responder_id)
+        summary = agent_msg.content[:500] if agent_msg else ""
+        if not summary:
+            return
+
+        store.add_message(
+            lane_id=team_lane_id,
+            sender_id=responder_id,
+            sender_name=display,
+            sender_type=SenderType.AGENT,
+            content=f"**Response from {display}:**\n\n{summary}",
+            message_type=MessageType.CHAT,
+            metadata={"auto_review": True, "source_lane": lane_id},
+        )
+
+        # Trigger peer review
+        await agent_service.trigger_peer_review(
+            lane_id=team_lane_id,
+            agent_id=responder_id,
+            deliverable_summary=summary,
+            message_store=store,
+        )
+
+        # Broadcast team channel update via WebSocket
+        ws_manager = getattr(request.app.state, "ws_manager", None)
+        if ws_manager:
+            lane = store.get_lane(team_lane_id)
+            if lane and lane.last_message:
+                await ws_manager.broadcast_chat_message(lane.last_message.to_ws_payload())
+
+    except Exception as e:
+        logger.warning("Team review trigger failed for %s: %s", lane_id, e)
+
+
 # ------------------------------------------------------------------
 # Lanes
 # ------------------------------------------------------------------
@@ -278,6 +348,7 @@ async def send_message(
         logger.warning("Intent classification skipped: %s", e)
 
     # Task dispatch: if message_type is "task", dispatch to the agent
+    dispatch_result = None
     if body.message_type == MessageType.TASK:
         dispatch_svc = _get_task_dispatch(request)
         if dispatch_svc and lane.participants:
@@ -388,6 +459,16 @@ async def send_message(
 
                     if agent_msg:
                         agent_messages.append(agent_msg)
+
+                        # Auto-trigger team review for task dispatches
+                        if dispatch_result and dispatch_result.get("team_lane_id"):
+                            await _maybe_trigger_team_review(
+                                request=request,
+                                lane_id=lane_id,
+                                responder_id=responder_id,
+                                agent_msg=agent_msg,
+                                dispatch_result=dispatch_result,
+                            )
 
             response_data["agent_messages"] = [
                 m.model_dump(mode="json") for m in agent_messages if m

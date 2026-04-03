@@ -123,10 +123,10 @@ class StateAggregator:
         state.ma_systems = self._scan_ma_systems()
         state.bridges = self._scan_bridges()
         state.budget = self._scan_budget()
-        state.health = self._build_health(state)
         state.validation = self._scan_validation()
         state.frameworks = self._scan_frameworks()
         state.pinchtab_status = self._check_pinchtab()
+        state.health = self._build_health(state)
         state.narrative = self._build_narrative(state)
 
         git_info = self._get_git_info()
@@ -461,6 +461,9 @@ class StateAggregator:
             except Exception:
                 pass
 
+        # Also check live environment variables (keys set via export)
+        env_keys.update(os.environ.keys())
+
         # Bridge metadata: filename → (display_name, api_label, env_key_prefix)
         bridge_meta = {
             "web_browser.py": ("PinchTab Browser", "PinchTab localhost:9867", "PINCHTAB"),
@@ -473,6 +476,11 @@ class StateAggregator:
             "instantly_bridge.py": ("Instantly.ai", "Instantly.ai v1", "INSTANTLY"),
             "google_ads_bridge.py": ("Google Ads", "Google Ads v17", "GOOGLE_ADS"),
             "meta_ads_bridge.py": ("Meta Ads", "Meta Marketing v19", "META_ADS"),
+            "apify_bridge.py": ("Apify", "Apify v2", "APIFY"),
+            "gws_bridge.py": ("Google Workspace", "GWS CLI", "GOOGLE"),
+            "image_gen_bridge.py": ("Image Generation", "NVIDIA/NGC", "NGC"),
+            "social_publish_bridge.py": ("Social Publishing", "Multi-platform", "LINKEDIN"),
+            "whisper_bridge.py": ("Whisper STT", "OpenAI Whisper", "OPENAI"),
         }
 
         for bridge_file in sorted(scripts_dir.glob("*_bridge.py")):
@@ -748,11 +756,24 @@ class StateAggregator:
         )
 
         # Browser/PinchTab
+        if state.pinchtab_status == "running":
+            pt_status = HealthStatus.HEALTHY
+            pt_message = "PinchTab running (guard DOWN for dev)"
+        elif state.pinchtab_status == "not_installed":
+            pt_status = HealthStatus.WARNING
+            pt_message = "PinchTab not installed"
+        elif state.pinchtab_status == "stopped":
+            pt_status = HealthStatus.WARNING
+            pt_message = "PinchTab not running"
+        else:
+            pt_status = HealthStatus.UNKNOWN
+            pt_message = "PinchTab status unknown"
+
         domains.append(
             HealthDomain(
                 domain="browser",
-                status=HealthStatus.WARNING,
-                message="PinchTab guard DOWN",
+                status=pt_status,
+                message=pt_message,
                 last_check=now,
             )
         )
@@ -793,19 +814,35 @@ class StateAggregator:
     # ── Frameworks ─────────────────────────────────────────────────────
 
     def _scan_frameworks(self) -> FrameworksSummary:
-        """Scan for production frameworks (FW-xxx)."""
+        """Scan for production frameworks (FW-xxx).
+
+        Checks frameworks/ directory first; if empty or missing, falls back
+        to counting FW-NNN IDs in scripts/framework_library.py.
+        """
         fw_dir = settings.repo_root / "frameworks"
-        if not fw_dir.is_dir():
-            # Check docs for framework references
-            fw_ids = [f"FW-{str(i).zfill(3)}" for i in range(1, 16)]
-            return FrameworksSummary(total=15, framework_ids=fw_ids)
+        if fw_dir.is_dir():
+            framework_ids: list[str] = []
+            for item in sorted(fw_dir.iterdir()):
+                if item.is_dir() and item.name.upper().startswith("FW-"):
+                    framework_ids.append(item.name.upper())
+            if framework_ids:
+                return FrameworksSummary(total=len(framework_ids), framework_ids=framework_ids)
 
-        framework_ids: list[str] = []
-        for item in sorted(fw_dir.iterdir()):
-            if item.is_dir() and item.name.upper().startswith("FW-"):
-                framework_ids.append(item.name.upper())
+        # Fallback: count from framework_library.py
+        lib_path = settings.scripts_dir / "framework_library.py"
+        if lib_path.exists():
+            try:
+                text = lib_path.read_text()
+                matches = re.findall(r'"(FW-\d{3})"', text)
+                if matches:
+                    fw_ids = sorted(set(matches))
+                    return FrameworksSummary(total=len(fw_ids), framework_ids=fw_ids)
+            except Exception:
+                pass
 
-        return FrameworksSummary(total=len(framework_ids), framework_ids=framework_ids)
+        # Hard fallback: 15 known frameworks
+        fw_ids = [f"FW-{str(i).zfill(3)}" for i in range(1, 16)]
+        return FrameworksSummary(total=15, framework_ids=fw_ids)
 
     # ── Narrative ───────────────────────────────────────────────────────
 
@@ -878,7 +915,9 @@ class StateAggregator:
             )
 
         # PinchTab
-        if state.pinchtab_status == "stopped":
+        if state.pinchtab_status == "not_installed":
+            lines.append("PinchTab browser bridge is not installed.")
+        elif state.pinchtab_status == "stopped":
             lines.append("PinchTab browser bridge is not running.")
 
         # MA completeness
@@ -894,6 +933,9 @@ class StateAggregator:
 
     def _check_pinchtab(self) -> str:
         """Check if PinchTab is reachable on localhost:9867."""
+        import shutil
+        if not shutil.which("pinchtab") and not Path.home().joinpath(".pinchtab", "bin").exists():
+            return "not_installed"
         try:
             import socket
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
