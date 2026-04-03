@@ -116,6 +116,24 @@ class TaskWorkflowService:
 
     # ── Public API ────────────────────────────────────────────────────
 
+    async def create_plan(self, goal: str, agent_id: str = "operations_lead"):
+        """Create and execute a workflow plan. Compatible with OrchestratorService API.
+
+        Returns a workflow-like object with .workflow_id, .status, .tasks, .error
+        """
+        wf_id = self.create_workflow(goal, agent_id)
+        result = await self.run_workflow(wf_id)
+        wf = self._workflows.get(wf_id)
+        if wf:
+            return wf
+        # Fallback: return a dict-like with the required attributes
+        class _Result:
+            workflow_id = wf_id
+            status = result.get("status", "failed")
+            tasks = result.get("tasks", [])
+            error = result.get("error")
+        return _Result()
+
     def create_workflow(
         self, goal: str, agent_id: str, project_id: str | None = None
     ) -> str:
