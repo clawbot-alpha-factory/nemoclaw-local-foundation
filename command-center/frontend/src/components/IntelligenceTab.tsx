@@ -7,6 +7,8 @@ import {
   fetchDecisionLog,
   fetchAuditLog,
 } from '../lib/intelligence-api';
+import { API_BASE } from '../lib/config';
+import { headers } from '../lib/auth';
 import type {
   ActivityEntry,
   ActivityCategory,
@@ -295,10 +297,8 @@ export default function IntelligenceTab() {
 
   useEffect(() => {
     // Fetch current state for health view
-    const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8100';
-    fetch(`${apiBase}/api/state`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    fetch(`${API_BASE}/api/state`, {
+      headers: headers(),
     })
       .then(r => r.json())
       .then(setSystemState)

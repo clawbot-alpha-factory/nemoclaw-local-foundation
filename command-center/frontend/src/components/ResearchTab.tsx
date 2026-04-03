@@ -65,10 +65,11 @@ const TEMPLATES: Record<TemplateId, TemplateConfig> = {
 
 const TEMPLATE_IDS = Object.keys(TEMPLATES) as TemplateId[];
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8100';
+import { API_BASE } from '../lib/config';
+import { getToken } from '../lib/auth';
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
+  const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

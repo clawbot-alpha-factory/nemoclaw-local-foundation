@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel
 
-from app.auth import require_auth
+from app.auth import require_auth, get_active_token
 
 log = logging.getLogger("cc.settings.api")
 
@@ -28,12 +28,45 @@ class BrainIntervalRequest(BaseModel):
     interval: int  # seconds
 
 
-def _get_settings(request: Request):
-    """Get settings from app state."""
-    settings = getattr(request.app.state, "settings", None)
-    if not settings:
-        raise HTTPException(status_code=503, detail="Settings not initialized")
-    return settings
+# Provider → env var mapping for the API Keys panel
+KEY_REGISTRY = [
+    {"provider": "anthropic", "key_name": "ANTHROPIC_API_KEY"},
+    {"provider": "openai", "key_name": "OPENAI_API_KEY"},
+    {"provider": "google", "key_name": "GOOGLE_API_KEY"},
+    {"provider": "apify", "key_name": "APIFY_API_TOKEN"},
+    {"provider": "supabase", "key_name": "SUPABASE_ANON_KEY"},
+    {"provider": "linkedin", "key_name": "LINKEDIN_CLIENT_ID"},
+    {"provider": "meta", "key_name": "META_APP_ID"},
+    {"provider": "youtube", "key_name": "YOUTUBE_API_KEY"},
+    {"provider": "heygen", "key_name": "HEYGEN_API_KEY"},
+    {"provider": "elevenlabs", "key_name": "ELEVENLABS_API_KEY"},
+    {"provider": "resend", "key_name": "RESEND_API_KEY"},
+    {"provider": "instantly", "key_name": "INSTANTLY_API_KEY"},
+    {"provider": "langfuse", "key_name": "LANGFUSE_SECRET_KEY"},
+]
+
+
+def _mask_key(value: Optional[str]) -> Optional[str]:
+    """Mask an API key for safe display: first4***...last3."""
+    if not value:
+        return None
+    if len(value) < 10:
+        return "****"
+    return f"{value[:4]}***...{value[-3:]}"
+
+
+def _load_env_keys() -> dict:
+    """Load all env keys from config/.env via config_loader."""
+    import sys
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[4]
+    sys.path.insert(0, str(repo))
+    from lib.config_loader import load_env
+    return load_env()
+
+
+# Module-level settings store (app.state.settings was never initialized)
+_settings_store: dict = {"theme": "dark", "brain_interval": 300}
 
 
 def _run_cmd(cmd: list[str], fallback: str = "unknown") -> str:
@@ -50,26 +83,21 @@ def _run_cmd(cmd: list[str], fallback: str = "unknown") -> str:
 @router.get("/")
 async def get_settings(
     _=Depends(require_auth),
-    settings=Depends(_get_settings),
 ):
     """Return current system settings (token, theme, intervals)."""
     return {
-        "token": getattr(settings, "token", None),
-        "theme": getattr(settings, "theme", "dark"),
+        "token": get_active_token(),
+        "theme": _settings_store["theme"],
         "intervals": {
-            "brain": getattr(settings, "brain_interval", 300),
+            "brain": _settings_store["brain_interval"],
         },
     }
 
 
 @router.get("/token")
-async def get_token(
-    settings=Depends(_get_settings),
-):
+async def get_token():
     """Return current active token (for auto-setup). No auth required."""
-    token = getattr(settings, "token", None)
-    if not token:
-        raise HTTPException(status_code=404, detail="No active token configured")
+    token = get_active_token()
     return {"token": token}
 
 
@@ -77,7 +105,6 @@ async def get_token(
 async def set_theme(
     body: ThemeRequest,
     _=Depends(require_auth),
-    settings=Depends(_get_settings),
 ):
     """Set theme preference (light/dark)."""
     if body.theme not in ("light", "dark"):
@@ -85,9 +112,9 @@ async def set_theme(
             status_code=400,
             detail="Theme must be 'light' or 'dark'",
         )
-    settings.theme = body.theme
+    _settings_store["theme"] = body.theme
     log.info("Theme updated to: %s", body.theme)
-    return {"theme": settings.theme, "message": f"Theme set to {body.theme}"}
+    return {"theme": body.theme, "message": f"Theme set to {body.theme}"}
 
 
 @router.get("/system")
@@ -123,7 +150,6 @@ async def get_system_info():
 async def update_brain_interval(
     body: BrainIntervalRequest,
     _=Depends(require_auth),
-    settings=Depends(_get_settings),
 ):
     """Update auto-insight interval (in seconds)."""
     if body.interval < 10:
@@ -137,12 +163,12 @@ async def update_brain_interval(
             detail="Interval must not exceed 86400 seconds (24 hours)",
         )
 
-    old_interval = getattr(settings, "brain_interval", None)
-    settings.brain_interval = body.interval
+    old_interval = _settings_store["brain_interval"]
+    _settings_store["brain_interval"] = body.interval
     log.info("Brain interval updated: %s -> %s seconds", old_interval, body.interval)
 
     return {
-        "interval": settings.brain_interval,
+        "interval": body.interval,
         "previous": old_interval,
         "message": f"Auto-insight interval set to {body.interval}s",
     }
@@ -194,3 +220,58 @@ async def nvidia_health():
 
     up_count = sum(1 for r in results.values() if r["status"] == "up")
     return {"status": "healthy" if up_count >= 4 else "degraded", "up": up_count, "total": len(models), "models": results}
+
+
+# ─── API Keys ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/api-keys")
+async def get_api_keys():
+    """Return configured API keys with masked values."""
+    env = _load_env_keys()
+    keys = []
+    for entry in KEY_REGISTRY:
+        raw = env.get(entry["key_name"], "")
+        configured = bool(raw)
+        keys.append({
+            "provider": entry["provider"],
+            "configured": configured,
+            "masked_key": _mask_key(raw) if configured else None,
+            "last_tested": None,
+            "status": "connected" if configured else "missing",
+        })
+    return {"keys": keys}
+
+
+@router.post("/api-keys/{provider}/test")
+def test_api_key(provider: str):
+    """Test if a provider's API key is valid. Sync def so SDK calls run in threadpool."""
+    registry_entry = next((e for e in KEY_REGISTRY if e["provider"] == provider), None)
+    if not registry_entry:
+        raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+
+    env = _load_env_keys()
+    raw_key = env.get(registry_entry["key_name"], "")
+    if not raw_key:
+        return {"provider": provider, "success": False, "error": "Key not configured"}
+
+    try:
+        if provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(api_key=raw_key)
+            client.messages.create(
+                model="claude-haiku-4-20250414",
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+        elif provider == "openai":
+            import openai
+            client = openai.OpenAI(api_key=raw_key)
+            client.models.list()
+        else:
+            # No cheap validation endpoint — key existence is sufficient
+            return {"provider": provider, "success": True}
+    except Exception as e:
+        return {"provider": provider, "success": False, "error": str(e)}
+
+    return {"provider": provider, "success": True}

@@ -18,15 +18,8 @@ import {
 } from '../lib/approvals-api';
 
 import { API_BASE } from '../lib/config';
+import { headers } from '../lib/auth';
 const API = `${API_BASE}/api/approvals`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 async function approveApproval(id: string, notes?: string): Promise<Approval> {
   const res = await fetch(`${API}/${id}/approve`, {

@@ -153,7 +153,7 @@ export default function ProjectsTab() {
       if (searchQuery) filters.search = searchQuery;
       filters.limit = 100;
       const resp = await listProjects(filters);
-      setProjects(resp.projects || resp.items || []);
+      setProjects(resp.items || []);
       setTotalProjects(resp.total || 0);
     } catch (e: any) {
       setError(e.message || 'Failed to load projects');

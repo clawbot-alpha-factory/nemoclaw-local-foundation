@@ -24,6 +24,7 @@ import type {
   RoutingRule,
   BridgeInfo as SettingsBridgeInfo,
 } from '../lib/settings-api';
+import { setToken as storeToken, getToken } from '../lib/auth';
 
 const SECTIONS = ['Token Setup', 'API Keys', 'Model Library', 'Tools & Bridges', 'NVIDIA NIM', 'Theme', 'Brain Settings', 'System Info', 'About'] as const;
 type Section = (typeof SECTIONS)[number];
@@ -70,7 +71,7 @@ export default function SettingsTab() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [token, setToken] = useState<ActiveToken | null>(null);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light');
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('dark');
   const [brainInterval, setBrainInterval] = useState<number>(30);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,11 +105,14 @@ export default function SettingsTab() {
 
       if (settingsData) {
         setSettings(settingsData);
-        setCurrentTheme(settingsData.theme || 'light');
-        setBrainInterval(settingsData.intervals?.brain_interval || 30);
+        setCurrentTheme(settingsData.theme || 'dark');
+        setBrainInterval(settingsData.intervals?.brain ?? settingsData.intervals?.brain_interval ?? 30);
       }
       if (tokenData) {
         setToken(tokenData);
+      } else if (settingsData?.token) {
+        // Backend /api/settings returns token as plain string — use as fallback
+        setToken({ token: settingsData.token });
       }
       if (sysData) {
         setSystemInfo(sysData);
@@ -149,7 +153,7 @@ export default function SettingsTab() {
 
   const handleApplyToken = useCallback(() => {
     if (!token?.token) return;
-    localStorage.setItem('cc-token', token.token);
+    storeToken(token.token);
     setApplySuccess(true);
     setTimeout(() => setApplySuccess(false), 3000);
   }, [token]);
@@ -199,7 +203,7 @@ export default function SettingsTab() {
     const tokenBadge = token?.token
       ? 'bg-green-100 text-green-800'
       : 'bg-red-100 text-red-800';
-    const localToken = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
+    const localToken = getToken();
     const localTokenStatus = localToken ? 'Applied' : 'Missing';
     const localTokenBadge = localToken
       ? 'bg-green-100 text-green-800'
@@ -617,7 +621,7 @@ export default function SettingsTab() {
   const checkNvidiaHealth = useCallback(async () => {
     setNvidiaChecking(true);
     try {
-      const token = localStorage.getItem('cc-token') || '';
+      const token = getToken() || '';
       const res = await fetch('/api/settings/nvidia/health', { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setNvidiaHealth(data.models || {});

@@ -25,14 +25,7 @@ type Period = 'today' | 'week' | 'all';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function getToken(): string {
-  if (typeof window !== 'undefined') return localStorage.getItem('cc-token') || '';
-  return '';
-}
-
-function headers(): HeadersInit {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` };
-}
+import { headers } from '@/lib/auth';
 
 async function fetchWorkLog(agentId: string, period: Period): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_BASE}/api/agents/${agentId}/work-log?period=${period}`, { headers: headers() });
