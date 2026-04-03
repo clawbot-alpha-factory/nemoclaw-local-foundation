@@ -290,6 +290,23 @@ Branch: {git_info.get('branch', 'unknown')}, Commit: {git_info.get('last_commit_
     # Core API methods
     # ------------------------------------------------------------------
 
+    async def analyze(self, prompt: str, context: str = "general") -> str:
+        """Analyze a prompt using LLM. Used by TaskWorkflowService for workflow phases.
+
+        Args:
+            prompt: The full prompt to send to the LLM
+            context: Context hint (workflow_brainstorm, workflow_plan, workflow_validate)
+
+        Returns:
+            Raw LLM response text
+        """
+        if not self.is_available:
+            raise RuntimeError("BrainService not available — no LLM provider configured")
+
+        system_prompt = f"You are NemoClaw's AI brain. Context: {context}. Provide detailed, structured, actionable output."
+        messages = [{"role": "user", "content": prompt}]
+        return await self._call_llm(system_prompt, messages)
+
     async def ask(self, question: str, system_state: dict) -> dict:
         """Handle a user question with full system state context."""
         if not self._available:
