@@ -12,12 +12,13 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.selfbuild")
 
-router = APIRouter(tags=["self-build"])
+router = APIRouter(tags=["self-build"], dependencies=[Depends(require_auth)])
 
 
 def _svc(request: Request, attr: str, name: str):

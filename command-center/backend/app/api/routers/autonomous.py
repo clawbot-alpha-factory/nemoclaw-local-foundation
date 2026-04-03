@@ -8,10 +8,11 @@ NEW FILE: command-center/backend/app/api/routers/autonomous.py
 from __future__ import annotations
 import logging
 from typing import Any
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.autonomous")
-router = APIRouter(prefix="/api/autonomous", tags=["autonomous"])
+router = APIRouter(prefix="/api/autonomous", tags=["autonomous"], dependencies=[Depends(require_auth)])
 
 def _svc(request, attr):
     svc = getattr(request.app.state, attr, None)

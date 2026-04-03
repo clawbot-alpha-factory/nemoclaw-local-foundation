@@ -13,8 +13,9 @@ Endpoints:
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from app.auth import require_auth
 
-router = APIRouter(prefix="/api/brain", tags=["brain"])
+router = APIRouter(prefix="/api/brain", tags=["brain"], dependencies=[Depends(require_auth)])
 
 # Injected at startup via set_dependencies()
 _brain_service = None

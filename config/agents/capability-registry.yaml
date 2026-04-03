@@ -140,6 +140,17 @@ skill_domains:
   scl-08-revenue-dashboard-generator: data_analysis
   scl-09-niche-domination-engine: strategic_reasoning
   scl-10-micro-saas-generator: strategic_reasoning
+  k40-deal-qualifier: sales_revenue
+  k41-ppc-campaign-architect: content
+  k42-paid-social-planner: content
+  k43-pipeline-analyzer: data_analysis
+  k44-content-strategy-planner: content
+  k45-seo-audit-writer: research
+  k46-linkedin-content-writer: content
+  k47-account-expansion-planner: sales_revenue
+  k48-ad-creative-writer: content
+  k49-ai-citation-optimizer: research
+  k54-dashboard-reader: data_analysis
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CAPABILITY DEFINITIONS
@@ -1079,6 +1090,74 @@ capabilities:
     fallback_agent: operations_lead
     requires_inputs: [client_data, report_period]
     produces_outputs: [executive_summary, detailed_metrics, next_steps]
+
+  # ── Orphan Skills (2026-04-03) ─────────────────────────────────────────────
+  deal_qualification:
+    owned_by: sales_outreach_lead
+    skill: k40-deal-qualifier
+    requires_inputs: [deal_context, deal_stage]
+    produces_outputs: [qualification_report, score_breakdown, next_actions]
+
+  ppc_campaign_architecture:
+    owned_by: marketing_campaigns_lead
+    skill: k41-ppc-campaign-architect
+    requires_inputs: [campaign_goal, budget, platforms]
+    produces_outputs: [campaign_structure, keyword_strategy, bid_recommendations]
+
+  paid_social_planning:
+    owned_by: marketing_campaigns_lead
+    skill: k42-paid-social-planner
+    requires_inputs: [campaign_goal, budget, platforms]
+    produces_outputs: [social_campaign_plan, audience_targeting, creative_formats]
+
+  pipeline_analysis:
+    owned_by: growth_revenue_lead
+    skill: k43-pipeline-analyzer
+    requires_inputs: [pipeline_data, target_revenue]
+    produces_outputs: [pipeline_report, bottleneck_analysis, forecast]
+
+  content_strategy_planning:
+    owned_by: narrative_content_lead
+    skill: k44-content-strategy-planner
+    requires_inputs: [business_goals, audience_segments]
+    produces_outputs: [content_strategy, editorial_calendar, success_metrics]
+
+  seo_auditing:
+    owned_by: marketing_campaigns_lead
+    skill: k45-seo-audit-writer
+    requires_inputs: [site_url, competitors]
+    produces_outputs: [seo_audit_report, priority_fixes, keyword_opportunities]
+
+  linkedin_content_writing:
+    owned_by: social_media_lead
+    skill: k46-linkedin-content-writer
+    requires_inputs: [topic, content_type, tone]
+    produces_outputs: [linkedin_post, hook_variants]
+
+  account_expansion_planning:
+    owned_by: client_success_lead
+    skill: k47-account-expansion-planner
+    requires_inputs: [account_data, service_catalog]
+    produces_outputs: [expansion_plan, revenue_estimates, outreach_recommendations]
+
+  ad_creative_writing:
+    owned_by: marketing_campaigns_lead
+    skill: k48-ad-creative-writer
+    requires_inputs: [product_info, platform, campaign_goal]
+    produces_outputs: [ad_creatives, ab_test_variants]
+
+  ai_citation_optimization:
+    owned_by: marketing_campaigns_lead
+    skill: k49-ai-citation-optimizer
+    requires_inputs: [content, target_queries]
+    produces_outputs: [citability_score, optimization_recommendations]
+
+  dashboard_reading:
+    owned_by: operations_lead
+    skill: k54-dashboard-reader
+    requires_inputs: [dashboard_url, metrics_of_interest]
+    produces_outputs: [metric_summary, trend_analysis]
+    tools: [pinchtab]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOOL BRIDGE REGISTRY (2026-04-02)

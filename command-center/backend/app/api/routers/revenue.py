@@ -8,11 +8,12 @@ NEW FILE: command-center/backend/app/api/routers/revenue.py
 from __future__ import annotations
 import logging
 from typing import Any
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.revenue")
-router = APIRouter(prefix="/api/revenue", tags=["revenue"])
+router = APIRouter(prefix="/api/revenue", tags=["revenue"], dependencies=[Depends(require_auth)])
 
 def _svc(request, attr):
     svc = getattr(request.app.state, attr, None)

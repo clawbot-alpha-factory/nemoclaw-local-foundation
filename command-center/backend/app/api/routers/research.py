@@ -14,14 +14,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from app.auth import require_auth
 
 from app.domain.engine_models import LLMTier
 
 logger = logging.getLogger("cc.api.research")
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+router = APIRouter(prefix="/api/research", tags=["research"], dependencies=[Depends(require_auth)])
 
 
 # ── Request Models ───────────────────────────────────────────────────

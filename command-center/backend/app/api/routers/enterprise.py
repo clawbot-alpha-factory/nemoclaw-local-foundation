@@ -8,11 +8,12 @@ NEW FILE: command-center/backend/app/api/routers/enterprise.py
 from __future__ import annotations
 import logging
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.enterprise")
-router = APIRouter(tags=["enterprise"])
+router = APIRouter(tags=["enterprise"], dependencies=[Depends(require_auth)])
 
 def _svc(request: Request, attr: str, name: str):
     svc = getattr(request.app.state, attr, None)

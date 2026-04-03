@@ -8,11 +8,12 @@ NEW FILE: command-center/backend/app/api/routers/lifecycle.py
 from __future__ import annotations
 import logging
 from typing import Any
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.lifecycle")
-router = APIRouter(prefix="/api/lifecycle", tags=["lifecycle"])
+router = APIRouter(prefix="/api/lifecycle", tags=["lifecycle"], dependencies=[Depends(require_auth)])
 
 def _svc(request, attr):
     svc = getattr(request.app.state, attr, None)

@@ -11,7 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.auth import require_auth
 
 from app.domain.engine_models import (
     ChainRequest,
@@ -21,7 +22,7 @@ from app.domain.engine_models import (
 
 logger = logging.getLogger("cc.api.execution")
 
-router = APIRouter(prefix="/api/execution", tags=["execution"])
+router = APIRouter(prefix="/api/execution", tags=["execution"], dependencies=[Depends(require_auth)])
 
 
 def _get_execution_service(request: Request):

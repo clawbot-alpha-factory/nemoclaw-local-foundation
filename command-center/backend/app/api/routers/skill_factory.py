@@ -11,12 +11,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.factory")
 
-router = APIRouter(prefix="/api/skill-factory", tags=["skill-factory"])
+router = APIRouter(prefix="/api/skill-factory", tags=["skill-factory"], dependencies=[Depends(require_auth)])
 
 
 class GenerateRequest(BaseModel):

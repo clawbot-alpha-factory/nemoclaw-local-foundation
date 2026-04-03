@@ -11,12 +11,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.bridges")
 
-router = APIRouter(prefix="/api/bridges", tags=["bridges"])
+router = APIRouter(prefix="/api/bridges", tags=["bridges"], dependencies=[Depends(require_auth)])
 
 
 class BridgeExecuteRequest(BaseModel):

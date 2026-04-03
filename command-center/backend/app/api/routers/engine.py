@@ -11,11 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.engine")
 
-router = APIRouter(tags=["engine"])
+router = APIRouter(tags=["engine"], dependencies=[Depends(require_auth)])
 
 
 def _get_loop_service(request: Request):

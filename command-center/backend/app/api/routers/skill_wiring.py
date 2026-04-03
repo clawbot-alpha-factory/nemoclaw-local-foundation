@@ -11,12 +11,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from app.auth import require_auth
 
 logger = logging.getLogger("cc.api.wiring")
 
-router = APIRouter(prefix="/api/skill-wiring", tags=["skill-wiring"])
+router = APIRouter(prefix="/api/skill-wiring", tags=["skill-wiring"], dependencies=[Depends(require_auth)])
 
 
 def _get_mapping(request: Request):

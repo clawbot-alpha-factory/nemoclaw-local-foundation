@@ -270,10 +270,10 @@ def c5_general_short_routing():
     try:
         data = _extract_json(out)
         alias = data.get("alias")
-        # v5.0: general_short routes to reasoning_claude (Sonnet 4.6) or fallback
-        if alias in ("reasoning_claude", "fallback_openai"):
+        # v5.0: general_short routes to premium_claude (quality-first) or fallback
+        if alias in ("premium_claude", "fallback_openai"):
             return PASS, f"general_short → {alias} ✓"
-        return FAIL, f"Expected reasoning_claude — got {alias}"
+        return FAIL, f"Expected premium_claude — got {alias}"
     except Exception:
         return FAIL, "Could not parse enforcer output"
 
@@ -285,9 +285,9 @@ def c5_complex_reasoning_routing():
     try:
         data = _extract_json(out)
         alias = data.get("alias")
-        if alias in ("reasoning_claude", "fallback_openai"):
+        if alias in ("premium_claude", "fallback_openai"):
             return PASS, f"complex_reasoning → {alias} ✓"
-        return FAIL, f"Expected reasoning_claude — got {alias}"
+        return FAIL, f"Expected premium_claude — got {alias}"
     except Exception:
         return FAIL, "Could not parse enforcer output"
 
@@ -543,8 +543,8 @@ def main():
 
         print("\nCategory 5 — Routing System")
         check("Routing", 23, "budget-enforcer.py runs",         c5_enforcer_runs)
-        check("Routing", 24, "general_short → reasoning_claude",    c5_general_short_routing)
-        check("Routing", 25, "complex_reasoning → reasoning_claude", c5_complex_reasoning_routing)
+        check("Routing", 24, "general_short → premium_claude",    c5_general_short_routing)
+        check("Routing", 25, "complex_reasoning → premium_claude", c5_complex_reasoning_routing)
         check("Routing", 32, "premium → premium_claude",        c5_premium_routing)
         check("Routing", 33, "strategic → premium_claude",      c5_strategic_routing)
         check("Routing", 34, "All skill aliases valid",         c5_skill_alias_validity)
