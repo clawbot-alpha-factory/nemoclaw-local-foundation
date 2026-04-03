@@ -21,14 +21,14 @@ const STATUS_COLORS: Record<HealthStatus, string> = {
 
 const STATUS_DOT: Record<HealthStatus, string> = {
   healthy: 'bg-nc-green',
-  warning: 'bg-nc-yellow',
-  error: 'bg-nc-red',
-  unknown: 'bg-nc-text-dim',
+  warning: 'bg-nc-yellow animate-pulse-dot',
+  error: 'bg-nc-red animate-pulse-dot',
+  unknown: 'bg-nc-text-muted',
 };
 
 export function StatusCard({ title, value, subtitle, status = 'unknown', icon, children }: StatusCardProps) {
   return (
-    <div className={clsx('rounded-xl border p-4 transition-colors', STATUS_COLORS[status])}>
+    <div className={clsx('glass rounded-xl border-t-2 p-4 transition-colors', STATUS_COLORS[status])}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           {icon && <span className="text-lg">{icon}</span>}
@@ -52,7 +52,7 @@ interface MiniBarProps {
 export function MiniBar({ value, max, color = 'bg-nc-accent' }: MiniBarProps) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="h-1.5 rounded-full bg-nc-border overflow-hidden">
+    <div className="h-1.5 rounded-full bg-nc-surface-3 overflow-hidden">
       <div
         className={clsx('h-full rounded-full transition-all', color)}
         style={{ width: `${pct}%` }}

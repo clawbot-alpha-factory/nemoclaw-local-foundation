@@ -210,23 +210,23 @@ export default function BrainSidebar() {
     const isInsight = msg.type === 'insight';
     const isError = msg.type === 'error';
 
-    let bgClass = 'bg-gray-100 text-gray-800';
-    if (isUser) bgClass = 'bg-indigo-500 text-white';
-    else if (isError) bgClass = 'bg-red-50 text-red-700 border border-red-200';
-    else if (isInsight) bgClass = 'bg-amber-50 text-gray-800 border border-amber-200';
+    let bgClass = 'bg-nc-surface-2 text-nc-text';
+    if (isUser) bgClass = 'bg-nc-accent text-white';
+    else if (isError) bgClass = 'bg-nc-red/10 text-nc-red border border-nc-red/20';
+    else if (isInsight) bgClass = 'bg-nc-yellow/10 text-nc-text border border-nc-yellow/20';
 
     return (
       <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
         <div className={`max-w-[92%] rounded-lg px-3 py-2 text-[13px] leading-relaxed ${bgClass}`}>
           {isInsight && (
-            <div className="text-[11px] font-semibold text-amber-600 mb-1 flex items-center gap-1">
+            <div className="text-[11px] font-semibold text-nc-yellow mb-1 flex items-center gap-1">
               <span>✦</span> Strategic Insight
             </div>
           )}
           <div className="whitespace-pre-wrap break-words">{msg.content}</div>
           <div
             className={`text-[10px] mt-1 ${
-              isUser ? 'text-indigo-200' : 'text-gray-400'
+              isUser ? 'text-indigo-200' : 'text-nc-text-muted'
             }`}
           >
             {new Date(msg.timestamp).toLocaleTimeString([], {
@@ -246,7 +246,7 @@ export default function BrainSidebar() {
   const toggleBtn = (
     <button
       onClick={toggleBrainSidebar}
-      className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-8 h-14 bg-indigo-500 hover:bg-indigo-600 text-white rounded-l-lg shadow-lg transition-all duration-200"
+      className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-8 h-14 glass-bright text-nc-accent hover:text-white rounded-l-lg shadow-lg transition-all duration-200"
       title={brainSidebarOpen ? 'Close AI Brain' : 'Open AI Brain'}
       style={{ right: brainSidebarOpen ? '320px' : '0px' }}
     >
@@ -263,21 +263,21 @@ export default function BrainSidebar() {
   return (
     <>
       {toggleBtn}
-      <div className="w-80 h-full border-l border-gray-200 bg-white flex flex-col flex-shrink-0">
+      <div className="w-80 h-full border-l border-nc-border bg-nc-surface flex flex-col flex-shrink-0">
         {/* ---- Header ---- */}
-        <div className="px-3 py-2.5 border-b border-gray-200 bg-gray-50/80">
+        <div className="px-3 py-2.5 border-b border-nc-border bg-nc-surface-2/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-base">🧠</span>
-              <span className="font-semibold text-gray-800 text-sm">AI Brain</span>
+              <span className="font-semibold text-nc-text text-sm">AI Brain</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div
                 className={`w-2 h-2 rounded-full ${
-                  brainStatus?.available ? 'bg-green-500' : 'bg-gray-400'
+                  brainStatus?.available ? 'bg-nc-green' : 'bg-nc-text-muted'
                 }`}
               />
-              <span className="text-[11px] text-gray-500">
+              <span className="text-[11px] text-nc-text-dim">
                 {brainStatus?.available
                   ? brainStatus.provider
                   : 'offline'}
@@ -291,14 +291,14 @@ export default function BrainSidebar() {
               <input
                 type="text"
                 placeholder="Paste auth token from backend log"
-                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                className="w-full text-xs bg-nc-bg border border-nc-border-bright rounded px-2 py-1.5 text-nc-text focus:outline-none focus:border-nc-accent"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     saveToken((e.target as HTMLInputElement).value.trim());
                   }
                 }}
               />
-              <p className="text-[10px] text-gray-400 mt-0.5">
+              <p className="text-[10px] text-nc-text-muted mt-0.5">
                 Press Enter to save. Token is in backend startup log.
               </p>
             </div>
@@ -309,7 +309,7 @@ export default function BrainSidebar() {
             <button
               onClick={handleAnalyze}
               disabled={brainLoading}
-              className="mt-2 w-full text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded transition-colors disabled:opacity-50 font-medium"
+              className="mt-2 w-full text-xs bg-nc-accent/10 hover:bg-nc-accent/20 text-nc-accent px-3 py-1.5 rounded transition-colors disabled:opacity-50 font-medium"
             >
               {brainLoading ? '⏳ Analyzing...' : '✦ Analyze System Now'}
             </button>
@@ -319,11 +319,11 @@ export default function BrainSidebar() {
         {/* ---- Messages ---- */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2.5 scroll-smooth">
           {brainMessages.length === 0 && (
-            <div className="text-center text-gray-400 text-xs mt-12 px-4 leading-relaxed">
+            <div className="text-center text-nc-text-muted text-xs mt-12 px-4 leading-relaxed">
               {brainStatus?.available ? (
                 <>
                   <p className="mb-2">Ask a question about your system</p>
-                  <p className="text-gray-300">
+                  <p className="text-nc-text-dim">
                     Try: &ldquo;What should I prioritize next?&rdquo;
                   </p>
                 </>
@@ -332,14 +332,14 @@ export default function BrainSidebar() {
                   <p className="mb-2">Enter your auth token to connect</p>
                   <button
                     onClick={() => setShowTokenInput(true)}
-                    className="text-indigo-500 hover:text-indigo-600 underline text-xs"
+                    className="text-nc-accent hover:text-nc-accent-dim underline text-xs"
                   >
                     Enter token
                   </button>
                 </>
               ) : (
                 <p>
-                  Configure an API key in <code className="bg-gray-100 px-1 rounded">config/.env</code> and restart
+                  Configure an API key in <code className="bg-nc-surface-2 px-1 rounded text-nc-text-dim">config/.env</code> and restart
                   the backend to enable the AI Brain.
                 </p>
               )}
@@ -350,7 +350,7 @@ export default function BrainSidebar() {
 
           {brainLoading && (
             <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-lg px-3 py-2 text-sm text-gray-400">
+              <div className="bg-nc-surface-2 rounded-lg px-3 py-2 text-sm text-nc-text-dim">
                 <span className="inline-flex gap-1">
                   <span className="animate-bounce" style={{ animationDelay: '0ms' }}>·</span>
                   <span className="animate-bounce" style={{ animationDelay: '150ms' }}>·</span>
@@ -364,7 +364,7 @@ export default function BrainSidebar() {
         </div>
 
         {/* ---- Input ---- */}
-        <div className="px-3 py-2.5 border-t border-gray-200 bg-white">
+        <div className="px-3 py-2.5 border-t border-nc-border bg-nc-surface">
           <div className="flex gap-2">
             <input
               ref={inputRef}
@@ -378,12 +378,12 @@ export default function BrainSidebar() {
                   : 'Brain offline'
               }
               disabled={!brainStatus?.available || brainLoading}
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+              className="flex-1 text-sm bg-nc-bg border border-nc-border-bright rounded-lg px-3 py-2 text-nc-text placeholder:text-nc-text-muted focus:outline-none focus:ring-1 focus:ring-nc-accent focus:border-nc-accent disabled:bg-nc-surface-2 disabled:text-nc-text-muted transition-colors"
             />
             <button
               onClick={handleSend}
               disabled={!input.trim() || brainLoading || !brainStatus?.available}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white w-9 h-9 rounded-lg text-sm disabled:opacity-40 transition-colors flex items-center justify-center flex-shrink-0"
+              className="bg-nc-accent hover:bg-nc-accent-dim text-white w-9 h-9 rounded-lg text-sm disabled:opacity-40 transition-colors flex items-center justify-center flex-shrink-0"
             >
               ↑
             </button>

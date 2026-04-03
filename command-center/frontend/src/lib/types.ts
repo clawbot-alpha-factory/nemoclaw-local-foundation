@@ -148,7 +148,9 @@ export type TabId =
   | 'research'
   | 'settings'
   | 'execution'
-  | 'playground';
+  | 'playground'
+  | 'work-review'
+  | 'control';
 
 export interface TabDef {
   id: TabId;

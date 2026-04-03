@@ -14,6 +14,8 @@ import IntelligenceTab from '../components/IntelligenceTab';
 import ResearchTab from '../components/ResearchTab';
 import SettingsTab from '../components/SettingsTab';
 import MarketingTab from '../components/MarketingTab';
+import WorkReviewTab from '../components/WorkReviewTab';
+import ControlPanelTab from '../components/ControlPanelTab';
 
 import { useState } from 'react';
 import type { TabId } from '@/lib/types';
@@ -61,7 +63,8 @@ export default function CommandCenter() {
 
         {!['home', 'communications', 'agents', 'skills', 'operations',
            'execution', 'approvals', 'clients', 'projects',
-           'finance', 'intelligence', 'research', 'settings', 'marketing'].includes(activeTab) && (
+           'finance', 'intelligence', 'research', 'settings', 'marketing',
+           'work-review', 'control'].includes(activeTab) && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="text-sm text-nc-text-dim">
@@ -70,6 +73,10 @@ export default function CommandCenter() {
             </div>
           </div>
         )}
+
+        {activeTab === 'work-review' && <ErrorBoundary fallbackLabel="Work Review failed to load"><WorkReviewTab /></ErrorBoundary>}
+
+        {activeTab === 'control' && <ErrorBoundary fallbackLabel="Control Panel failed to load"><ControlPanelTab /></ErrorBoundary>}
       </main>
       <BrainSidebar />
     </div>

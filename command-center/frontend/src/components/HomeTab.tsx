@@ -67,7 +67,7 @@ export function HomeTab({ state, connectionStatus, lastUpdate, onRefresh }: Home
 
       {/* System Narrative */}
       {state.narrative && state.narrative.length > 0 && (
-        <div className="rounded-xl border border-nc-accent/20 bg-nc-accent/5 p-4">
+        <div className="glass rounded-xl border-l-2 border-nc-accent p-4">
           <h2 className="text-xs font-medium text-nc-accent uppercase tracking-wider mb-2">
             System Narrative
           </h2>
@@ -171,7 +171,7 @@ export function HomeTab({ state, connectionStatus, lastUpdate, onRefresh }: Home
       </div>
 
       {/* Health Domains */}
-      <div className="rounded-xl border border-nc-border bg-nc-surface p-4">
+      <div className="glass rounded-xl p-4">
         <h2 className="text-sm font-medium text-nc-text-dim uppercase tracking-wider mb-3">
           🏥 Health Domains
         </h2>
@@ -263,10 +263,10 @@ function Collapsible({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-nc-border bg-nc-surface overflow-hidden">
+    <div className="glass rounded-xl overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-nc-surface-2 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-nc-surface-2/50 transition-colors"
       >
         <h2 className="text-sm font-medium text-nc-text-dim uppercase tracking-wider">
           {title}{count !== undefined ? ` (${count})` : ''}
