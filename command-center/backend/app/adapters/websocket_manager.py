@@ -267,6 +267,30 @@ class ConnectionManager:
         if dead:
             self._channels["chat"] -= dead
 
+    async def broadcast_chat_chunk(self, chunk_data: dict[str, Any]) -> None:
+        """Broadcast a streaming chat chunk to /ws/chat subscribers."""
+        data = {"type": "chat_chunk", "data": chunk_data}
+        dead: set[WebSocket] = set()
+        for ws in self._channels["chat"]:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                dead.add(ws)
+        if dead:
+            self._channels["chat"] -= dead
+
+    async def broadcast_chat_complete(self, complete_data: dict[str, Any]) -> None:
+        """Broadcast a streaming-complete signal to /ws/chat subscribers."""
+        data = {"type": "chat_complete", "data": complete_data}
+        dead: set[WebSocket] = set()
+        for ws in self._channels["chat"]:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                dead.add(ws)
+        if dead:
+            self._channels["chat"] -= dead
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

@@ -366,6 +366,10 @@ class AgentChatService:
         self._team_block: str = ""                             # cached team directory
         self._quality_docs: dict[str, str] = {}                # agent_id -> quality doc extract
 
+        # External services wired from main.py
+        self.knowledge_base = None      # KnowledgeBaseService
+        self.vector_memory = None       # VectorMemory
+
         # Find and load agent schema
         self._schema_path = self._resolve_schema_path(schema_path)
         if self._schema_path:
@@ -807,6 +811,26 @@ class AgentChatService:
         if action_result:
             system_prompt += f"\n\nTOOL EXECUTION RESULTS (include these in your response):\n{action_result}"
 
+        # Enrich with knowledge base results
+        if self.knowledge_base:
+            try:
+                kb_results = self.knowledge_base.search(query=user_message)
+                if kb_results:
+                    kb_text = "\n".join(f"- {r['key']}: {r['value']}" for r in kb_results[:3])
+                    system_prompt += f"\n\nRELEVANT KNOWLEDGE:\n{kb_text}"
+            except Exception:
+                pass
+
+        # Enrich with past experience from vector memory
+        if self.vector_memory:
+            try:
+                vm_results = self.vector_memory.search("skill_outputs", user_message, n_results=3)
+                if vm_results:
+                    vm_text = "\n".join(f"- {r['content'][:200]}" for r in vm_results)
+                    system_prompt += f"\n\nPAST EXPERIENCE:\n{vm_text}"
+            except Exception:
+                pass
+
         messages = [{"role": "system", "content": system_prompt}]
 
         if context_messages:
@@ -833,6 +857,108 @@ class AgentChatService:
         except Exception as e:
             logger.error("Agent response failed for %s: %s", agent_id, e)
             return f"[{agent.display_name} encountered an error: {str(e)[:100]}]"
+
+    async def generate_response_stream(
+        self,
+        agent_id: str,
+        user_message: str,
+        context_messages: list[Message] | None = None,
+    ):
+        """Stream agent response chunks. Yields (chunk: str, is_complete: bool).
+
+        Prompt construction is identical to generate_response(). Uses
+        call_llm_stream() from lib/routing.py (L-003 compliant) instead of
+        the OpenAI SDK, bridged to async via asyncio.Queue + run_in_executor.
+        """
+        import asyncio
+
+        agent = self._agents.get(agent_id)
+        if not agent:
+            logger.error("Unknown agent: %s", agent_id)
+            yield f"[Unknown agent: {agent_id}]", True
+            return
+
+        if not self._client:
+            yield f"[{agent.display_name} is offline — no API key configured]", True
+            return
+
+        # ── Try executing the action first (non-streaming) ────────────
+        action_result = await self._try_execute_action(agent_id, user_message)
+
+        # ── Build enriched system prompt (identical to generate_response) ──
+        context_data = self._get_context_data(agent_id)
+        capability_data = {
+            "capabilities": self._agent_capabilities.get(agent_id, []),
+            "tools": self._agent_tools.get(agent_id, []),
+        }
+        system_prompt = agent.build_system_prompt(
+            capability_data=capability_data,
+            team_block=self._team_block,
+            quality_doc=self._quality_docs.get(agent_id, ""),
+            context_data=context_data,
+            schema_top=self._schema_top,
+        )
+        if action_result:
+            system_prompt += f"\n\nTOOL EXECUTION RESULTS (include these in your response):\n{action_result}"
+
+        if self.knowledge_base:
+            try:
+                kb_results = self.knowledge_base.search(query=user_message)
+                if kb_results:
+                    kb_text = "\n".join(f"- {r['key']}: {r['value']}" for r in kb_results[:3])
+                    system_prompt += f"\n\nRELEVANT KNOWLEDGE:\n{kb_text}"
+            except Exception:
+                pass
+
+        if self.vector_memory:
+            try:
+                vm_results = self.vector_memory.search("skill_outputs", user_message, n_results=3)
+                if vm_results:
+                    vm_text = "\n".join(f"- {r['content'][:200]}" for r in vm_results)
+                    system_prompt += f"\n\nPAST EXPERIENCE:\n{vm_text}"
+            except Exception:
+                pass
+
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if context_messages:
+            for msg in context_messages[-CONTEXT_MESSAGES_LIMIT:]:
+                role = "assistant" if msg.sender_type == SenderType.AGENT else "user"
+                prefix = ""
+                if msg.sender_type == SenderType.AGENT and msg.sender_id != agent_id:
+                    prefix = f"[{msg.sender_name}]: "
+                messages.append({"role": role, "content": f"{prefix}{msg.content}"})
+
+        messages.append({"role": "user", "content": user_message})
+
+        # ── Stream via call_llm_stream (sync→async bridge) ────────────
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+        from lib.routing import call_llm_stream
+
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        def _run_stream():
+            try:
+                for chunk, err in call_llm_stream(messages, "moderate", DEFAULT_MAX_TOKENS):
+                    loop.call_soon_threadsafe(queue.put_nowait, (chunk, err))
+            except Exception as e:
+                loop.call_soon_threadsafe(queue.put_nowait, (None, str(e)))
+            loop.call_soon_threadsafe(queue.put_nowait, (None, None))  # sentinel
+
+        loop.run_in_executor(None, _run_stream)
+
+        while True:
+            chunk, err = await queue.get()
+            if chunk is None and err is None:
+                yield "", True  # stream complete
+                return
+            if err:
+                yield f"[Error: {err}]", True
+                return
+            if chunk:
+                yield chunk, False
 
     async def select_relevant_agent(
         self,

@@ -17,6 +17,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from app.domain.comms_models import LaneType, MessageType, SenderType
 
@@ -138,6 +139,40 @@ class AgentNotificationService:
         self._last_broadcast[agent_id] = time.time()
 
     # ── Public API ────────────────────────────────────────────────────
+
+    def create_task_channel(
+        self,
+        task_name: str,
+        agent_ids: list[str],
+        lead_agent: str | None = None,
+    ) -> str:
+        """Create a group lane for a multi-agent task.
+
+        Posts a kickoff message from the lead agent and returns the lane_id.
+        """
+        lane_id = f"team-{uuid4().hex[:8]}"
+        lead = lead_agent or (agent_ids[0] if agent_ids else "system")
+        lead_name = AGENT_NAMES.get(lead, lead)
+
+        self.message_store.create_lane(
+            lane_id=lane_id,
+            name=f"Team: {task_name}",
+            lane_type=LaneType.GROUP,
+            participants=agent_ids,
+        )
+
+        self.message_store.add_message(
+            lane_id=lane_id,
+            sender_id=lead,
+            sender_name=lead_name,
+            sender_type=SenderType.AGENT,
+            content=f"{lead_name} created this channel for: {task_name}",
+            message_type=MessageType.SYSTEM,
+            metadata={"task_channel": True, "lead_agent": lead},
+        )
+
+        logger.info("create_task_channel: %s → %s (agents=%s)", lead, lane_id, agent_ids)
+        return lane_id
 
     def notify_user(
         self,

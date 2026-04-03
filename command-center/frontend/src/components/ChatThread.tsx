@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { CommsMessage, Lane, MessageType } from '@/lib/comms-types';
 import { fetchMessages, sendMessage, markLaneRead } from '@/lib/comms-api';
 
+interface StreamingMessage {
+  sender_id: string;
+  sender_name: string;
+  content: string;
+  lane_id: string;
+  startedAt: number;
+}
+
 interface ChatThreadProps {
   lane: Lane;
   onNewMessage?: (msg: CommsMessage) => void;
@@ -82,6 +90,8 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
 
+  const [streamingMessages, setStreamingMessages] = useState<Map<string, StreamingMessage>>(new Map());
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -149,6 +159,74 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
       );
     };
   }, [lane.id]);
+
+  // Handle streaming chunks
+  useEffect(() => {
+    function handleChunk(event: CustomEvent) {
+      const { message_id, lane_id: chunkLane, sender_id, sender_name, chunk } = event.detail;
+      if (chunkLane !== lane.id) return;
+
+      setStreamingMessages((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(message_id);
+        if (existing) {
+          next.set(message_id, { ...existing, content: existing.content + chunk });
+        } else {
+          next.set(message_id, {
+            sender_id,
+            sender_name: sender_name || sender_id,
+            content: chunk,
+            lane_id: chunkLane,
+            startedAt: Date.now(),
+          });
+        }
+        return next;
+      });
+    }
+
+    function handleComplete(event: CustomEvent) {
+      const { message_id, lane_id: completeLane } = event.detail;
+      if (completeLane !== lane.id) return;
+
+      setStreamingMessages((prev) => {
+        const next = new Map(prev);
+        next.delete(message_id);
+        return next;
+      });
+    }
+
+    window.addEventListener('cc-chat-chunk' as string, handleChunk as EventListener);
+    window.addEventListener('cc-chat-complete' as string, handleComplete as EventListener);
+    return () => {
+      window.removeEventListener('cc-chat-chunk' as string, handleChunk as EventListener);
+      window.removeEventListener('cc-chat-complete' as string, handleComplete as EventListener);
+    };
+  }, [lane.id]);
+
+  // Cleanup stale streaming messages (30s timeout)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setStreamingMessages((prev) => {
+        const staleIds: string[] = [];
+        prev.forEach((msg, id) => {
+          if (now - msg.startedAt > 30000) staleIds.push(id);
+        });
+        if (staleIds.length === 0) return prev;
+        const next = new Map(prev);
+        staleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll when streaming messages update
+  useEffect(() => {
+    if (streamingMessages.size > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [streamingMessages]);
 
   async function handleSend() {
     const text = input.trim();
@@ -306,6 +384,22 @@ export default function ChatThread({ lane, onNewMessage }: ChatThreadProps) {
             );
           })
         )}
+
+        {/* Streaming messages (in-progress agent responses) */}
+        {Array.from(streamingMessages.entries()).map(([msgId, stream]) => (
+          <div key={`stream-${msgId}`} className="flex justify-start mb-1">
+            <div className="max-w-[75%] bg-nc-surface-2 text-nc-text rounded-2xl rounded-bl-md px-4 py-2.5">
+              <p className="text-[11px] font-semibold text-nc-accent mb-0.5">
+                {stream.sender_name}
+              </p>
+              <p className="text-sm whitespace-pre-wrap break-words">
+                {stream.content}
+                <span className="inline-block w-2 h-4 ml-0.5 bg-nc-accent animate-pulse rounded-sm align-text-bottom" />
+              </p>
+            </div>
+          </div>
+        ))}
+
         <div ref={messagesEndRef} />
       </div>
 

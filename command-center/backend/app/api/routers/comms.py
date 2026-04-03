@@ -16,6 +16,7 @@ NEW FILE: command-center/backend/app/routers/comms.py
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -59,6 +60,21 @@ def _get_ws_manager(request: Request):
 def _get_task_dispatch(request: Request):
     """Get TaskDispatchService from app state."""
     return getattr(request.app.state, "task_dispatch_service", None)
+
+
+def _get_execution_service(request: Request):
+    """Get ExecutionService from app state."""
+    return getattr(request.app.state, "execution_service", None)
+
+
+def _get_project_service(request: Request):
+    """Get ProjectService from app state."""
+    return getattr(request.app.state, "project_service", None)
+
+
+def _get_notification_service(request: Request):
+    """Get AgentNotificationService from app state."""
+    return getattr(request.app.state, "notification_service", None)
 
 
 # ------------------------------------------------------------------
@@ -167,6 +183,100 @@ async def send_message(
 
     response_data = {"user_message": user_msg.model_dump(mode="json")}
 
+    # ── Intent Classification ────────────────────────────────────────
+    # Classify user intent via LLM before generating agent response
+    intent_result = None
+    responder_id = None
+    if lane.lane_type == "dm" and lane.participants:
+        responder_id = lane.participants[0]
+    elif lane.lane_type == "group" and lane.participants:
+        responder_id = lane.participants[0]
+
+    try:
+        from app.services.intent_classifier import classify_intent, Intent
+
+        intent_result = await classify_intent(body.content, responder_id or "")
+        response_data["intent"] = {
+            "intent": intent_result.intent.value,
+            "confidence": intent_result.confidence,
+            "extracted_params": intent_result.extracted_params,
+        }
+
+        # Act on high-confidence intents (>= 0.6)
+        if intent_result.confidence >= 0.6:
+            params = intent_result.extracted_params
+
+            if intent_result.intent == Intent.RUN_SKILL:
+                exec_svc = _get_execution_service(request)
+                skill_id = params.get("skill_id", "")
+                if exec_svc and skill_id:
+                    from app.domain.engine_models import ExecutionRequest, LLMTier
+                    exec_req = ExecutionRequest(
+                        skill_id=skill_id,
+                        inputs={k: v for k, v in params.items() if k != "skill_id"},
+                        agent_id=responder_id or "",
+                        tier=LLMTier.STANDARD,
+                    )
+                    execution = exec_svc.submit(exec_req)
+                    response_data["skill_dispatch"] = {
+                        "execution_id": execution.execution_id,
+                        "skill_id": skill_id,
+                    }
+
+            elif intent_result.intent == Intent.CREATE_PROJECT:
+                proj_svc = _get_project_service(request)
+                if proj_svc:
+                    project = proj_svc.create_project(
+                        name=params.get("project_name", "New Project"),
+                        description=params.get("description", ""),
+                        template=params.get("template"),
+                    )
+                    response_data["project_created"] = {
+                        "id": project.get("id"),
+                        "name": project.get("name"),
+                    }
+
+            elif intent_result.intent == Intent.CREATE_TEAM:
+                notif_svc = _get_notification_service(request)
+                if notif_svc:
+                    task_name = params.get("task_name", body.content[:60])
+                    suggested = params.get("suggested_agents", [])
+                    # Use suggested agents or fallback to lane participants
+                    team_agents = suggested if suggested else list(lane.participants or [])
+                    lane_id = notif_svc.create_task_channel(
+                        task_name=task_name,
+                        agent_ids=team_agents,
+                    )
+                    response_data["team_channel"] = {"lane_id": lane_id, "agents": team_agents}
+
+            elif intent_result.intent == Intent.RESEARCH:
+                exec_svc = _get_execution_service(request)
+                if exec_svc:
+                    from app.domain.engine_models import ExecutionRequest, LLMTier
+                    exec_req = ExecutionRequest(
+                        skill_id="e12-market-research-analyst",
+                        inputs={
+                            "research_topic": params.get("topic", body.content),
+                            "research_depth": params.get("depth", "standard"),
+                        },
+                        agent_id="strategy_lead",
+                        tier=LLMTier.STANDARD,
+                    )
+                    execution = exec_svc.submit(exec_req)
+                    response_data["research_dispatch"] = {
+                        "execution_id": execution.execution_id,
+                        "topic": params.get("topic", body.content[:100]),
+                    }
+
+            elif intent_result.intent == Intent.DELEGATE:
+                # Override responder to delegated agent
+                delegate_to = params.get("agent_id", "")
+                if delegate_to:
+                    responder_id = delegate_to
+
+    except Exception as e:
+        logger.warning("Intent classification skipped: %s", e)
+
     # Task dispatch: if message_type is "task", dispatch to the agent
     if body.message_type == MessageType.TASK:
         dispatch_svc = _get_task_dispatch(request)
@@ -185,7 +295,10 @@ async def send_message(
     # Trigger agent response(s) for DM and group/broadcast lanes
     if lane.lane_type in ("dm", "group", "broadcast") and lane.participants:
         try:
-            if lane.lane_type == "dm":
+            # If intent delegation picked a specific agent, use that
+            if responder_id and intent_result and intent_result.intent.value == "delegate":
+                responders = [responder_id]
+            elif lane.lane_type == "dm":
                 # DM: single agent responds
                 responders = [lane.participants[0]]
             elif lane.lane_type == "broadcast":
@@ -209,12 +322,35 @@ async def send_message(
                 # Get context messages for the agent
                 context = store.get_context_messages(lane_id)
 
-                # Generate agent response
-                agent_response = await agent_service.generate_response(
+                # Pre-generate message ID for streaming correlation
+                msg_id = str(uuid.uuid4())
+                full_text = ""
+                had_error = False
+
+                # Stream agent response via WebSocket chunks
+                async for chunk, is_complete in agent_service.generate_response_stream(
                     agent_id=responder_id,
                     user_message=body.content,
                     context_messages=context,
-                )
+                ):
+                    if is_complete:
+                        break
+                    if chunk:
+                        full_text += chunk
+                        if ws_manager:
+                            await ws_manager.broadcast_chat_chunk({
+                                "message_id": msg_id,
+                                "lane_id": lane_id,
+                                "sender_id": responder_id,
+                                "sender_name": agent.display_name,
+                                "chunk": chunk,
+                            })
+
+                # Check for error in final chunk
+                if full_text.startswith("[Error:"):
+                    had_error = True
+
+                agent_response = full_text if full_text else None
 
                 if agent_response:
                     agent_metadata = {
@@ -222,6 +358,8 @@ async def send_message(
                         "source": "agent",
                         "responding_to": user_msg.id,
                     }
+                    if had_error:
+                        agent_metadata["streaming_error"] = True
 
                     agent_msg = store.add_message(
                         lane_id=lane_id,
@@ -231,14 +369,25 @@ async def send_message(
                         content=agent_response,
                         message_type=MessageType.CHAT,
                         metadata=agent_metadata,
+                        message_id=msg_id,
                     )
 
-                    if agent_msg and ws_manager:
-                        await ws_manager.broadcast_chat_message(
-                            agent_msg.to_ws_payload()
-                        )
+                    if ws_manager:
+                        # Signal stream complete
+                        await ws_manager.broadcast_chat_complete({
+                            "message_id": msg_id,
+                            "lane_id": lane_id,
+                            "sender_id": responder_id,
+                            "full_content": agent_response,
+                        })
+                        # Also broadcast full message for clients not using streaming
+                        if agent_msg:
+                            await ws_manager.broadcast_chat_message(
+                                agent_msg.to_ws_payload()
+                            )
 
-                    agent_messages.append(agent_msg)
+                    if agent_msg:
+                        agent_messages.append(agent_msg)
 
             response_data["agent_messages"] = [
                 m.model_dump(mode="json") for m in agent_messages if m

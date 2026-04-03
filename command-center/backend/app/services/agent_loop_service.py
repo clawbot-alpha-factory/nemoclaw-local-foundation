@@ -183,6 +183,7 @@ class AgentLoopService:
         tool_access_service=None,
         task_workflow_service=None,
         activity_log_service=None,
+        vector_memory=None,
     ):
         self.execution_service = execution_service
         self.memory_service = memory_service
@@ -195,8 +196,10 @@ class AgentLoopService:
         self.tool_access_service = tool_access_service
         self.task_workflow_service = task_workflow_service
         self.activity_log_service = activity_log_service
+        self.vector_memory = vector_memory
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
+        self._skill_failure_counts: dict[str, int] = {}
 
         logger.info(
             "AgentLoopService initialized (%d eligible agents)",
@@ -439,32 +442,61 @@ class AgentLoopService:
         self.event_bus.subscribe("task_started", self._on_task_started)
         self.event_bus.subscribe("task_completed", self._on_task_completed)
         self.event_bus.subscribe("task_failed", self._on_task_failed)
-        logger.info("AgentLoopService subscribed to 8 event types")
+        self.event_bus.subscribe("deal_created", self._on_deal_created)
+        logger.info("AgentLoopService subscribed to 9 event types")
 
     def _on_skill_completed(self, event) -> None:
-        """Log completed skill to work log."""
+        """Log completed skill to work log and reset failure counter."""
+        data = event.data
+        skill_id = data.get("skill_id", "")
+        if skill_id and skill_id in self._skill_failure_counts:
+            del self._skill_failure_counts[skill_id]
         if not self.work_log_service:
             return
-        data = event.data
         self.work_log_service.log_work(
             agent_id=data.get("agent_id", "system"),
             project_id=data.get("project_id", "default"),
             action="skill_completed",
-            details=f"Skill {data.get('skill_id', '?')} completed successfully",
+            details=f"Skill {skill_id or '?'} completed successfully",
             artifacts=data.get("artifacts"),
         )
 
     def _on_skill_failed(self, event) -> None:
-        """Log failed skill to work log."""
-        if not self.work_log_service:
-            return
+        """Log failed skill, track consecutive failures, escalate at 3."""
         data = event.data
-        self.work_log_service.log_work(
-            agent_id=data.get("agent_id", "system"),
-            project_id=data.get("project_id", "default"),
-            action="skill_failed",
-            details=f"Skill {data.get('skill_id', '?')} failed: {data.get('error', 'unknown')}",
-        )
+        skill_id = data.get("skill_id", "?")
+
+        # Track consecutive failures
+        self._skill_failure_counts[skill_id] = self._skill_failure_counts.get(skill_id, 0) + 1
+        count = self._skill_failure_counts[skill_id]
+
+        if self.work_log_service:
+            self.work_log_service.log_work(
+                agent_id=data.get("agent_id", "system"),
+                project_id=data.get("project_id", "default"),
+                action="skill_failed",
+                details=f"Skill {skill_id} failed ({count}x): {data.get('error', 'unknown')}",
+            )
+
+        # Escalate after 3 consecutive failures
+        if count >= 3 and self.notification_service:
+            team_agents = ["engineering_lead", "operations_lead"]
+            lane_id = self.notification_service.create_task_channel(
+                task_name=f"Debug: {skill_id} ({count} failures)",
+                agent_ids=team_agents,
+                lead_agent="engineering_lead",
+            )
+            self.notification_service.notify_user(
+                agent_id="engineering_lead",
+                category="blocker",
+                message=f"Skill {skill_id} failed {count}x consecutively. "
+                        f"Debug team channel created: {lane_id}. "
+                        f"Last error: {data.get('error', 'unknown')[:200]}",
+                priority="high",
+            )
+            # Reset counter after escalation
+            self._skill_failure_counts[skill_id] = 0
+            logger.warning("Skill %s escalated after %d failures → %s", skill_id, count, lane_id)
 
     def _on_demand_detected(self, event) -> None:
         """Queue research task for strategy_lead when demand is detected."""
@@ -494,17 +526,75 @@ class AgentLoopService:
             )
 
     def _on_content_viral(self, event) -> None:
-        """Notify social_media_lead and growth_revenue_lead of viral content."""
+        """Amplify viral content: queue repurposer + create team channel."""
         data = event.data
-        msg = f"Content going viral: {data.get('title', data.get('url', '?'))}"
+        title = data.get("title", data.get("url", "?"))
+        msg = f"Content going viral: {title}"
         logger.info(msg)
+
+        # Queue content repurposer to amplify
+        if self.execution_service:
+            from app.domain.engine_models import ExecutionRequest, LLMTier
+            request = ExecutionRequest(
+                skill_id="cnt-04-content-repurposer",
+                inputs={
+                    "source_content": title,
+                    "url": data.get("url", ""),
+                    "repurpose_goal": "Amplify viral content across channels",
+                },
+                agent_id="social_media_lead",
+                tier=LLMTier.STANDARD,
+                priority=2,
+            )
+            self.execution_service.submit(request)
+            logger.info("Queued cnt-04-content-repurposer for viral content: %s", title)
+
+        # Create team channel for coordination
         if self.notification_service:
-            for agent_id in ["social_media_lead", "growth_revenue_lead"]:
+            team_agents = ["social_media_lead", "marketing_campaigns_lead"]
+            lane_id = self.notification_service.create_task_channel(
+                task_name=f"Amplify: {title[:60]}",
+                agent_ids=team_agents,
+                lead_agent="social_media_lead",
+            )
+            for agent_id in team_agents:
                 self.notification_service.notify_user(
                     agent_id=agent_id,
                     category="discovery",
-                    message=msg,
+                    message=f"{msg} — Team channel: {lane_id}",
                 )
+
+    def _on_deal_created(self, event) -> None:
+        """Generate proposal for new deal + create sales team channel."""
+        data = event.data
+        deal_name = data.get("deal_name", data.get("company", "New deal"))
+        logger.info("Deal created: %s — queuing proposal generator", deal_name)
+
+        # Queue proposal generator
+        if self.execution_service:
+            from app.domain.engine_models import ExecutionRequest, LLMTier
+            request = ExecutionRequest(
+                skill_id="biz-01-proposal-generator",
+                inputs={
+                    "deal_name": deal_name,
+                    "company": data.get("company", ""),
+                    "value": str(data.get("value", "")),
+                    "context": data.get("context", ""),
+                },
+                agent_id="sales_outreach_lead",
+                tier=LLMTier.STANDARD,
+                priority=2,
+            )
+            self.execution_service.submit(request)
+
+        # Create team channel for deal coordination
+        if self.notification_service:
+            team_agents = ["sales_outreach_lead", "growth_revenue_lead"]
+            self.notification_service.create_task_channel(
+                task_name=f"Deal: {deal_name[:60]}",
+                agent_ids=team_agents,
+                lead_agent="sales_outreach_lead",
+            )
 
     def _on_task_started(self, event) -> None:
         """Log workflow start to work log."""
@@ -655,6 +745,18 @@ class AgentLoopService:
                 if e.agent_id == loop.agent_id
             ]
 
+        # Recall past experience from vector memory
+        if self.vector_memory:
+            try:
+                memories = self.vector_memory.search(
+                    "agent_memory",
+                    f"recent tasks for {loop.agent_id}",
+                    n_results=3,
+                )
+                context["past_experience"] = memories
+            except Exception:
+                context["past_experience"] = []
+
         return context
 
     async def _decide(self, loop: AgentLoop, context: dict[str, Any]) -> dict[str, Any] | None:
@@ -799,6 +901,24 @@ class AgentLoopService:
                     category="task_complete",
                     message=f"Completed [{skill_id or 'task'}]: {description}",
                 )
+            # Store success in vector memory for future recall
+            if self.vector_memory:
+                try:
+                    summary = f"Completed {skill_id}: {description}"
+                    self.vector_memory.add_memory(
+                        "agent_memory", summary,
+                        {"agent_id": loop.agent_id, "skill_id": skill_id, "type": "success"},
+                        agent_id=loop.agent_id,
+                    )
+                    output_text = result.get("output", "")
+                    if output_text and skill_id:
+                        score = result.get("quality_score", 0)
+                        self.vector_memory.add_skill_output(
+                            skill_id, loop.agent_id, str(output_text)[:5000],
+                            {"quality_score": score},
+                        )
+                except Exception:
+                    pass
         else:
             error_msg = result.get("error", "unknown")
             key = f"failure_{action.get('type', 'unknown')}_{loop.ticks}"
@@ -817,6 +937,22 @@ class AgentLoopService:
                     message=f"Failed [{skill_id or 'task'}]: {error_msg}",
                     priority="high",
                 )
+            # Store failure/low-quality feedback in vector memory for learning
+            if self.vector_memory:
+                try:
+                    quality_score = result.get("quality_score", 0)
+                    critic_feedback = result.get("critic_feedback", error_msg)
+                    if quality_score and quality_score < 8:
+                        feedback = f"Task {skill_id} scored {quality_score}/10 because: {critic_feedback}"
+                    else:
+                        feedback = f"FAILURE: {skill_id} — {error_msg}"
+                    self.vector_memory.add_memory(
+                        "agent_memory", feedback,
+                        {"agent_id": loop.agent_id, "skill_id": skill_id, "type": "failure"},
+                        agent_id=loop.agent_id,
+                    )
+                except Exception:
+                    pass
 
     async def _idle_hunt(self, loop: AgentLoop):
         """Idle: silently wait for work. No broadcasting, no peer spam."""

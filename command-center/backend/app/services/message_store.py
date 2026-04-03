@@ -110,6 +110,7 @@ class MessageStore:
         message_type: MessageType = MessageType.CHAT,
         reply_to: str | None = None,
         metadata: dict | None = None,
+        message_id: str | None = None,
     ) -> Message | None:
         """Append a message to a lane. Returns None if lane doesn't exist."""
         if lane_id not in self._lanes:
@@ -117,7 +118,7 @@ class MessageStore:
             return None
 
         msg = Message(
-            id=str(uuid.uuid4()),
+            id=message_id or str(uuid.uuid4()),
             lane_id=lane_id,
             message_type=message_type,
             sender_id=sender_id,

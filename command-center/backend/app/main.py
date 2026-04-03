@@ -169,6 +169,7 @@ _repo_root_for_lib = str(Path(__file__).parent.parent.parent.parent)
 if _repo_root_for_lib not in _sys.path:
     _sys.path.insert(0, _repo_root_for_lib)
 from lib.structured_logging import get_logger as _get_logger, make_logging_middleware as _make_logging_middleware  # noqa: E402
+from lib.vector_memory import VectorMemory  # noqa: E402
 
 logger = _get_logger("cc.main")
 
@@ -386,6 +387,7 @@ async def lifespan(app: FastAPI):
     logger.info("E-14: ResearchService initialized")
 
     # ── E-4a: Agent Runtime ──
+    app.state.vector_memory = VectorMemory()
     app.state.agent_memory_service = AgentMemoryService()
     app.state.scheduler_service = SchedulerService()
     app.state.checkpoint_service = CheckpointService()
@@ -401,6 +403,7 @@ async def lifespan(app: FastAPI):
         notification_service=app.state.notification_service,
         activity_log_service=getattr(app.state, "activity_log_service", None),
         task_workflow_service=getattr(app.state, "orchestrator_service", None),
+        vector_memory=app.state.vector_memory,
     )
     # Auto-start all agent loops — agents begin 5s tick cycles immediately
     await app.state.agent_loop_service.start_all()
@@ -523,7 +526,9 @@ async def lifespan(app: FastAPI):
     # Wire tool access to agent chat so agents can actually execute actions
     agent_chat_service.tool_access_service = app.state.tool_access_service
     agent_chat_service.execution_service = app.state.execution_service
-    logger.info("E-9: Skill Agent Mapping + Chain Wiring + ToolAccessService initialized (wired to chat)")
+    agent_chat_service.knowledge_base = app.state.knowledge_base_service
+    agent_chat_service.vector_memory = app.state.vector_memory
+    logger.info("E-9: Skill Agent Mapping + Chain Wiring + ToolAccessService initialized (wired to chat + KB + VectorMemory)")
 
     # ── E-10: Revenue Engine ──
     app.state.event_bus = EventBusService()

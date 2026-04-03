@@ -152,6 +152,14 @@ export function useWebSocket(): UseWebSocketReturn {
           window.dispatchEvent(
             new CustomEvent('cc-chat-message', { detail: data.data })
           );
+        } else if (data.type === 'chat_chunk' && data.data) {
+          window.dispatchEvent(
+            new CustomEvent('cc-chat-chunk', { detail: data.data })
+          );
+        } else if (data.type === 'chat_complete' && data.data) {
+          window.dispatchEvent(
+            new CustomEvent('cc-chat-complete', { detail: data.data })
+          );
         }
       } catch (e) {
         console.error('WS parse error:', e);
