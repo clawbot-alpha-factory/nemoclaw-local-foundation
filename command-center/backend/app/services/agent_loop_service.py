@@ -380,18 +380,24 @@ class AgentLoopService:
         if self.execution_service and workflow and workflow.tasks:
             from app.domain.engine_models import ExecutionRequest, LLMTier
 
+            queued = 0
             for task in workflow.tasks:
+                skill_id = task.get("skill", task.get("skill_id", "")) or ""
+                if not skill_id or skill_id == "manual":
+                    logger.info("dispatch_task: skipping manual step: %s", task.get("name", "?"))
+                    continue
                 request = ExecutionRequest(
-                    skill_id=task.get("skill", task.get("skill_id", "")),
+                    skill_id=skill_id,
                     inputs=task.get("inputs", {}),
                     agent_id=agent_id,
                     tier=LLMTier.STANDARD,
                 )
                 self.execution_service.submit(request)
+                queued += 1
 
             logger.info(
-                "dispatch_task: queued %d tasks for %s (workflow %s)",
-                len(workflow.tasks), agent_id, workflow_id[:8],
+                "dispatch_task: queued %d/%d tasks for %s (workflow %s)",
+                queued, len(workflow.tasks), agent_id, workflow_id[:8],
             )
 
         # 3. Log to activity log
