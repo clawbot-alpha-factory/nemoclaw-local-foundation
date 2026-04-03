@@ -11,15 +11,8 @@ import type {
 } from './protocol-types';
 
 import { API_BASE } from './config';
+import { headers } from './auth';
 const API = `${API_BASE}/api`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: headers() });

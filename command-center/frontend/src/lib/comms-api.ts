@@ -12,20 +12,7 @@ import type {
 } from './comms-types';
 
 import { API_BASE } from './config';
-
-function getToken(): string {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('cc-token') || '';
-  }
-  return '';
-}
-
-function headers(): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${getToken()}`,
-  };
-}
+import { headers } from './auth';
 
 // ------------------------------------------------------------------
 // Lanes

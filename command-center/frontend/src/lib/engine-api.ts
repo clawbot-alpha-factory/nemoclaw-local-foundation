@@ -4,23 +4,17 @@
  */
 
 import { API_BASE } from './config';
+import { getToken } from './auth';
 
 const BASE = API_BASE;
-
-function getToken(): string {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('cc-token') || '';
-  }
-  return '';
-}
 
 async function fetchApi<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const token = getToken();
   const opts: RequestInit = {
     method,
     headers: {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   };
   if (body) opts.body = JSON.stringify(body);

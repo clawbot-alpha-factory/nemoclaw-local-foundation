@@ -1,14 +1,7 @@
 // CC: Settings API client
 import { API_BASE } from './config';
+import { headers } from './auth';
 const API = `${API_BASE}/api/settings`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 export interface ThemePreference {
   theme: 'light' | 'dark';
@@ -39,10 +32,11 @@ export interface BrainInterval {
 }
 
 export interface Settings {
-  token: ActiveToken;
+  token: string;
   theme: 'light' | 'dark';
   intervals: {
-    brain_interval: number;
+    brain?: number;
+    brain_interval?: number;
   };
 }
 

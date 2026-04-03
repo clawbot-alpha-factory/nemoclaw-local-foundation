@@ -13,15 +13,8 @@ import type {
 } from '../lib/clients-api';
 
 import { API_BASE } from '../lib/config';
+import { headers, ensureToken } from '../lib/auth';
 const API = `${API_BASE}/api/clients`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -160,6 +153,19 @@ export default function ClientsTab() {
       setClients(resp.items || []);
       setTotalClients(resp.total || 0);
     } catch (err: any) {
+      if (err.message?.includes('401') || err.message?.includes('UNAUTHORIZED')) {
+        try {
+          await ensureToken();
+          const filters: ClientListFilters = { limit: 100 };
+          if (searchQuery) filters.search = searchQuery;
+          if (statusFilter) filters.status = statusFilter;
+          if (tierFilter) filters.tier = tierFilter;
+          const resp = await fetchClients(filters);
+          setClients(resp.items || []);
+          setTotalClients(resp.total || 0);
+          return;
+        } catch { /* fall through to error */ }
+      }
       setError(err.message || 'Failed to load clients');
       setClients([]);
     } finally {
@@ -174,6 +180,14 @@ export default function ClientsTab() {
       const data = await fetchDeliverables();
       setDeliverables(Array.isArray(data) ? data : []);
     } catch (err: any) {
+      if (err.message?.includes('401') || err.message?.includes('UNAUTHORIZED')) {
+        try {
+          await ensureToken();
+          const data = await fetchDeliverables();
+          setDeliverables(Array.isArray(data) ? data : []);
+          return;
+        } catch { /* fall through */ }
+      }
       setError(err.message || 'Failed to load deliverables');
       setDeliverables([]);
     } finally {
@@ -188,6 +202,14 @@ export default function ClientsTab() {
       const data = await fetchHealthScores();
       setHealthScores(Array.isArray(data) ? data : []);
     } catch (err: any) {
+      if (err.message?.includes('401') || err.message?.includes('UNAUTHORIZED')) {
+        try {
+          await ensureToken();
+          const data = await fetchHealthScores();
+          setHealthScores(Array.isArray(data) ? data : []);
+          return;
+        } catch { /* fall through */ }
+      }
       setError(err.message || 'Failed to load health scores');
       setHealthScores([]);
     } finally {
@@ -352,11 +374,22 @@ export default function ClientsTab() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-100 text-red-800 px-4 py-3 rounded-lg text-sm">
-          {error}
-          <button onClick={() => setError(null)} className="ml-2 font-bold">
-            ×
-          </button>
+        <div className="bg-red-100 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <div className="flex gap-2 ml-4">
+            <button
+              onClick={() => {
+                setError(null);
+                if (activeTab === 'clients') loadClients();
+                else if (activeTab === 'deliverables') loadDeliverables();
+                else if (activeTab === 'health') loadHealth();
+              }}
+              className="px-3 py-1 bg-red-200 rounded hover:bg-red-300 text-xs font-medium"
+            >
+              Retry
+            </button>
+            <button onClick={() => setError(null)} className="font-bold">×</button>
+          </div>
         </div>
       )}
 
@@ -417,7 +450,11 @@ export default function ClientsTab() {
 
           {/* Client Cards Grid */}
           {loading ? (
-            <div className="text-center py-12 text-nc-text-dim">Loading clients…</div>
+            <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-36 bg-nc-surface border border-nc-border rounded-xl" />
+              ))}
+            </div>
           ) : clients.length === 0 ? (
             <div className="text-center py-12 text-nc-text-dim">
               No clients found.{' '}
@@ -534,7 +571,11 @@ export default function ClientsTab() {
 
           {/* Deliverables Table */}
           {loading ? (
-            <div className="text-center py-12 text-nc-text-dim">Loading deliverables…</div>
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-20 bg-nc-surface border border-nc-border rounded-xl" />
+              ))}
+            </div>
           ) : deliverables.length === 0 ? (
             <div className="text-center py-12 text-nc-text-dim">No deliverables found.</div>
           ) : (
@@ -651,7 +692,11 @@ export default function ClientsTab() {
 
           {/* Health Scores */}
           {loading ? (
-            <div className="text-center py-12 text-nc-text-dim">Loading health scores…</div>
+            <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-28 bg-nc-surface border border-nc-border rounded-xl" />
+              ))}
+            </div>
           ) : healthScores.length === 0 ? (
             <div className="text-center py-12 text-nc-text-dim">No health data available.</div>
           ) : (

@@ -4,17 +4,11 @@
  */
 
 import type { SystemState } from './types';
+import { getToken } from './auth';
+
+export { setToken } from './auth';
 
 const API_BASE = '/api';
-
-function getToken(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('cc-token') || '';
-}
-
-export function setToken(token: string): void {
-  localStorage.setItem('cc-token', token);
-}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();

@@ -1,14 +1,7 @@
 // CC: Projects API client
 import { API_BASE } from './config';
+import { headers } from './auth';
 const API = `${API_BASE}/api/projects`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 // --- Interfaces ---
 

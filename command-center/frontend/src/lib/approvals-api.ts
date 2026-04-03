@@ -1,13 +1,6 @@
 import { API_BASE } from './config';
+import { headers } from './auth';
 const API = `${API_BASE}/api/approvals`;
-
-function headers(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'escalated';
 export type ApprovalPriority = 'critical' | 'high' | 'medium' | 'low';
