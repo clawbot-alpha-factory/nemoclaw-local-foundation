@@ -1,5 +1,5 @@
 import { API_BASE } from './config';
-const API = `${API_BASE}/api/operations`;
+const API = `${API_BASE}/api/ops`;
 
 function headers(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('cc-token') : null;
