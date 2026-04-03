@@ -17,7 +17,10 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 logger = logging.getLogger("cc.agent_loop")
 
@@ -114,6 +117,11 @@ class AgentLoop:
         self.priority_split = config.get("priority_split", 0.5)  # Proactive agents
         self.idle_behavior = config.get("idle_behavior", "Wait for tasks")
 
+        # Execution backend awareness (from agent-schema.yaml execution_backends)
+        self.execution_backend = config.get("execution_backend", "claude_code")
+        self.execution_model = config.get("execution_model", "sonnet")
+        self.mcp_tools: list[str] = config.get("mcp_tools", [])
+
         # Stats
         self.ticks = 0
         self.tasks_executed = 0
@@ -184,6 +192,7 @@ class AgentLoopService:
         task_workflow_service=None,
         activity_log_service=None,
         vector_memory=None,
+        agent_factory=None,
     ):
         self.execution_service = execution_service
         self.memory_service = memory_service
@@ -197,6 +206,8 @@ class AgentLoopService:
         self.task_workflow_service = task_workflow_service
         self.activity_log_service = activity_log_service
         self.vector_memory = vector_memory
+        self.agent_factory = agent_factory
+        self.ceo_reviewer = None  # Wired post-init from main.py
         self.message_pool = None  # Wired post-init from main.py
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
@@ -204,10 +215,57 @@ class AgentLoopService:
         self._last_proactive_tick: dict[str, int] = {}  # Rate limit: 1 proactive task per 10 ticks
         self._workflow_channels: dict[str, str] = {}  # workflow_id -> team_lane_id
 
+        # Enrich LOOP_AGENTS with execution backend config from agent-schema.yaml
+        self._enrich_loop_agents_with_backends()
+
         logger.info(
             "AgentLoopService initialized (%d eligible agents)",
             len(LOOP_AGENTS),
         )
+
+    def _enrich_loop_agents_with_backends(self) -> None:
+        """Load execution_backends from agent-schema.yaml and merge into LOOP_AGENTS.
+
+        This injects execution_backend, execution_model, and mcp_tools into each
+        agent's loop config so proactive task generation is backend-aware.
+        """
+        try:
+            schema_candidates = [
+                Path(__file__).resolve().parent.parents[2] / "config" / "agents" / "agent-schema.yaml",
+                Path.home() / "nemoclaw-local-foundation" / "config" / "agents" / "agent-schema.yaml",
+            ]
+            import os
+            repo_root = os.environ.get("CC_REPO_ROOT")
+            if repo_root:
+                schema_candidates.insert(0, Path(repo_root) / "config" / "agents" / "agent-schema.yaml")
+
+            schema_path = None
+            for p in schema_candidates:
+                if p.exists():
+                    schema_path = p
+                    break
+
+            if not schema_path:
+                logger.debug("No agent-schema.yaml found for execution backend enrichment")
+                return
+
+            raw = yaml.safe_load(schema_path.read_text())
+            if not isinstance(raw, dict):
+                return
+
+            backends = raw.get("execution_backends", {})
+            if not backends:
+                return
+
+            for agent_id, eb in backends.items():
+                if agent_id in LOOP_AGENTS and isinstance(eb, dict):
+                    LOOP_AGENTS[agent_id]["execution_backend"] = eb.get("primary", "claude_code")
+                    LOOP_AGENTS[agent_id]["execution_model"] = eb.get("model", "sonnet")
+                    LOOP_AGENTS[agent_id]["mcp_tools"] = eb.get("mcp_tools", [])
+
+            logger.info("Enriched %d loop agents with execution backend config", len(backends))
+        except Exception as e:
+            logger.warning("Failed to enrich loop agents with backends: %s", e)
 
     async def start_agent(self, agent_id: str) -> dict[str, Any]:
         """Start an agent's execution loop."""
@@ -378,97 +436,15 @@ class AgentLoopService:
         workflow_id = workflow.workflow_id if workflow else None
 
         # 1b. Confidence-based HITL routing on the plan
-        confidence_score = None
-        confidence_route = None
-        if workflow and workflow.tasks:
-            try:
-                from lib.hitl_interrupt import ConfidenceRouter
-                conf_router = ConfidenceRouter()
-                confidence_score = conf_router.score_confidence(
-                    goal, {"tasks": workflow.tasks, "workflow_id": workflow_id},
-                )
-                confidence_route = conf_router.route(confidence_score)
-                if confidence_route == "human_review":
-                    logger.warning(
-                        "Low confidence (%.2f) on plan for '%s' — would require human review",
-                        confidence_score, goal[:80],
-                    )
-                elif confidence_route == "log_and_proceed":
-                    logger.info(
-                        "Moderate confidence (%.2f) on plan for '%s' — logging and proceeding",
-                        confidence_score, goal[:80],
-                    )
-                # "auto_approve" — proceed silently
-            except Exception as e:
-                logger.warning("Confidence routing failed (proceeding anyway): %s", e)
+        confidence_score, confidence_route = self._apply_confidence_routing(
+            goal, workflow, workflow_id
+        )
 
         # 2. Assign tasks to agent via ExecutionService
-        if self.execution_service and workflow and workflow.tasks:
-            from app.domain.engine_models import ExecutionRequest, LLMTier
-
-            queued = 0
-            for task in workflow.tasks:
-                skill_id = task.get("skill", task.get("skill_id", "")) or ""
-                if not skill_id or skill_id == "manual":
-                    logger.info("dispatch_task: skipping manual step: %s", task.get("name", "?"))
-                    continue
-                request = ExecutionRequest(
-                    skill_id=skill_id,
-                    inputs=task.get("inputs", {}),
-                    agent_id=agent_id,
-                    tier=LLMTier.STANDARD,
-                )
-                self.execution_service.submit(request)
-                queued += 1
-
-            logger.info(
-                "dispatch_task: queued %d/%d tasks for %s (workflow %s)",
-                queued, len(workflow.tasks), agent_id, workflow_id[:8],
-            )
+        self._queue_execution_tasks(agent_id, workflow, workflow_id)
 
         # 2b. Create team channel for collaboration-worthy tasks
-        team_lane_id = None
-        if workflow and workflow.tasks and self.notification_service:
-            skill_ids = [
-                t.get("skill", t.get("skill_id", "")) or ""
-                for t in workflow.tasks
-            ]
-            is_collab = (
-                len(workflow.tasks) >= 3
-                or any(self._is_high_tier_skill(sid) for sid in skill_ids if sid)
-            )
-            if is_collab:
-                adjacent = self._find_adjacent_agents(agent_id, skill_ids)
-                if adjacent:
-                    team_agents = [agent_id] + adjacent
-                    team_lane_id = self.notification_service.create_task_channel(
-                        task_name=goal[:60],
-                        agent_ids=team_agents,
-                        lead_agent=agent_id,
-                    )
-                    self._workflow_channels[workflow_id] = team_lane_id
-                    # Post plan summary to team channel
-                    task_names = [t.get("name", t.get("skill_id", "?")) for t in workflow.tasks]
-                    summary = f"**Workflow Plan** — {goal[:120]}\n\n"
-                    summary += "\n".join(f"{i+1}. {n}" for i, n in enumerate(task_names))
-                    summary += f"\n\n_{len(workflow.tasks)} steps, lead: {agent_id}_"
-                    try:
-                        from app.domain.comms_models import SenderType, MessageType
-                        self.notification_service.message_store.add_message(
-                            lane_id=team_lane_id,
-                            sender_id="system",
-                            sender_name="System",
-                            sender_type=SenderType.SYSTEM,
-                            content=summary,
-                            message_type=MessageType.SYSTEM,
-                            metadata={"plan_summary": True, "workflow_id": workflow_id},
-                        )
-                    except Exception as e:
-                        logger.warning("Failed to post plan summary: %s", e)
-                    logger.info(
-                        "dispatch_task: created team channel %s with %d agents for %s",
-                        team_lane_id, len(team_agents), workflow_id[:8],
-                    )
+        team_lane_id = self._create_team_channel(agent_id, goal, workflow, workflow_id)
 
         # 3. Log to activity log
         if self.activity_log_service:
@@ -508,6 +484,123 @@ class AgentLoopService:
             "task_count": len(workflow.tasks) if workflow else 0,
             "team_lane_id": team_lane_id,
         }
+
+    def _apply_confidence_routing(self, goal: str, workflow, workflow_id: str | None):
+        """Score plan confidence and route to human review if needed."""
+        if not (workflow and workflow.tasks):
+            return None, None
+        try:
+            from lib.hitl_interrupt import ConfidenceRouter
+            conf_router = ConfidenceRouter()
+            score = conf_router.score_confidence(
+                goal, {"tasks": workflow.tasks, "workflow_id": workflow_id},
+            )
+            route = conf_router.route(score)
+            if route == "human_review":
+                logger.warning(
+                    "Low confidence (%.2f) on plan for '%s' — would require human review",
+                    score, goal[:80],
+                )
+            elif route == "log_and_proceed":
+                logger.info(
+                    "Moderate confidence (%.2f) on plan for '%s' — logging and proceeding",
+                    score, goal[:80],
+                )
+            return score, route
+        except Exception as e:
+            logger.warning("Confidence routing failed (proceeding anyway): %s", e)
+            return None, None
+
+    def _resolve_backend(self, agent_id: str) -> dict:
+        """Resolve execution backend config for an agent from the factory."""
+        default = {"backend": "api", "backend_model": "", "fallback_backend": "api", "max_turns": 10}
+        if not self.agent_factory:
+            return default
+        try:
+            return self.agent_factory.get_backend_config(agent_id) or default
+        except Exception:
+            return default
+
+    def _queue_execution_tasks(self, agent_id: str, workflow, workflow_id: str | None) -> None:
+        """Submit workflow tasks to the execution queue."""
+        if not (self.execution_service and workflow and workflow.tasks):
+            return
+        from app.domain.engine_models import ExecutionRequest, LLMTier
+
+        backend_cfg = self._resolve_backend(agent_id)
+        queued = 0
+        for task in workflow.tasks:
+            skill_id = task.get("skill", task.get("skill_id", "")) or ""
+            if not skill_id or skill_id == "manual":
+                logger.info("dispatch_task: skipping manual step: %s", task.get("name", "?"))
+                continue
+            request = ExecutionRequest(
+                skill_id=skill_id,
+                inputs=task.get("inputs", {}),
+                agent_id=agent_id,
+                tier=LLMTier.STANDARD,
+                backend=backend_cfg.get("backend", "api"),
+                backend_model=backend_cfg.get("backend_model", ""),
+                max_turns=backend_cfg.get("max_turns", 10),
+            )
+            self.execution_service.submit(request)
+            queued += 1
+
+        logger.info(
+            "dispatch_task: queued %d/%d tasks for %s (workflow %s)",
+            queued, len(workflow.tasks), agent_id, workflow_id[:8] if workflow_id else "?",
+        )
+
+    def _create_team_channel(self, agent_id: str, goal: str, workflow, workflow_id: str | None) -> str | None:
+        """Create a collaboration channel if the task warrants it."""
+        if not (workflow and workflow.tasks and self.notification_service and workflow_id):
+            return None
+
+        skill_ids = [
+            t.get("skill", t.get("skill_id", "")) or ""
+            for t in workflow.tasks
+        ]
+        is_collab = (
+            len(workflow.tasks) >= 3
+            or any(self._is_high_tier_skill(sid) for sid in skill_ids if sid)
+        )
+        if not is_collab:
+            return None
+
+        adjacent = self._find_adjacent_agents(agent_id, skill_ids)
+        if not adjacent:
+            return None
+
+        team_agents = [agent_id] + adjacent
+        team_lane_id = self.notification_service.create_task_channel(
+            task_name=goal[:60],
+            agent_ids=team_agents,
+            lead_agent=agent_id,
+        )
+        self._workflow_channels[workflow_id] = team_lane_id
+
+        task_names = [t.get("name", t.get("skill_id", "?")) for t in workflow.tasks]
+        summary = f"**Workflow Plan** — {goal[:120]}\n\n"
+        summary += "\n".join(f"{i+1}. {n}" for i, n in enumerate(task_names))
+        summary += f"\n\n_{len(workflow.tasks)} steps, lead: {agent_id}_"
+        try:
+            from app.domain.comms_models import SenderType, MessageType
+            self.notification_service.message_store.add_message(
+                lane_id=team_lane_id,
+                sender_id="system",
+                sender_name="System",
+                sender_type=SenderType.SYSTEM,
+                content=summary,
+                message_type=MessageType.SYSTEM,
+                metadata={"plan_summary": True, "workflow_id": workflow_id},
+            )
+        except Exception as e:
+            logger.warning("Failed to post plan summary: %s", e)
+        logger.info(
+            "dispatch_task: created team channel %s with %d agents for %s",
+            team_lane_id, len(team_agents), workflow_id[:8],
+        )
+        return team_lane_id
 
     # ── Event Bus Integration ─────────────────────────────────────────
 
@@ -928,6 +1021,51 @@ class AgentLoopService:
         """Act: execute the chosen action. Uses browser via tool_access_service when needed."""
         action_type = action.get("type", "")
 
+        # ── CEO Review Gate ───────────────────────────────────────────────
+        # Classify real action types (browser/scheduled/queued) into risk
+        # categories (external_write/email_send/internal_compute) before review
+        review_type = action_type
+        if self.ceo_reviewer:
+            review_type = self.ceo_reviewer.classify_action(action)
+        if self.ceo_reviewer and self.ceo_reviewer.should_review(
+            action_type=review_type,
+            agent_id=loop.agent_id,
+            estimated_cost=action.get("estimated_cost", 0.0),
+        ):
+            decision = await self.ceo_reviewer.review_action(action, {
+                "agent_id": loop.agent_id,
+                "ticks": loop.ticks,
+                "total_cost": loop.total_cost,
+            })
+            if self.activity_log_service:
+                try:
+                    await self.activity_log_service.append(
+                        category="governance",
+                        action="ceo_review",
+                        actor_type="agent",
+                        actor_id="executive_operator",
+                        entity_type="action",
+                        entity_id=action.get("task_id", action.get("skill_id", "")),
+                        details={
+                            "decision": decision.status,
+                            "reason": decision.reason,
+                            "risk_score": decision.risk_score,
+                            "action_type": action_type,
+                            "reviewed_agent": loop.agent_id,
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log CEO review: {e}")
+            if decision.status == "REJECTED":
+                logger.warning(f"CEO REJECTED action for {loop.agent_id}: {decision.reason}")
+                return {"success": False, "error": f"CEO review rejected: {decision.reason}"}
+            if decision.status == "MODIFY":
+                action.update(decision.modifications or {})
+                logger.info(f"CEO MODIFIED action for {loop.agent_id}: {decision.reason}")
+            if decision.status == "ESCALATE":
+                logger.warning(f"CEO ESCALATED action for {loop.agent_id}: {decision.reason}")
+                return {"success": False, "error": f"CEO review escalated: {decision.reason}"}
+
         # Browser actions — delegate to tool_access_service
         if action_type == "browser" and self.tool_access_service:
             browser_result, error = await self.tool_access_service.run_browser_task(
@@ -1192,11 +1330,21 @@ class AgentLoopService:
         if self.execution_service and loop.idle_behavior:
             try:
                 from lib.routing import call_llm
+                backend_line = (
+                    f"Your execution backend: {loop.execution_backend} with model {loop.execution_model}.\n"
+                    if loop.execution_backend else ""
+                )
+                tools_line = (
+                    f"Available MCP tools: {', '.join(loop.mcp_tools)}.\n"
+                    if loop.mcp_tools else ""
+                )
                 prompt = (
                     f"You are agent '{loop.agent_id}' in a business automation system.\n"
                     f"Your idle behavior directive: {loop.idle_behavior}\n"
+                    f"{backend_line}{tools_line}"
                     f"Current tick: {loop.ticks}, idle hunts: {loop.idle_hunts}\n\n"
                     f"Generate ONE specific, actionable micro-task you should do right now.\n"
+                    f"Include which backend and tools you would use.\n"
                     f"Reply with ONLY the task description in one sentence. No explanation."
                 )
                 messages = [{"role": "user", "content": prompt}]

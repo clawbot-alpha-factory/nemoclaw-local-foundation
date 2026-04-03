@@ -115,6 +115,72 @@ async def persistence_status(request: Request):
     }
 
 
+@router.get("/backend-costs")
+async def backend_costs(request: Request):
+    """Per-backend utilization and cost tracking.
+
+    Flat-rate backends: session-minute usage from backend-usage.jsonl.
+    API backends: cumulative spend from provider-usage.jsonl + aggregator state.
+    """
+    import sys
+    from pathlib import Path as _Path
+    _repo = _Path(__file__).resolve().parents[5]
+    if str(_repo) not in sys.path:
+        sys.path.insert(0, str(_repo))
+
+    backends_data = {}
+
+    # Primary path: read from execution service breakers
+    exec_svc = getattr(request.app.state, "execution_service", None)
+    breakers = getattr(exec_svc, "backend_cost_breakers", {}) if exec_svc else {}
+
+    if breakers:
+        for name, breaker in breakers.items():
+            backends_data[name] = breaker.get_state()
+    else:
+        # Fallback: instantiate read-only breakers from config
+        try:
+            from lib.config_loader import load_backends_config
+            config = load_backends_config()
+            if config and config.get("backends"):
+                from lib.circuit_breaker import BackendCostBreaker
+                for name, cfg in config["backends"].items():
+                    btype = cfg.get("type", "per_token")
+                    if btype == "flat_rate":
+                        b = BackendCostBreaker(
+                            backend_name=name,
+                            monthly_limit=cfg.get("monthly_minutes", 43200),
+                            warn_pct=cfg.get("warn_pct", 0.8),
+                            tracking="session_minutes",
+                        )
+                    else:
+                        b = BackendCostBreaker(
+                            backend_name=name,
+                            monthly_limit=300.0,
+                            warn_pct=cfg.get("warn_pct", 0.9),
+                            tracking="budget_config",
+                        )
+                    backends_data[name] = b.get_state()
+        except Exception:
+            pass
+
+    # Augment with live API provider data from aggregator
+    state = aggregator.state
+    api_providers = {}
+    for p in state.budget.providers:
+        api_providers[p.provider] = {
+            "spent_usd": round(p.spent, 4),
+            "limit_usd": round(p.limit, 2),
+            "pct_used": round(p.percent_used, 1),
+        }
+
+    return {
+        "backends": backends_data,
+        "api_providers": api_providers,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @router.get("/breakers")
 async def breaker_states(request: Request):
     """All circuit breaker states — failure, step, cost, repetition."""
@@ -137,6 +203,10 @@ async def breaker_states(request: Request):
         result["step_limit"] = None
         result["cost_ceiling"] = None
         result["repetition"] = None
+
+    # Backend cost breakers
+    backend_breakers = getattr(exec_svc, "backend_cost_breakers", {}) if exec_svc else {}
+    result["backend_costs"] = {name: b.get_state() for name, b in backend_breakers.items()} if backend_breakers else None
 
     return result
 

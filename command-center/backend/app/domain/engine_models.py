@@ -112,6 +112,9 @@ class ExecutionRequest(BaseModel):
     tier: LLMTier = LLMTier.STANDARD
     priority: int = 5                  # 1=highest, 10=lowest
     trace: TraceContext | None = None
+    backend: str = "api"               # claude_code | codex | api
+    backend_model: str = ""            # opus | sonnet | gpt-5.4
+    max_turns: int = 10
 
 
 class TaskExecution(BaseModel):

@@ -53,7 +53,8 @@ def get_skill_domain(skill_id):
             with open(CAPABILITY_REGISTRY) as f:
                 reg = yaml.safe_load(f)
             _skill_domains_cache = reg.get("skill_domains", {})
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load capability registry for skill domains: %s", e)
             _skill_domains_cache = {}
     return _skill_domains_cache.get(skill_id)
 
@@ -339,7 +340,8 @@ def discover_skills():
                     for inp in spec.get("inputs", [])
                 ],
             }
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to parse skill %s: %s", skill_dir.name, e)
             continue
     return skills
 
@@ -441,6 +443,221 @@ Rules:
 # ORCHESTRATOR ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _print_workflow_header(name, mode, agents, shared_memory_enabled, workspace_id):
+    """Print workflow startup banner."""
+    print("=" * 60)
+    print(f"  Workflow: {name}")
+    print(f"  Mode: {mode}")
+    print(f"  Agents: {len(agents)}")
+    print(f"  Shared Memory: {'ON' if shared_memory_enabled else 'OFF'}")
+    print(f"  Workspace: {workspace_id}")
+    print(f"  Started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print("=" * 60)
+    print()
+
+
+def _dry_run_preview(agents):
+    """Print dry run preview of all agents and return."""
+    for i, agent in enumerate(agents, 1):
+        chain = f" ← previous" if agent.chain_from == "previous" else ""
+        mem_in = f"  reads: {agent.inputs_from_memory}" if agent.inputs_from_memory else ""
+        mem_out = f"  writes: {agent.outputs_to_memory}" if agent.outputs_to_memory else ""
+        cond = f"  IF {agent.condition}" if agent.condition else ""
+        print(f"  [{i}] {agent.name} ({agent.agent_type})")
+        print(f"      skill: {agent.skill_id}{chain}")
+        if agent.inputs:
+            for k, v in agent.inputs.items():
+                print(f"      input: {k} = {str(v)[:50]}")
+        if mem_in:
+            print(f"     {mem_in}")
+        if mem_out:
+            print(f"     {mem_out}")
+        if cond:
+            print(f"     {cond} → go_to: {agent.go_to}")
+        print(f"      on_fail: {agent.on_failure}")
+        print()
+    print("  (DRY RUN — no execution)")
+
+
+def _evaluate_decision_agent(agent, agent_index, agents, memory):
+    """Evaluate a decision agent's condition and return next index or None to continue."""
+    if not agent.condition:
+        return agent_index + 1
+
+    left_key = agent.condition.get("left", "")
+    op = agent.condition.get("op", ">=")
+    right_val = agent.condition.get("right", 7)
+    left_val = memory.read(left_key, 0)
+
+    passed = False
+    if op == "<":
+        passed = float(left_val) < float(right_val)
+    elif op == ">=":
+        passed = float(left_val) >= float(right_val)
+    elif op == "==":
+        passed = str(left_val) == str(right_val)
+
+    if passed and agent.go_to:
+        target_idx = next(
+            (i for i, a in enumerate(agents) if a.name == agent.go_to), None
+        )
+        if target_idx is not None:
+            print(f"  [{agent_index+1}] {agent.name} (decision)")
+            print(f"      {left_key}={left_val} {op} {right_val} → redirecting to {agent.go_to}")
+            print()
+            return target_idx
+
+    print(f"  [{agent_index+1}] {agent.name} (decision)")
+    print(f"      {left_key}={left_val} {op} {right_val} → continuing")
+    print()
+    return agent_index + 1
+
+
+def _execute_agent_step(agent, agent_index, agents, memory, contracts, last_envelope, shared_memory_enabled):
+    """Execute a single agent step with retry logic. Returns (result_dict, new_last_envelope, next_index_override)."""
+    final_inputs = dict(agent.inputs)
+
+    # Inject memory values into inputs
+    if agent.inputs_from_memory and shared_memory_enabled:
+        for mem_key in agent.inputs_from_memory:
+            val = memory.read(mem_key)
+            if val is not None:
+                final_inputs[f"_memory_{mem_key}"] = str(val)[:2000]
+
+    # Contract validation
+    contract_key = f"{agents[agent_index-1].name}_to_{agent.name}" if agent_index > 0 else None
+    if contract_key and contract_key in contracts:
+        passed, missing = validate_contract(memory, contracts[contract_key],
+                                            agents[agent_index-1].name, agent.name)
+        if not passed:
+            print(f"  [{agent_index+1}] {agent.name}")
+            print(f"      ❌ CONTRACT VIOLATION: missing {missing}")
+            print(f"      Required by: {contract_key}")
+            return {
+                "step": agent_index+1, "agent": agent.name,
+                "success": False, "error": f"Contract violation: {missing}"
+            }, last_envelope, "break"
+
+    chain_envelope = last_envelope if agent.chain_from == "previous" else None
+
+    # Execute with retry
+    max_retries = agent.on_failure.get("retry", 1)
+    fallback = agent.on_failure.get("fallback", "halt")
+    redirect = agent.on_failure.get("go_to")
+
+    chain_note = f" ← {os.path.basename(chain_envelope)}" if chain_envelope else ""
+    print(f"  [{agent_index+1}] {agent.name} → {agent.skill_id}{chain_note}")
+
+    success = False
+    result = None
+    elapsed = 0
+    for attempt in range(max_retries + 1):
+        attempt_label = f" (attempt {attempt+1}/{max_retries+1})" if attempt > 0 else ""
+        print(f"      Running{attempt_label}...", end="", flush=True)
+
+        start = time.time()
+        result = execute_skill(agent.skill_id, final_inputs, chain_envelope, agent.task_domain)
+        elapsed = int(time.time() - start)
+
+        if result["success"]:
+            print(f" ✅ ({elapsed}s)")
+            success = True
+            break
+        else:
+            print(f" ❌ ({elapsed}s)")
+            if result["error"]:
+                print(f"      {result['error'][:120]}")
+            if attempt < max_retries:
+                print(f"      Retrying...")
+
+    if success:
+        if result["envelope_path"]:
+            last_envelope = result["envelope_path"]
+
+        if agent.outputs_to_memory and shared_memory_enabled:
+            extract_to_memory(
+                result["envelope_path"], agent.name,
+                memory, agent.outputs_to_memory
+            )
+            written = [k for k in agent.outputs_to_memory if memory.has(k)]
+            print(f"      Memory: wrote {written}")
+
+        if result["artifact_path"]:
+            print(f"      Artifact: {os.path.basename(result['artifact_path'])}")
+
+        return {
+            "step": agent_index+1, "agent": agent.name, "skill": agent.skill_id,
+            "success": True, "elapsed": elapsed,
+            "envelope": result.get("envelope_path"),
+            "artifact": result.get("artifact_path"),
+        }, last_envelope, None
+
+    # Handle failure
+    step_result = {
+        "step": agent_index+1, "agent": agent.name, "skill": agent.skill_id,
+        "success": False, "elapsed": elapsed, "error": result.get("error"),
+    }
+
+    if redirect:
+        target_idx = next(
+            (i for i, a in enumerate(agents) if a.name == redirect), None
+        )
+        if target_idx is not None:
+            print(f"      Redirecting to: {redirect}")
+            return step_result, last_envelope, target_idx
+
+    if fallback == "halt":
+        print(f"\n      Pipeline halted at {agent.name}.")
+        return step_result, last_envelope, "break"
+    elif fallback == "skip":
+        print(f"      Skipping {agent.name}, continuing...")
+
+    return step_result, last_envelope, None
+
+
+def _print_workflow_summary(results, agents, memory, shared_memory_enabled, name, mode, workspace_id, total_elapsed):
+    """Print summary, save results, and return success boolean."""
+    passed = sum(1 for r in results if r["success"])
+    failed = len(results) - passed
+
+    print("=" * 60)
+    print(f"  Pipeline Complete: {passed}/{len(agents)} agents succeeded")
+    print(f"  Total time: {total_elapsed}s")
+    if shared_memory_enabled:
+        print(f"  Memory keys: {len(memory.keys())}")
+    print("=" * 60)
+
+    if shared_memory_enabled:
+        memory.save()
+        print(f"\n  Memory saved: {memory.workspace_dir / 'memory.json'}")
+
+    results_path = WORKFLOWS_DIR / "last-pipeline-result.json"
+    results_path.parent.mkdir(exist_ok=True)
+    with open(results_path, "w") as f:
+        json.dump({
+            "workflow": name, "mode": mode, "workspace_id": workspace_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_elapsed_s": total_elapsed,
+            "agents_planned": len(agents), "agents_passed": passed, "agents_failed": failed,
+            "memory_keys": memory.keys() if shared_memory_enabled else [],
+            "results": results,
+        }, f, indent=2)
+
+    if passed > 0:
+        print("\n  Artifacts:")
+        for r in results:
+            if r.get("artifact"):
+                print(f"    {r['agent']}: {os.path.basename(r['artifact'])}")
+
+    if shared_memory_enabled and memory.keys():
+        print("\n  Shared Memory:")
+        for k, info in memory.dump().items():
+            val_preview = str(info["value"])[:60].replace("\n", " ")
+            print(f"    [{info['importance'][0]}] {k} ({info['source']}): {val_preview}")
+
+    return failed == 0
+
+
 def run_workflow(workflow, dry_run=False):
     """Execute a multi-agent workflow with shared memory and contracts."""
     name = workflow.get("name", "Unnamed Workflow")
@@ -452,52 +669,22 @@ def run_workflow(workflow, dry_run=False):
     workspace_id = context.get("workspace_id", f"wf_{int(time.time())}")
     shared_memory_enabled = context.get("shared_memory", False)
 
-    # Initialize shared memory
     memory = WorkspaceMemory(workspace_id)
     if shared_memory_enabled:
-        memory.load()  # Resume if workspace exists
+        memory.load()
 
-    # Parse agents
     agents = []
     for step_config in steps:
-        # Support both old format (skill: x) and new format (agent: x, skill: y)
         if "agent" not in step_config:
             step_config["agent"] = step_config.get("skill", f"step_{len(agents)+1}")
         agents.append(Agent(step_config))
 
-    print("=" * 60)
-    print(f"  Workflow: {name}")
-    print(f"  Mode: {mode}")
-    print(f"  Agents: {len(agents)}")
-    print(f"  Shared Memory: {'ON' if shared_memory_enabled else 'OFF'}")
-    print(f"  Workspace: {workspace_id}")
-    print(f"  Started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    print("=" * 60)
-    print()
+    _print_workflow_header(name, mode, agents, shared_memory_enabled, workspace_id)
 
     if dry_run:
-        for i, agent in enumerate(agents, 1):
-            chain = f" ← previous" if agent.chain_from == "previous" else ""
-            mem_in = f"  reads: {agent.inputs_from_memory}" if agent.inputs_from_memory else ""
-            mem_out = f"  writes: {agent.outputs_to_memory}" if agent.outputs_to_memory else ""
-            cond = f"  IF {agent.condition}" if agent.condition else ""
-            print(f"  [{i}] {agent.name} ({agent.agent_type})")
-            print(f"      skill: {agent.skill_id}{chain}")
-            if agent.inputs:
-                for k, v in agent.inputs.items():
-                    print(f"      input: {k} = {str(v)[:50]}")
-            if mem_in:
-                print(f"     {mem_in}")
-            if mem_out:
-                print(f"     {mem_out}")
-            if cond:
-                print(f"     {cond} → go_to: {agent.go_to}")
-            print(f"      on_fail: {agent.on_failure}")
-            print()
-        print("  (DRY RUN — no execution)")
+        _dry_run_preview(agents)
         return True
 
-    # ── Execute agents ────────────────────────────────────────────────────
     results = []
     last_envelope = None
     total_start = time.time()
@@ -506,197 +693,26 @@ def run_workflow(workflow, dry_run=False):
     while agent_index < len(agents):
         agent = agents[agent_index]
 
-        # ── Decision agent: evaluate condition and branch ──
         if agent.agent_type == "decision":
-            if agent.condition:
-                left_key = agent.condition.get("left", "")
-                op = agent.condition.get("op", ">=")
-                right_val = agent.condition.get("right", 7)
-                left_val = memory.read(left_key, 0)
+            agent_index = _evaluate_decision_agent(agent, agent_index, agents, memory)
+            continue
 
-                passed = False
-                if op == "<":
-                    passed = float(left_val) < float(right_val)
-                elif op == ">=":
-                    passed = float(left_val) >= float(right_val)
-                elif op == "==":
-                    passed = str(left_val) == str(right_val)
+        step_result, last_envelope, override = _execute_agent_step(
+            agent, agent_index, agents, memory, contracts, last_envelope, shared_memory_enabled
+        )
+        results.append(step_result)
 
-                if passed and agent.go_to:
-                    # Find target agent index
-                    target_idx = next(
-                        (i for i, a in enumerate(agents) if a.name == agent.go_to), None
-                    )
-                    if target_idx is not None:
-                        print(f"  [{agent_index+1}] {agent.name} (decision)")
-                        print(f"      {left_key}={left_val} {op} {right_val} → redirecting to {agent.go_to}")
-                        print()
-                        agent_index = target_idx
-                        continue
-                    
-                print(f"  [{agent_index+1}] {agent.name} (decision)")
-                print(f"      {left_key}={left_val} {op} {right_val} → continuing")
-                print()
-                agent_index += 1
-                continue
-
-        # ── Build inputs ──
-        final_inputs = dict(agent.inputs)
-
-        # Inject memory values into inputs
-        if agent.inputs_from_memory and shared_memory_enabled:
-            for mem_key in agent.inputs_from_memory:
-                val = memory.read(mem_key)
-                if val is not None:
-                    # Map memory key to a reasonable input name
-                    # Use the key itself if no explicit mapping
-                    final_inputs[f"_memory_{mem_key}"] = str(val)[:2000]
-
-        # ── Contract validation ──
-        contract_key = f"{agents[agent_index-1].name}_to_{agent.name}" if agent_index > 0 else None
-        if contract_key and contract_key in contracts:
-            passed, missing = validate_contract(memory, contracts[contract_key],
-                                                agents[agent_index-1].name, agent.name)
-            if not passed:
-                print(f"  [{agent_index+1}] {agent.name}")
-                print(f"      ❌ CONTRACT VIOLATION: missing {missing}")
-                print(f"      Required by: {contract_key}")
-                results.append({
-                    "step": agent_index+1, "agent": agent.name,
-                    "success": False, "error": f"Contract violation: {missing}"
-                })
-                break
-
-        # ── Determine chaining ──
-        chain_envelope = last_envelope if agent.chain_from == "previous" else None
-
-        # ── Execute with retry ──
-        max_retries = agent.on_failure.get("retry", 1)
-        fallback = agent.on_failure.get("fallback", "halt")
-        redirect = agent.on_failure.get("go_to")
-
-        chain_note = f" ← {os.path.basename(chain_envelope)}" if chain_envelope else ""
-        print(f"  [{agent_index+1}] {agent.name} → {agent.skill_id}{chain_note}")
-
-        success = False
-        result = None
-        for attempt in range(max_retries + 1):
-            attempt_label = f" (attempt {attempt+1}/{max_retries+1})" if attempt > 0 else ""
-            print(f"      Running{attempt_label}...", end="", flush=True)
-
-            start = time.time()
-            result = execute_skill(agent.skill_id, final_inputs, chain_envelope, agent.task_domain)
-            elapsed = int(time.time() - start)
-
-            if result["success"]:
-                print(f" ✅ ({elapsed}s)")
-                success = True
-                break
-            else:
-                print(f" ❌ ({elapsed}s)")
-                if result["error"]:
-                    print(f"      {result['error'][:120]}")
-                if attempt < max_retries:
-                    print(f"      Retrying...")
-
-        if success:
-            # Update envelope tracking
-            if result["envelope_path"]:
-                last_envelope = result["envelope_path"]
-
-            # Extract outputs to memory
-            if agent.outputs_to_memory and shared_memory_enabled:
-                extract_to_memory(
-                    result["envelope_path"], agent.name,
-                    memory, agent.outputs_to_memory
-                )
-                written = [k for k in agent.outputs_to_memory if memory.has(k)]
-                print(f"      Memory: wrote {written}")
-
-            if result["artifact_path"]:
-                print(f"      Artifact: {os.path.basename(result['artifact_path'])}")
-
-            results.append({
-                "step": agent_index+1, "agent": agent.name, "skill": agent.skill_id,
-                "success": True, "elapsed": elapsed,
-                "envelope": result.get("envelope_path"),
-                "artifact": result.get("artifact_path"),
-            })
-        else:
-            results.append({
-                "step": agent_index+1, "agent": agent.name, "skill": agent.skill_id,
-                "success": False, "elapsed": elapsed, "error": result.get("error"),
-            })
-
-            # Handle failure
-            if redirect:
-                target_idx = next(
-                    (i for i, a in enumerate(agents) if a.name == redirect), None
-                )
-                if target_idx is not None:
-                    print(f"      Redirecting to: {redirect}")
-                    agent_index = target_idx
-                    continue
-
-            if fallback == "halt":
-                print(f"\n      Pipeline halted at {agent.name}.")
-                break
-            elif fallback == "skip":
-                print(f"      Skipping {agent.name}, continuing...")
-            # else continue
+        if override == "break":
+            break
+        elif isinstance(override, int):
+            agent_index = override
+            continue
 
         agent_index += 1
         print()
 
-    # ── Summary ───────────────────────────────────────────────────────────
     total_elapsed = int(time.time() - total_start)
-    passed = sum(1 for r in results if r["success"])
-    failed = len(results) - passed
-
-    print("=" * 60)
-    print(f"  Pipeline Complete: {passed}/{len(agents)} agents succeeded")
-    print(f"  Total time: {total_elapsed}s")
-    if shared_memory_enabled:
-        print(f"  Memory keys: {len(memory.keys())}")
-    print("=" * 60)
-
-    # Save memory
-    if shared_memory_enabled:
-        memory.save()
-        print(f"\n  Memory saved: {memory.workspace_dir / 'memory.json'}")
-
-    # Save results
-    results_path = WORKFLOWS_DIR / "last-pipeline-result.json"
-    results_path.parent.mkdir(exist_ok=True)
-    with open(results_path, "w") as f:
-        json.dump({
-            "workflow": name,
-            "mode": mode,
-            "workspace_id": workspace_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "total_elapsed_s": total_elapsed,
-            "agents_planned": len(agents),
-            "agents_passed": passed,
-            "agents_failed": failed,
-            "memory_keys": memory.keys() if shared_memory_enabled else [],
-            "results": results,
-        }, f, indent=2)
-
-    # Print artifacts
-    if passed > 0:
-        print("\n  Artifacts:")
-        for r in results:
-            if r.get("artifact"):
-                print(f"    {r['agent']}: {os.path.basename(r['artifact'])}")
-
-    # Print memory summary
-    if shared_memory_enabled and memory.keys():
-        print("\n  Shared Memory:")
-        for k, info in memory.dump().items():
-            val_preview = str(info["value"])[:60].replace("\n", " ")
-            print(f"    [{info['importance'][0]}] {k} ({info['source']}): {val_preview}")
-
-    return failed == 0
+    return _print_workflow_summary(results, agents, memory, shared_memory_enabled, name, mode, workspace_id, total_elapsed)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -742,7 +758,8 @@ def _load_agent_roles():
                 "domains": agent.get("domain_boundaries", {}).get("owns", []),
             }
         return roles
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load agent roles from schema: %s", e)
         return {}
 
 
@@ -769,7 +786,8 @@ class SupervisorGraph:
             try:
                 with open(CAPABILITY_REGISTRY) as f:
                     self._registry_cache = yaml.safe_load(f)
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to load capability registry: %s", e)
                 self._registry_cache = {}
         return self._registry_cache
 
@@ -942,7 +960,8 @@ class SupervisorGraph:
                     output["primary"] = env.get("outputs", {}).get("primary", "")[:3000]
                     output["quality"] = env.get("metrics", {}).get("final_quality_score")
                     output["envelope_path"] = result["envelope_path"]
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to parse envelope for %s: %s", skill_id, e)
                     output["primary"] = result.get("output", "")[:1000]
             else:
                 output["error"] = result.get("error", "Unknown")

@@ -16,6 +16,8 @@ import hashlib
 import json
 import logging
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("nemoclaw.circuit_breaker")
@@ -55,7 +57,7 @@ class CircuitBreaker:
             return self.half_open_attempts < self.half_open_max
         return False
 
-    def record_success(self):
+    def record_success(self) -> None:
         if self.state == self.HALF_OPEN:
             self.state = self.CLOSED
             self.failures = 0
@@ -63,7 +65,7 @@ class CircuitBreaker:
         self.last_success_time = time.time()
         self.failures = max(0, self.failures - 1)
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         self.failures += 1
         self.last_failure_time = time.time()
         if self.state == self.HALF_OPEN:
@@ -104,17 +106,17 @@ class SkillCircuitBreaker:
     def can_execute_skill(self, skill_id: str) -> bool:
         return self._get(skill_id).can_execute()
 
-    def record_skill_result(self, skill_id: str, success: bool):
+    def record_skill_result(self, skill_id: str, success: bool) -> None:
         breaker = self._get(skill_id)
         if success:
             breaker.record_success()
         else:
             breaker.record_failure()
 
-    def get_all_states(self) -> dict:
+    def get_all_states(self) -> dict[str, dict]:
         return {sid: b.get_state() for sid, b in self._breakers.items()}
 
-    def get_tripped_skills(self) -> list:
+    def get_tripped_skills(self) -> list[str]:
         return [sid for sid, b in self._breakers.items() if b.state == CircuitBreaker.OPEN]
 
     def get_stats(self) -> dict:
@@ -150,7 +152,7 @@ class StepLimitBreaker:
             return False, reason
         return True, ""
 
-    def reset(self, execution_id: str):
+    def reset(self, execution_id: str) -> None:
         self._counters.pop(execution_id, None)
 
     def get_state(self) -> dict:
@@ -164,7 +166,7 @@ class CostCeilingBreaker:
         self.max_cost = max_cost
         self._costs: dict[str, float] = {}
 
-    def add_cost(self, execution_id: str, cost: float):
+    def add_cost(self, execution_id: str, cost: float) -> None:
         self._costs[execution_id] = self._costs.get(execution_id, 0.0) + cost
 
     def check(self, execution_id: str) -> tuple[bool, str]:
@@ -219,3 +221,178 @@ class RepetitionDetector:
             },
             "max_repeats": self.max_repeats,
         }
+
+
+class BackendCostBreaker:
+    """Per-backend cost/usage breaker for flat-rate and API backends.
+
+    Flat-rate backends (claude_code, codex): tracks session-minutes against
+    a monthly limit derived from the subscription.
+    API backends: reads cumulative spend from provider-usage.jsonl and
+    compares against budget-config.yaml limits.
+
+    Usage:
+        breaker = BackendCostBreaker("claude_code", monthly_limit=43200, tracking="session_minutes")
+        breaker.record_session(minutes=15.5)
+        allowed, reason, pct = breaker.check()
+    """
+
+    LOG_DIR = Path.home() / ".nemoclaw" / "logs"
+    BACKEND_LOG = "backend-usage.jsonl"
+    PROVIDER_LOG = "provider-usage.jsonl"
+
+    def __init__(
+        self,
+        backend_name: str,
+        monthly_limit: float,
+        warn_pct: float = 0.8,
+        tracking: str = "session_minutes",
+        log_path: Optional[Path] = None,
+    ):
+        self.backend_name = backend_name
+        self.monthly_limit = monthly_limit
+        self.warn_pct = warn_pct
+        self.tracking = tracking  # "session_minutes" | "budget_config"
+        self._log_path = log_path or (self.LOG_DIR / self.BACKEND_LOG)
+        self._log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # In-memory accumulator for the current month
+        self._current_month = self._month_key()
+        self._accumulated = self._load_current_month()
+
+    # ── Public API ────────────────────────────────────────────────────
+
+    def record_session(self, minutes: float) -> None:
+        """Record session-minutes for flat-rate backends."""
+        if self.tracking != "session_minutes":
+            return
+        # Roll over if month changed
+        month = self._month_key()
+        if month != self._current_month:
+            self._current_month = month
+            self._accumulated = 0.0
+        self._accumulated += minutes
+        self._persist(minutes)
+
+    def check(self) -> tuple[bool, str, float]:
+        """Check backend utilization. Returns (allowed, reason, utilization_pct).
+
+        For flat-rate: current_minutes / monthly_limit.
+        For API (budget_config): reads cumulative from provider-usage.jsonl.
+        """
+        # Roll over if month changed
+        month = self._month_key()
+        if month != self._current_month:
+            self._current_month = month
+            self._accumulated = 0.0 if self.tracking == "session_minutes" else self._accumulated
+
+        if self.tracking == "session_minutes":
+            used = self._accumulated
+        else:
+            used = self._read_api_spend()
+
+        if self.monthly_limit <= 0:
+            return True, "", 0.0
+
+        pct = used / self.monthly_limit
+        if pct >= 1.0:
+            reason = (
+                f"Backend {self.backend_name} exhausted: "
+                f"{used:.1f}/{self.monthly_limit:.1f} "
+                f"({'min' if self.tracking == 'session_minutes' else 'USD'}) "
+                f"({pct:.0%})"
+            )
+            logger.warning("BackendCostBreaker: %s", reason)
+            return False, reason, round(pct, 4)
+        if pct >= self.warn_pct:
+            reason = (
+                f"Backend {self.backend_name} approaching limit: "
+                f"{used:.1f}/{self.monthly_limit:.1f} ({pct:.0%})"
+            )
+            logger.info("BackendCostBreaker: %s", reason)
+            return True, reason, round(pct, 4)
+
+        return True, "", round(pct, 4)
+
+    def get_state(self) -> dict:
+        _, reason, pct = self.check()
+        return {
+            "backend": self.backend_name,
+            "tracking": self.tracking,
+            "monthly_limit": self.monthly_limit,
+            "used": round(self._accumulated if self.tracking == "session_minutes" else self._read_api_spend(), 2),
+            "utilization_pct": pct,
+            "warn_pct": self.warn_pct,
+            "month": self._current_month,
+            "status": "exhausted" if pct >= 1.0 else ("warning" if pct >= self.warn_pct else "ok"),
+        }
+
+    # ── Persistence ───────────────────────────────────────────────────
+
+    def _persist(self, minutes: float) -> None:
+        """Append a usage record to backend-usage.jsonl."""
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "backend": self.backend_name,
+            "minutes": round(minutes, 2),
+            "month": self._current_month,
+            "cumulative_minutes": round(self._accumulated, 2),
+        }
+        try:
+            with open(self._log_path, "a") as f:
+                f.write(json.dumps(record) + "\n")
+        except OSError as e:
+            logger.warning("Failed to persist backend usage: %s", e)
+
+    def _load_current_month(self) -> float:
+        """Sum usage for the current month from the JSONL log."""
+        month = self._month_key()
+        total = 0.0
+        try:
+            if not self._log_path.exists():
+                return 0.0
+            with open(self._log_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("backend") == self.backend_name and entry.get("month") == month:
+                        total += entry.get("minutes", 0.0)
+        except OSError as e:
+            logger.warning("Failed to read backend usage log: %s", e)
+        return total
+
+    def _read_api_spend(self) -> float:
+        """Read cumulative API spend from provider-usage.jsonl for the current month."""
+        month = self._month_key()
+        total = 0.0
+        provider_log = self.LOG_DIR / self.PROVIDER_LOG
+        try:
+            if not provider_log.exists():
+                return 0.0
+            with open(provider_log) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    ts = entry.get("timestamp", "")
+                    if ts[:7] == month:
+                        total += entry.get("estimated_cost_usd", 0.0)
+        except OSError as e:
+            logger.warning("Failed to read provider usage log: %s", e)
+        return total
+
+    # ── Helpers ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _month_key() -> str:
+        """Return current month as 'YYYY-MM'."""
+        return datetime.now(timezone.utc).strftime("%Y-%m")

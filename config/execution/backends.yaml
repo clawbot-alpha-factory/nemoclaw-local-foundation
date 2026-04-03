@@ -1,0 +1,59 @@
+# NemoClaw Backend Definitions v1.0 — 2026-04-04
+# Execution backends: flat-rate subscriptions + API token billing.
+#
+# Types:
+#   flat_rate  — monthly subscription, tracked by session-minutes
+#   per_token  — API billing, defers to config/routing/budget-config.yaml
+
+backends:
+  claude_code:
+    type: flat_rate
+    monthly_cost_usd: 200.00
+    tracking: session_minutes
+    monthly_minutes: 43200          # 720 h * 60
+    warn_pct: 0.80
+    session_pool:
+      max_concurrent: 2
+      timeout_minutes: 30
+      idle_reclaim_minutes: 5
+    capabilities:
+      - code_generation
+      - refactoring
+      - debugging
+      - testing
+      - file_editing
+    failover: [codex, api]
+
+  codex:
+    type: flat_rate
+    monthly_cost_usd: 200.00
+    tracking: session_minutes
+    monthly_minutes: 43200
+    warn_pct: 0.80
+    session_pool:
+      max_concurrent: 2
+      timeout_minutes: 30
+      idle_reclaim_minutes: 5
+    capabilities:
+      - code_generation
+      - autonomous_coding
+      - multi_file_editing
+    failover: [claude_code, api]
+
+  api:
+    type: per_token
+    tracking: budget_config          # defers to config/routing/budget-config.yaml
+    warn_pct: 0.90
+    session_pool:
+      max_concurrent: 8
+      timeout_minutes: 15
+      idle_reclaim_minutes: 2
+    capabilities:
+      - all
+    failover: []
+
+# Cost tracking global settings
+cost_tracking:
+  log_path: ~/.nemoclaw/logs/backend-usage.jsonl
+  rollover: monthly                  # reset counters on 1st of each month
+  persist_interval_seconds: 30       # batch-flush interval for JSONL writes

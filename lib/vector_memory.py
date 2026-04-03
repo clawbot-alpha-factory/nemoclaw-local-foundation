@@ -54,7 +54,7 @@ class VectorMemory:
             self._fallback = True
             self._fallback_store = {name: [] for name in COLLECTIONS}
 
-    def add_memory(self, collection: str, content: str, metadata: Optional[dict] = None, agent_id: Optional[str] = None):
+    def add_memory(self, collection: str, content: str, metadata: Optional[dict] = None, agent_id: Optional[str] = None) -> None:
         """Add a memory entry to a collection."""
         if collection not in COLLECTIONS:
             logger.warning(f"Unknown collection: {collection}")
@@ -79,17 +79,128 @@ class VectorMemory:
         except Exception as e:
             logger.warning(f"Failed to add to {collection}: {e}")
 
-    def add_skill_output(self, skill_id: str, agent_id: str, output_text: str, metadata: Optional[dict] = None):
+    def add_skill_output(self, skill_id: str, agent_id: str, output_text: str, metadata: Optional[dict] = None) -> None:
         """Index a skill execution result."""
         meta = metadata or {}
         meta.update({"skill_id": skill_id, "agent_id": agent_id})
         self.add_memory("skill_outputs", output_text[:5000], meta)
 
-    def add_entity(self, name: str, description: str, entity_type: str, source_agent: str):
+    def add_entity(self, name: str, description: str, entity_type: str, source_agent: str) -> None:
         """Track a person, company, or concept."""
         self.add_memory("entity_memory", f"{name}: {description}", {
             "entity_name": name, "entity_type": entity_type, "source_agent": source_agent,
         })
+
+    def accumulate_from_mission(self, mission_dir: Path) -> int:
+        """Scan mission deliverables and index knowledge into project_context.
+
+        Reads *.md, *.json, *.yaml from mission_dir, uses call_llm (L-003) to
+        extract categorized knowledge items (code_pattern, architecture_decision,
+        strategy_insight, lesson_learned), deduplicates against existing entries
+        (cosine similarity > 0.95 = skip), and indexes with mission_id provenance.
+
+        Args:
+            mission_dir: Path to the mission's local directory.
+
+        Returns:
+            Count of new items added to project_context.
+        """
+        if not mission_dir.is_dir():
+            logger.warning("accumulate_from_mission: not a directory: %s", mission_dir)
+            return 0
+
+        mission_id = mission_dir.name  # e.g. "mission-abc123"
+        files = []
+        for ext in ("*.md", "*.json", "*.yaml"):
+            files.extend(mission_dir.glob(ext))
+        if not files:
+            logger.info("accumulate_from_mission: no deliverables in %s", mission_dir)
+            return 0
+
+        added = 0
+        for fpath in files:
+            try:
+                content = fpath.read_text(encoding="utf-8", errors="replace")[:5000]
+            except OSError as e:
+                logger.warning("Failed to read %s: %s", fpath, e)
+                continue
+
+            if len(content.strip()) < 50:
+                continue
+
+            # Extract knowledge items via LLM (L-003)
+            items = self._extract_knowledge(content, fpath.name)
+            for item in items:
+                category = item.get("category", "general")
+                text = item.get("content", "").strip()
+                if not text or len(text) < 20:
+                    continue
+
+                # Deduplicate: cosine similarity > 0.95 means skip
+                existing = self.search("project_context", text, n_results=1)
+                if existing and existing[0].get("score", 0) > 0.95:
+                    logger.debug("Dedup skip (%.3f): %s", existing[0]["score"], text[:60])
+                    continue
+
+                self.add_memory("project_context", text, {
+                    "mission_id": mission_id,
+                    "category": category,
+                    "source_file": fpath.name,
+                    "importance": self._category_importance(category),
+                })
+                added += 1
+
+        logger.info(
+            "accumulate_from_mission: added %d items from %s (%d files scanned)",
+            added, mission_id, len(files),
+        )
+        return added
+
+    def _extract_knowledge(self, content: str, filename: str) -> list[dict]:
+        """Use call_llm to extract structured knowledge items from content."""
+        try:
+            from lib.routing import call_llm
+            prompt = (
+                "Extract knowledge items from this project deliverable. "
+                "Return a JSON array where each item has:\n"
+                '  {"category": "<code_pattern|architecture_decision|strategy_insight|lesson_learned>", '
+                '"content": "<one concise sentence>"}\n\n'
+                "Extract only genuinely reusable knowledge. Max 5 items.\n\n"
+                f"File: {filename}\n---\n{content[:3000]}"
+            )
+            result, err = call_llm(
+                [{"role": "user", "content": prompt}],
+                task_class="structured_short",
+                max_tokens=500,
+            )
+            if not result or err:
+                return []
+
+            # Parse JSON array from LLM response
+            text = result.strip()
+            # Handle markdown code fences
+            if "```" in text:
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+
+            items = json.loads(text)
+            if isinstance(items, list):
+                return [i for i in items if isinstance(i, dict) and "content" in i]
+        except (json.JSONDecodeError, Exception) as e:
+            logger.debug("Knowledge extraction failed for %s: %s", filename, e)
+        return []
+
+    @staticmethod
+    def _category_importance(category: str) -> int:
+        """Map knowledge category to importance score."""
+        return {
+            "architecture_decision": 9,
+            "lesson_learned": 8,
+            "strategy_insight": 7,
+            "code_pattern": 6,
+        }.get(category, 5)
 
     def search(self, collection: str, query: str, n_results: int = 5, agent_id: Optional[str] = None) -> list:
         """Search a collection by semantic similarity."""
@@ -155,7 +266,7 @@ class VectorMemory:
         stats["backend"] = "fallback" if self._fallback else "chromadb"
         return stats
 
-    def prune_old(self, days: int = 90):
+    def prune_old(self, days: int = 90) -> None:
         """Remove entries older than N days."""
         cutoff = time.time() - (days * 86400)
         if self._fallback:
@@ -165,9 +276,18 @@ class VectorMemory:
                     if e.get("metadata", {}).get("timestamp", time.time()) > cutoff
                 ]
         else:
-            logger.info(f"Pruning entries older than {days} days (ChromaDB manual delete)")
-            # ChromaDB doesn't support time-based deletion natively
-            # Would need to query + delete by ID
+            total_pruned = 0
+            for name in COLLECTIONS:
+                try:
+                    col = self._client.get_or_create_collection(name)
+                    results = col.get(where={"timestamp": {"$lt": cutoff}})
+                    if results and results["ids"]:
+                        col.delete(ids=results["ids"])
+                        total_pruned += len(results["ids"])
+                except Exception as e:
+                    logger.warning("Failed to prune collection %s: %s", name, e)
+            if total_pruned:
+                logger.info("Pruned %d entries older than %d days from ChromaDB", total_pruned, days)
 
     # ── Cognitive memory operations ──────────────────────────────────
 

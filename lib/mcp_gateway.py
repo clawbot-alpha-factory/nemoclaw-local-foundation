@@ -39,6 +39,7 @@ AUDIT_LOG = Path.home() / ".nemoclaw" / "logs" / "mcp-audit.jsonl"
 # Default: 10 calls/minute per agent
 DEFAULT_MAX_CALLS = 10
 DEFAULT_WINDOW_SECONDS = 60.0
+PERMISSION_CACHE_TTL = 60  # seconds before reloading capability-registry.yaml
 
 
 class MCPGateway:
@@ -81,10 +82,10 @@ class MCPGateway:
     def _load_permissions(self) -> dict[str, set[str]]:
         """Load and cache permission map from capability registry.
 
-        Refreshes every 60 seconds to pick up config changes.
+        Refreshes every PERMISSION_CACHE_TTL seconds to pick up config changes.
         """
         now = time.monotonic()
-        if self._permissions is not None and (now - self._permissions_loaded_at) < 60:
+        if self._permissions is not None and (now - self._permissions_loaded_at) < PERMISSION_CACHE_TTL:
             return self._permissions
 
         perms: dict[str, set[str]] = defaultdict(set)

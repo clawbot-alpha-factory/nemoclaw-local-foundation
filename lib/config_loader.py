@@ -26,6 +26,7 @@ ROUTING_CONFIG = REPO / "config" / "routing" / "routing-config.yaml"
 RANKINGS_CONFIG = REPO / "config" / "routing" / "model-rankings.yaml"
 CAPABILITY_REGISTRY = REPO / "config" / "agents" / "capability-registry.yaml"
 BUDGET_CONFIG = REPO / "config" / "routing" / "budget-config.yaml"
+BACKENDS_CONFIG = REPO / "config" / "execution" / "backends.yaml"
 ENV_FILE = REPO / "config" / ".env"
 
 _cache_lock = threading.Lock()
@@ -35,6 +36,7 @@ _routing_cache = (None, 0.0)
 _rankings_cache = (None, 0.0)
 _skill_domains_cache = (None, 0.0)
 _budget_cache = (None, 0.0)
+_backends_cache = (None, 0.0)
 _env_cache = (None, 0.0)
 
 
@@ -130,6 +132,18 @@ def load_budget_config():
         return data
 
 
+def load_backends_config():
+    """Load config/execution/backends.yaml with mtime-based cache invalidation (thread-safe)."""
+    global _backends_cache
+    data, _ = _backends_cache
+    mtime = _get_mtime(BACKENDS_CONFIG)
+    if data is not None and mtime == _backends_cache[1]:
+        return data
+    with _cache_lock:
+        data, _backends_cache = _load_cached(BACKENDS_CONFIG, _backends_cache)
+        return data
+
+
 def load_env():
     """Load API keys from config/.env with mtime-based cache invalidation (thread-safe)."""
     global _env_cache
@@ -188,4 +202,5 @@ def invalidate_all():
         _rankings_cache = (None, 0.0)
         _skill_domains_cache = (None, 0.0)
         _budget_cache = (None, 0.0)
+        _backends_cache = (None, 0.0)
         _env_cache = (None, 0.0)

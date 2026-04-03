@@ -152,6 +152,80 @@ routing_profiles:
     preferred_domains: [content, multimodal]
     notes: "Social posting — fast turnaround, tier 2 sufficient"
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXECUTION BACKENDS (v1.0 — added 2026-04-04)
+# Maps each agent to their CLI execution backend, model tier, MCP tools,
+# and workspace path. Used by agent_chat_service Block 7 and agent_loop_service.
+# Backends: claude_code (MCP tools), codex (sandbox), api (call_llm only)
+# ═══════════════════════════════════════════════════════════════════════════════
+execution_backends:
+  executive_operator:
+    primary: claude_code
+    model: opus
+    mcp_tools: [asana, supabase, playwright, context7, filesystem, sentry]
+    max_turns: 50
+    workspace: ~/.nemoclaw/workspaces/executive_operator/
+  strategy_lead:
+    primary: claude_code
+    model: opus
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 40
+    workspace: ~/.nemoclaw/workspaces/strategy_lead/
+  operations_lead:
+    primary: claude_code
+    model: opus
+    mcp_tools: [asana, supabase, context7, filesystem]
+    max_turns: 40
+    workspace: ~/.nemoclaw/workspaces/operations_lead/
+  product_architect:
+    primary: claude_code
+    model: opus
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 40
+    workspace: ~/.nemoclaw/workspaces/product_architect/
+  growth_revenue_lead:
+    primary: claude_code
+    model: sonnet
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 30
+    workspace: ~/.nemoclaw/workspaces/growth_revenue_lead/
+  narrative_content_lead:
+    primary: claude_code
+    model: sonnet
+    mcp_tools: [asana, supabase, context7, filesystem]
+    max_turns: 30
+    workspace: ~/.nemoclaw/workspaces/narrative_content_lead/
+  engineering_lead:
+    primary: codex
+    model: gpt-5.4
+    mcp_tools: [asana, supabase, playwright, context7, filesystem, sentry]
+    max_turns: 30
+    workspace: ~/.nemoclaw/workspaces/engineering_lead/
+  sales_outreach_lead:
+    primary: claude_code
+    model: haiku
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 20
+    workspace: ~/.nemoclaw/workspaces/sales_outreach_lead/
+  marketing_campaigns_lead:
+    primary: claude_code
+    model: haiku
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 20
+    workspace: ~/.nemoclaw/workspaces/marketing_campaigns_lead/
+  client_success_lead:
+    primary: claude_code
+    model: haiku
+    mcp_tools: [asana, supabase, context7, filesystem]
+    max_turns: 20
+    workspace: ~/.nemoclaw/workspaces/client_success_lead/
+  social_media_lead:
+    primary: claude_code
+    model: haiku
+    mcp_tools: [asana, supabase, playwright, context7, filesystem]
+    max_turns: 20
+    workspace: ~/.nemoclaw/workspaces/social_media_lead/
+
 domain_boundaries:
   strategy_lead:
     owns:
@@ -501,6 +575,11 @@ agents:
     can_request_new: true
     request_approval_chain:
     - human
+  execution_backend:
+    backend: claude_code
+    backend_model: opus
+    fallback_backend: api
+    max_turns: 25
 - agent_id: strategy_lead
   display_name: Strategy Lead
   title: Chief Strategy Officer
@@ -615,6 +694,11 @@ agents:
     can_request_new: true
     request_approval_chain:
     - executive_operator
+  execution_backend:
+    backend: claude_code
+    backend_model: opus
+    fallback_backend: api
+    max_turns: 25
 - agent_id: operations_lead
   display_name: Operations Lead
   title: COO
@@ -675,7 +759,6 @@ agents:
     - research-brief
     - rev-23-resource-allocator
     - ops-02-event-bus
-    - scl-08-revenue-dashboard-generator
     future:
     - workflow-optimizer
     - capacity-planner
@@ -727,6 +810,11 @@ agents:
     can_request_new: true
     request_approval_chain:
     - executive_operator
+  execution_backend:
+    backend: claude_code
+    backend_model: sonnet
+    fallback_backend: api
+    max_turns: 15
 - agent_id: product_architect
   display_name: Product Architect
   title: Chief Product Officer
@@ -832,6 +920,11 @@ agents:
     request_approval_chain:
     - operations_lead
     - executive_operator
+  execution_backend:
+    backend: claude_code
+    backend_model: opus
+    fallback_backend: api
+    max_turns: 25
 - agent_id: growth_revenue_lead
   display_name: Growth & Revenue Lead
   title: Chief Revenue Officer
@@ -964,6 +1057,11 @@ agents:
     request_approval_chain:
     - operations_lead
     - executive_operator
+  execution_backend:
+    backend: claude_code
+    backend_model: sonnet
+    fallback_backend: api
+    max_turns: 15
 - agent_id: narrative_content_lead
   display_name: Narrative & Content Lead
   title: Chief Content Officer
@@ -1072,6 +1170,11 @@ agents:
     request_approval_chain:
     - operations_lead
     - executive_operator
+  execution_backend:
+    backend: claude_code
+    backend_model: sonnet
+    fallback_backend: api
+    max_turns: 12
 - agent_id: engineering_lead
   display_name: Engineering Lead
   title: CTO
@@ -1183,6 +1286,11 @@ agents:
     request_approval_chain:
     - operations_lead
     - executive_operator
+  execution_backend:
+    backend: codex
+    backend_model: gpt-5.4
+    fallback_backend: claude_code
+    max_turns: 20
 - agent_id: sales_outreach_lead
   display_name: Sales & Outreach Lead
   title: VP Sales & Business Development
@@ -1351,6 +1459,11 @@ agents:
     request_approval_chain:
     - growth_revenue_lead
     - operations_lead
+  execution_backend:
+    backend: api
+    backend_model: gpt-5.4
+    fallback_backend: api
+    max_turns: 10
   can_propose_strategic_pivot: true
   pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: marketing_campaigns_lead
@@ -1519,6 +1632,11 @@ agents:
     request_approval_chain:
     - growth_revenue_lead
     - operations_lead
+  execution_backend:
+    backend: api
+    backend_model: gpt-5.4
+    fallback_backend: api
+    max_turns: 10
   can_propose_strategic_pivot: true
   pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: client_success_lead
@@ -1687,6 +1805,11 @@ agents:
     request_approval_chain:
     - executive_operator
     - operations_lead
+  execution_backend:
+    backend: api
+    backend_model: gpt-5.4
+    fallback_backend: api
+    max_turns: 10
   can_propose_strategic_pivot: true
   pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 - agent_id: social_media_lead
@@ -1865,6 +1988,11 @@ agents:
     request_approval_chain:
     - narrative_content_lead
     - operations_lead
+  execution_backend:
+    backend: claude_code
+    backend_model: sonnet
+    fallback_backend: api
+    max_turns: 12
   can_propose_strategic_pivot: true
   pivot_routing: Direct to executive_operator with 4-hour SLA. Bypass L3 parent when opportunity is time-sensitive.
 decision_log:

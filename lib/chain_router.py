@@ -222,37 +222,34 @@ def _run_executor(ref, messages, context=None):
             prompt_parts.append(str(m))
     prompt = "\n\n".join(prompt_parts)
 
+    # Route through executor backends (DRY — shared with execution_service)
+    from lib.executor_backends import ClaudeCodeBackend, CodexBackend
+
+    backend_map = {
+        "claude_code": ClaudeCodeBackend,
+        "codex": CodexBackend,
+    }
+
+    backend_cls = backend_map.get(ref)
+    if not backend_cls:
+        return None, f"Unsupported executor: {ref}"
+
+    backend = backend_cls()
+
     try:
-        if ref == "claude_code":
-            result = subprocess.run(
-                ["claude", "--print", "--dangerously-skip-permissions", "-p", prompt],
-                capture_output=True, text=True, timeout=300,
-                cwd=str(REPO),
-            )
-            if result.returncode != 0:
-                return None, f"Claude Code error: {result.stderr[:500]}"
-            return result.stdout, None
+        import asyncio
+        result = asyncio.run(backend.execute(prompt=prompt, workdir=str(REPO), timeout=300))
 
-        elif ref == "codex":
-            result = subprocess.run(
-                ["codex", "--quiet", "--approval-mode", "full-auto", "-p", prompt],
-                capture_output=True, text=True, timeout=300,
-                cwd=str(REPO),
-            )
-            if result.returncode != 0:
-                return None, f"Codex error: {result.stderr[:500]}"
-            return result.stdout, None
-
-        else:
-            return None, f"Unsupported executor: {ref}"
+        if result.get("success"):
+            return result["output"], None
+        return None, result.get("error", f"{ref} execution failed")
 
     except FileNotFoundError:
         logger.warning(f"Executor '{ref}' not found on PATH, falling back to API model")
-        # Fall back to the executor's underlying model via API
         model_alias = _executor_fallback_alias(ref)
         return _call_model_direct(model_alias, messages)
-    except subprocess.TimeoutExpired:
-        return None, f"Executor '{ref}' timed out after 300s"
+    except Exception as e:
+        return None, f"Executor '{ref}' error: {e}"
 
 
 def _executor_fallback_alias(ref):

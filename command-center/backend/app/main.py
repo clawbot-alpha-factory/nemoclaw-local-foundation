@@ -162,6 +162,11 @@ from app.api.routers.a2a import discovery_router as a2a_discovery_router, task_r
 from app.services.mega_project_service import MegaProjectService
 from app.api.routers import mega_projects as mega_projects_router
 
+# ── Missions (Asana-backed) ──
+from app.services.bridges.asana_bridge import AsanaBridge
+from app.services.mission_manager_service import MissionManagerService
+from app.api.routers import missions as missions_router
+
 from app.services.state_aggregator import aggregator
 from app.adapters.websocket_manager import ws_manager
 
@@ -400,6 +405,11 @@ async def lifespan(app: FastAPI):
     logger.info("E-14: ResearchService initialized")
 
     # ── E-4a: Agent Runtime ──
+    from app.services.agent_factory_service import AgentFactoryService
+    app.state.agent_factory = AgentFactoryService()
+    app.state.agent_factory.create_all_workspaces()
+    logger.info("E-4a: AgentFactoryService initialized — %d workspaces provisioned", len(app.state.agent_factory._agents))
+
     app.state.vector_memory = VectorMemory()
     app.state.agent_memory_service = AgentMemoryService()
     app.state.scheduler_service = SchedulerService()
@@ -419,6 +429,7 @@ async def lifespan(app: FastAPI):
         activity_log_service=getattr(app.state, "activity_log_service", None),
         task_workflow_service=getattr(app.state, "orchestrator_service", None),
         vector_memory=app.state.vector_memory,
+        agent_factory=app.state.agent_factory,
     )
     # Auto-start all agent loops — agents begin 5s tick cycles immediately
     await app.state.agent_loop_service.start_all()
@@ -463,6 +474,16 @@ async def lifespan(app: FastAPI):
         activity_log_service=getattr(app.state, "activity_log_service", None),
     )
     logger.info("E-4c: Guardrails + Alerts + Webhooks + Config + Secrets + SLA + Audit + Approvals initialized")
+
+    # ── E-4d: CEO Review Gate ──
+    from app.services.ceo_reviewer_service import CEOReviewerService
+    app.state.ceo_reviewer_service = CEOReviewerService(
+        brain_service=app.state.brain_service,
+        approval_chain_service=app.state.approval_chain_service,
+    )
+    app.state.agent_loop_service.ceo_reviewer = app.state.ceo_reviewer_service
+    app.state.ceo_reviewer_service.ws_manager = ws_manager
+    logger.info("E-4d: CEOReviewerService initialized — executive oversight wired into agent loops")
 
     # ── E-5: Skill Factory ──
     app.state.skill_factory_service = SkillFactoryService(
@@ -516,6 +537,33 @@ async def lifespan(app: FastAPI):
         audit_service=app.state.audit_service,
     )
     logger.info("E-8: BridgeManager initialized")
+
+    # ── Missions: Asana Bridge + MissionManager ──
+    _asana_token = os.environ.get("ASANA_ACCESS_TOKEN", "")
+    if not _asana_token:
+        _env_file = Path(__file__).resolve().parents[3] / "config" / ".env"
+        if _env_file.exists():
+            for _line in _env_file.read_text().splitlines():
+                if _line.strip().startswith("ASANA_ACCESS_TOKEN="):
+                    _asana_token = _line.split("=", 1)[1].strip().strip("\"'")
+                    break
+    if _asana_token:
+        app.state.asana_bridge = AsanaBridge(_asana_token)
+        app.state.mission_manager_service = MissionManagerService(
+            asana_bridge=app.state.asana_bridge,
+            execution_service=app.state.execution_service,
+            repo_root=Path(__file__).resolve().parents[3],
+        )
+        # Wire vector memory for knowledge accumulation on mission completion
+        if hasattr(app.state, "vector_memory"):
+            app.state.mission_manager_service.vector_memory = app.state.vector_memory
+        # Wire event bus for cross-service notifications
+        if hasattr(app.state, "event_bus"):
+            app.state.mission_manager_service.event_bus = app.state.event_bus
+        logger.info("Missions: AsanaBridge + MissionManagerService initialized (vector_memory=%s)",
+                     "wired" if hasattr(app.state, "vector_memory") else "none")
+    else:
+        logger.warning("Missions: ASANA_ACCESS_TOKEN not found — MissionManager unavailable")
 
     # P-9: LanguageService available in app.services.language_service but
     # not initialized here — no router uses it yet (MENA localization planned).
@@ -589,7 +637,8 @@ async def lifespan(app: FastAPI):
         brain_service=app.state.brain_service,
     )
     app.state.agent_loop_service.task_workflow_service = app.state.task_workflow_service
-    logger.info("E-4a+: TaskWorkflowService initialized and wired to AgentLoopService")
+    app.state.task_workflow_service.ceo_reviewer = app.state.ceo_reviewer_service
+    logger.info("E-4a+: TaskWorkflowService initialized and wired to AgentLoopService + CEO phase gates")
 
     # ── A2A Protocol Service ──
     from app.services.a2a_service import A2AService
@@ -804,6 +853,8 @@ app.include_router(orchestrator_router.router)  # E-3: Orchestrator
 app.include_router(engine_router.router)  # E-4a: Engine
 app.include_router(protocol_router.router)  # E-4b: Protocol
 app.include_router(enterprise_router.router)  # E-4c: Enterprise
+from app.api.routers import ceo_review as ceo_review_router
+app.include_router(ceo_review_router.router)  # E-4d: CEO Review Gate
 app.include_router(skill_factory_router.router)  # E-5: Skill Factory
 app.include_router(skill_requests_router.router)  # Skill Request Workflow
 app.include_router(marketplace_router.router)  # P-8: Skills Marketplace
@@ -820,6 +871,7 @@ from app.api.routers import research as research_router
 app.include_router(research_router.router)  # E-14: Research
 app.include_router(a2a_discovery_router)  # A2A: Discovery (public)
 app.include_router(a2a_task_router)  # A2A: Tasks (auth)
+app.include_router(missions_router.router)  # Missions (Asana-backed)
 
 
 # ── WebSocket Endpoints ────────────────────────────────────────────────

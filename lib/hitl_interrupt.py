@@ -133,7 +133,7 @@ def _request_human_approval_original(
 
 
 def resume_approval(graph, thread_id: str, approval_id: str, action: str,
-                    reason: str = "", modification: Optional[dict] = None):
+                    reason: str = "", modification: Optional[dict] = None) -> None:
     """Helper to resume a paused graph with a human decision.
 
     Call this from the Command Center backend or CLI when a human

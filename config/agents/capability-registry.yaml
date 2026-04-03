@@ -1159,6 +1159,33 @@ capabilities:
     produces_outputs: [metric_summary, trend_analysis]
     tools: [pinchtab]
 
+  # ── CLI Execution Capabilities (2026-04-04) ────────────────────────────────
+  # Agents' ability to dispatch work via CLI backends (Claude Code, Codex)
+
+  claude_code_execution:
+    owned_by: [executive_operator, strategy_lead, operations_lead, product_architect, growth_revenue_lead, narrative_content_lead, sales_outreach_lead, marketing_campaigns_lead, client_success_lead, social_media_lead]
+    skill: "direct CLI execution via claude -p"
+    requires_inputs: [prompt, model, max_turns, workdir]
+    produces_outputs: [output_json, status_md]
+
+  codex_execution:
+    owned_by: [engineering_lead]
+    skill: "direct CLI execution via codex exec"
+    requires_inputs: [prompt, model, workdir]
+    produces_outputs: [output_json, committed_code]
+
+  mission_management:
+    owned_by: [executive_operator]
+    skill: "create and manage missions via Asana MCP"
+    requires_inputs: [mission_name, assigned_agent, instructions]
+    produces_outputs: [asana_task_id, mission_status]
+
+  cross_agent_delegation:
+    owned_by: [executive_operator, strategy_lead, operations_lead, product_architect, growth_revenue_lead, narrative_content_lead, engineering_lead, sales_outreach_lead, marketing_campaigns_lead, client_success_lead, social_media_lead]
+    skill: "delegate tasks to other agents via team channels"
+    requires_inputs: [target_agent, task_description, context]
+    produces_outputs: [delegation_status, handoff_context]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOOL BRIDGE REGISTRY (2026-04-02)
 # Maps external tool bridges to agents. All agents have full autonomy access.

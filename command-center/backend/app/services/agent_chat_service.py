@@ -2,8 +2,8 @@
 AgentChatService — Agent Team Communication (CC-3)
 
 Loads agent personas from agent-schema.yaml + capability-registry.yaml,
-builds rich 6-block system prompts with full identity, authority, capabilities,
-team context, quality standards, and dynamic runtime context.
+builds rich 7-block system prompts with full identity, authority, capabilities,
+team context, quality standards, dynamic runtime context, and execution backend.
 
 SEPARATE from BrainService:
   - Brain = strategic system-wide advisor (persistent sidebar)
@@ -307,6 +307,49 @@ If a task is outside your domain, delegate to the right team member."""
 - Be direct and action-oriented — lead with the answer or action
 - Never repeat what another team member already said in this conversation"""
 
+    def _build_execution_context(self) -> str:
+        """Block 7: Execution backend — CLI command, model, MCP tools, workspace, protocols.
+
+        Reads execution_backend config injected from agent-schema.yaml top-level
+        execution_backends section. Returns empty string if not configured.
+        """
+        eb = self.raw.get("execution_backend", {})
+        if not eb:
+            return ""
+
+        primary = eb.get("primary", "claude_code")
+        model = eb.get("model", "sonnet")
+        mcp_tools = eb.get("mcp_tools", [])
+        max_turns = eb.get("max_turns", 30)
+        workspace = eb.get("workspace", f"~/.nemoclaw/workspaces/{self.id}/")
+
+        tools_str = ", ".join(mcp_tools) if mcp_tools else "none"
+
+        # Build command based on backend type
+        if primary == "codex":
+            command = f'codex exec "{{prompt}}" --model {model} --full-auto --path {workspace}'
+        else:
+            command = (
+                f'claude -p "{{prompt}}" --output-format json --max-turns {max_turns} '
+                f'--model {model} --permission-mode acceptEdits --cwd {workspace}'
+            )
+
+        return f"""EXECUTION BACKEND:
+Your primary backend: {primary} ({model})
+Command: {command}
+MCP tools: {tools_str}
+Workspace: {workspace}
+Max turns: {max_turns}
+Rules:
+- Write all output to output/ directory
+- Post heartbeat to Asana every 5 tool calls: "[YOUR_ROLE] Turn X/{max_turns}. Status: {{done}}. Next: {{planned}}."
+- Write STATUS.md on completion (DONE or BLOCKED)
+- For lightweight text tasks, use API backend: call_llm(messages, task_class) — no MCP tools
+- To hand off to another agent, write shared/context.md with instructions
+- To resume a session: claude --resume {{session_id}}
+- If blocked, write BLOCKED.md and update Asana task
+- If budget exceeded, stop immediately and notify CEO"""
+
     # ------------------------------------------------------------------
     # Main prompt assembly
     # ------------------------------------------------------------------
@@ -318,8 +361,9 @@ If a task is outside your domain, delegate to the right team member."""
         quality_doc: str = "",
         context_data: dict | None = None,
         schema_top: dict | None = None,
+        execution_guide: str = "",
     ) -> str:
-        """Build rich 6-block system prompt from agent persona + enrichment data.
+        """Build rich 7-block system prompt from agent persona + enrichment data.
 
         All parameters are optional for backward compatibility — calling with no
         args produces a functional (though less detailed) prompt.
@@ -331,8 +375,10 @@ If a task is outside your domain, delegate to the right team member."""
           4. TEAM — all 11 agents with roles (for delegation awareness)
           5. QUALITY — output standards, quality target, KPIs
           6. CONTEXT — dynamic budget + recent work history
+          7. EXECUTION BACKEND — CLI command, model, MCP tools, protocols
           + BEHAVIOR — communication rules
           + QUALITY GUIDE — domain-specific examples (from docs/agents/*.md)
+          + EXECUTION GUIDE — reference protocols (from docs/agents/execution-guide.md)
         """
         blocks = [
             self._build_identity_block(),
@@ -349,8 +395,16 @@ If a task is outside your domain, delegate to the right team member."""
         if context_block:
             blocks.append(context_block)
 
+        # Block 7: Execution backend (agent-specific)
+        exec_ctx = self._build_execution_context()
+        if exec_ctx:
+            blocks.append(exec_ctx)
+
         if quality_doc:
             blocks.append(f"QUALITY GUIDE:\n{quality_doc}")
+
+        if execution_guide:
+            blocks.append(f"EXECUTION GUIDE:\n{execution_guide}")
 
         blocks.append(self._build_behavior_rules())
 
@@ -372,6 +426,7 @@ class AgentChatService:
         self._agent_tools: dict[str, list[str]] = {}          # agent_id -> [tool_names]
         self._team_block: str = ""                             # cached team directory
         self._quality_docs: dict[str, str] = {}                # agent_id -> quality doc extract
+        self._execution_guide: str = ""                          # cached execution guide
 
         # External services wired from main.py
         self.knowledge_base = None      # KnowledgeBaseService
@@ -384,6 +439,7 @@ class AgentChatService:
             self._load_capability_registry()
             self._build_team_block()
             self._cache_quality_docs()
+            self._cache_execution_guide()
 
         # Initialize OpenAI client
         self._init_client()
@@ -434,6 +490,7 @@ class AgentChatService:
 
             # Handle both list format and dict-with-agents-key format
             agents_list = []
+            execution_backends = {}
             if isinstance(raw, list):
                 agents_list = raw
             elif isinstance(raw, dict):
@@ -444,6 +501,9 @@ class AgentChatService:
                 ):
                     if key in raw:
                         self._schema_top[key] = raw[key]
+
+                # Capture execution backends for Block 7 injection
+                execution_backends = raw.get("execution_backends", {})
 
                 agents_list = raw.get("agents", raw.get("agent_list", []))
                 if not agents_list and not any(
@@ -457,6 +517,10 @@ class AgentChatService:
 
             for agent_data in agents_list:
                 if isinstance(agent_data, dict):
+                    # Inject execution_backend config from top-level section
+                    agent_id = agent_data.get("id", agent_data.get("agent_id", ""))
+                    if agent_id and agent_id in execution_backends:
+                        agent_data["execution_backend"] = execution_backends[agent_id]
                     persona = AgentPersona(agent_data)
                     self._agents[persona.id] = persona
                     logger.info(
@@ -516,10 +580,14 @@ class AgentChatService:
                     continue
                 owner = cap_data.get("owned_by", "")
                 skill = cap_data.get("skill", "")
-                if owner and skill:
-                    self._agent_capabilities.setdefault(owner, [])
-                    if skill not in self._agent_capabilities[owner]:
-                        self._agent_capabilities[owner].append(skill)
+                if not skill:
+                    continue
+                # owned_by can be a string or list of agent IDs
+                owners = owner if isinstance(owner, list) else [owner] if owner else []
+                for o in owners:
+                    self._agent_capabilities.setdefault(o, [])
+                    if skill not in self._agent_capabilities[o]:
+                        self._agent_capabilities[o].append(skill)
 
             # Build per-agent tool index from tool_bridges section
             tool_bridges = registry.get("tool_bridges", {})
@@ -594,8 +662,8 @@ class AgentChatService:
                         continue
                 if budgets:
                     result["budget_remaining"] = budgets
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to load budget data for %s: %s", agent_id, e)
 
         # Work history: last 3 entries from today's log
         try:
@@ -614,8 +682,8 @@ class AgentChatService:
                         continue
                 if entries:
                     result["recent_work"] = entries
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to load work history for %s: %s", agent_id, e)
 
         return result if result else None
 
@@ -645,6 +713,50 @@ class AgentChatService:
                 logger.info("Cached quality docs for %d agents", len(self._quality_docs))
         except Exception as e:
             logger.error("Failed to cache quality docs: %s", e)
+
+    def _cache_execution_guide(self) -> None:
+        """Load and cache execution guide from docs/agents/execution-guide.md.
+
+        Extracts a condensed version of the mission/heartbeat/escalation protocols
+        to inject into agent prompts alongside the per-agent Block 7.
+        """
+        try:
+            docs_dir = self._schema_path.parent.parent.parent / "docs" / "agents"
+            guide_path = docs_dir / "execution-guide.md"
+            if not guide_path.exists():
+                logger.info("No execution-guide.md found — execution guide not loaded")
+                return
+
+            content = guide_path.read_text()
+            # Extract key protocol sections (6-10) — keep concise for prompt budget
+            sections_to_extract = [
+                "## 6. Mission Protocol",
+                "## 7. Heartbeat Protocol",
+                "## 8. Cross-Agent Handoffs",
+                "## 9. When to Escalate",
+                "## 10. Self-Improvement",
+            ]
+            result_lines: list[str] = []
+            capturing = False
+            for line in content.splitlines():
+                if any(line.strip().startswith(header) for header in sections_to_extract):
+                    capturing = True
+                    result_lines.append(line)
+                    continue
+                # Stop at next section not in our list
+                if capturing and line.strip().startswith("## ") and not any(
+                    line.strip().startswith(h) for h in sections_to_extract
+                ):
+                    capturing = False
+                    continue
+                if capturing:
+                    result_lines.append(line)
+
+            self._execution_guide = "\n".join(result_lines).strip()[:2000]
+            if self._execution_guide:
+                logger.info("Cached execution guide (%d chars)", len(self._execution_guide))
+        except Exception as e:
+            logger.error("Failed to cache execution guide: %s", e)
 
     @staticmethod
     def _extract_quality_sections(content: str) -> str:
@@ -768,15 +880,15 @@ class AgentChatService:
                 result, err = await self.tool_access_service.check_tool_health()
                 if result and result.get("pinchtab") == "healthy":
                     results.append("[PinchTab is available — browser task can be queued]")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("PinchTab health check failed: %s", e)
 
         # Try skill execution for research requests
         if any(w in msg_lower for w in ["research", "analyze", "investigate", "intelligence"]) and self.execution_service:
             try:
                 results.append("[Research task queued via execution service — results will be delivered when complete]")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Research task queuing failed: %s", e)
 
         return "\n\n".join(results) if results else None
 
@@ -802,7 +914,7 @@ class AgentChatService:
         # ── Try executing the action first ────────────────────────────
         action_result = await self._try_execute_action(agent_id, user_message)
 
-        # Build enriched system prompt with all 6 blocks
+        # Build enriched system prompt with all 7 blocks
         context_data = self._get_context_data(agent_id)
         capability_data = {
             "capabilities": self._agent_capabilities.get(agent_id, []),
@@ -814,6 +926,7 @@ class AgentChatService:
             quality_doc=self._quality_docs.get(agent_id, ""),
             context_data=context_data,
             schema_top=self._schema_top,
+            execution_guide=self._execution_guide,
         )
         if action_result:
             action_result = sanitize_secrets(action_result)
@@ -826,8 +939,8 @@ class AgentChatService:
                 if kb_results:
                     kb_text = "\n".join(f"- {r['key']}: {r['value']}" for r in kb_results[:3])
                     system_prompt += f"\n\nRELEVANT KNOWLEDGE:\n{kb_text}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("KB search failed for agent chat: %s", e)
 
         # Enrich with past experience from vector memory
         if self.vector_memory:
@@ -836,8 +949,8 @@ class AgentChatService:
                 if vm_results:
                     vm_text = "\n".join(f"- {r['content'][:200]}" for r in vm_results)
                     system_prompt += f"\n\nPAST EXPERIENCE:\n{vm_text}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Vector memory search failed for agent chat: %s", e)
 
         messages = [{"role": "system", "content": system_prompt}]
 
@@ -905,6 +1018,7 @@ class AgentChatService:
             quality_doc=self._quality_docs.get(agent_id, ""),
             context_data=context_data,
             schema_top=self._schema_top,
+            execution_guide=self._execution_guide,
         )
         if action_result:
             action_result = sanitize_secrets(action_result)
@@ -916,8 +1030,8 @@ class AgentChatService:
                 if kb_results:
                     kb_text = "\n".join(f"- {r['key']}: {r['value']}" for r in kb_results[:3])
                     system_prompt += f"\n\nRELEVANT KNOWLEDGE:\n{kb_text}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("KB search failed for agent chat: %s", e)
 
         if self.vector_memory:
             try:
@@ -925,8 +1039,8 @@ class AgentChatService:
                 if vm_results:
                     vm_text = "\n".join(f"- {r['content'][:200]}" for r in vm_results)
                     system_prompt += f"\n\nPAST EXPERIENCE:\n{vm_text}"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Vector memory search failed for agent chat: %s", e)
 
         messages = [{"role": "system", "content": system_prompt}]
 

@@ -23,6 +23,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from lib.executor_backends import ExecutionBackend, SubprocessBackend, get_backend
+
 from app.domain.engine_models import (
     ChainExecution,
     ChainRequest,
@@ -100,10 +104,22 @@ class ExecutionService:
         self.skill_metrics = None     # SkillMetrics (set after E-2b init)
 
         # Execution-scoped breakers
-        from lib.circuit_breaker import StepLimitBreaker, CostCeilingBreaker, RepetitionDetector
+        from lib.circuit_breaker import StepLimitBreaker, CostCeilingBreaker, RepetitionDetector, BackendCostBreaker
         self.step_breaker = StepLimitBreaker()
         self.cost_breaker = CostCeilingBreaker()
         self.repetition_detector = RepetitionDetector()
+
+        # Per-backend cost breakers (flat-rate + API)
+        self.backend_cost_breakers: dict[str, BackendCostBreaker] = {}
+        self._init_backend_breakers(BackendCostBreaker)
+
+        # Pluggable execution backends
+        self.backend_registry: dict[str, ExecutionBackend] = {}
+        self.register_backend("subprocess", SubprocessBackend(
+            python_path=self.python,
+            skill_runner_path=self.skill_runner,
+            repo_root=self.repo_root,
+        ))
 
         # Concurrency maxed for all modes
         self._concurrency = {
@@ -123,6 +139,47 @@ class ExecutionService:
         self._running = False
 
         logger.info("ExecutionService initialized (repo: %s)", repo_root)
+
+    # ── Backend Cost Breakers ────────────────────────────────────────
+
+    def _init_backend_breakers(self, BackendCostBreaker) -> None:
+        """Initialize per-backend cost breakers from config/execution/backends.yaml."""
+        try:
+            from lib.config_loader import load_backends_config
+            config = load_backends_config()
+            if not config or "backends" not in config:
+                return
+            for name, cfg in config["backends"].items():
+                btype = cfg.get("type", "per_token")
+                if btype == "flat_rate":
+                    breaker = BackendCostBreaker(
+                        backend_name=name,
+                        monthly_limit=cfg.get("monthly_minutes", 43200),
+                        warn_pct=cfg.get("warn_pct", 0.8),
+                        tracking="session_minutes",
+                    )
+                else:
+                    breaker = BackendCostBreaker(
+                        backend_name=name,
+                        monthly_limit=300.0,  # sum of API provider budgets
+                        warn_pct=cfg.get("warn_pct", 0.9),
+                        tracking="budget_config",
+                    )
+                self.backend_cost_breakers[name] = breaker
+            logger.info("Backend cost breakers initialized: %s", list(self.backend_cost_breakers.keys()))
+        except Exception as e:
+            logger.warning("Failed to init backend cost breakers: %s", e)
+
+    # ── Backend Registry ─────────────────────────────────────────────
+
+    def register_backend(self, name: str, backend: ExecutionBackend):
+        """Register an execution backend by name."""
+        self.backend_registry[name] = backend
+        logger.info("Registered execution backend: %s (%s)", name, backend.name)
+
+    def get_backend(self, name: str) -> ExecutionBackend | None:
+        """Get a registered backend, or None."""
+        return self.backend_registry.get(name)
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 
@@ -430,10 +487,44 @@ class ExecutionService:
 
     async def _invoke_skill(self, execution: TaskExecution) -> dict[str, Any]:
         """
-        Call skill-runner.py as subprocess.
+        Call skill via registered execution backend.
+
+        Routes to a named backend if execution.backend is set,
+        otherwise uses the default subprocess backend.
+        Falls back to subprocess if a CLI backend fails.
 
         Returns dict with: success, output_path, envelope_path, thread_id, cost, error
         """
+        # Check for an alternative backend
+        backend_name = getattr(execution, "backend", None) or "subprocess"
+        backend = self.backend_registry.get(backend_name)
+
+        if backend and backend_name != "subprocess":
+            # Route to CLI backend (claude_code, codex, etc.)
+            prompt = execution.skill_id
+            input_parts = [f"{k}={v}" for k, v in execution.inputs.items()]
+            if input_parts:
+                prompt += " " + " ".join(input_parts)
+
+            logger.debug("Invoking via %s backend: %s", backend_name, execution.skill_id)
+            result = await backend.execute(
+                prompt=prompt,
+                workdir=str(self.repo_root),
+                timeout=int(os.environ.get("SKILL_EXECUTION_TIMEOUT", 900)),
+            )
+
+            if result.get("success"):
+                return self._parse_skill_output(result["output"], execution.skill_id)
+
+            # Fallback to subprocess on CLI backend failure
+            logger.warning("Backend %s failed for %s, falling back to subprocess: %s",
+                           backend_name, execution.skill_id, result.get("error", ""))
+
+        # Default: subprocess backend (skill-runner.py)
+        return await self._invoke_skill_subprocess(execution)
+
+    async def _invoke_skill_subprocess(self, execution: TaskExecution) -> dict[str, Any]:
+        """Original subprocess invocation via skill-runner.py."""
         # Build command
         cmd = [
             str(self.python),
@@ -455,7 +546,7 @@ class ExecutionService:
         env.update(tier_env)
         env["PYTHONPATH"] = str(self.repo_root)
 
-        logger.debug("Invoking: %s", " ".join(cmd[:6]) + "...")
+        logger.debug("Invoking subprocess: %s", " ".join(cmd[:6]) + "...")
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -468,7 +559,7 @@ class ExecutionService:
 
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
-                timeout=900,  # 15 minute timeout (full autonomy 2026-04-02)
+                timeout=int(os.environ.get("SKILL_EXECUTION_TIMEOUT", 900)),
             )
 
             stdout_str = stdout.decode("utf-8", errors="replace")

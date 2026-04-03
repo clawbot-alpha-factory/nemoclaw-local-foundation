@@ -85,8 +85,8 @@ class TaskWorkflow:
         wf.updated_at = wf.created_at
         wf.completed_at = datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
 
-        wf.approaches = [{}] * data.get("approaches", 0) if isinstance(data.get("approaches"), int) else data.get("approaches", [])
-        wf.plan_steps = [{}] * data.get("plan_steps", 0) if isinstance(data.get("plan_steps"), int) else data.get("plan_steps", [])
+        wf.approaches = [{} for _ in range(data.get("approaches", 0))] if isinstance(data.get("approaches"), int) else data.get("approaches", [])
+        wf.plan_steps = [{} for _ in range(data.get("plan_steps", 0))] if isinstance(data.get("plan_steps"), int) else data.get("plan_steps", [])
         wf.execution_results = data.get("execution_results", [])
         wf.validation = data.get("validation", {})
         wf.error = data.get("error")
@@ -142,6 +142,7 @@ class TaskWorkflowService:
         self.execution_service = execution_service
         self.event_bus = event_bus
         self.brain_service = brain_service
+        self.ceo_reviewer = None  # Wired post-init from main.py
         self._workflows: dict[str, TaskWorkflow] = {}
         WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
         self._scan_disk()
@@ -203,8 +204,14 @@ class TaskWorkflowService:
 
         try:
             await self._phase_brainstorm(wf)
+            if not self._check_phase_gate(wf, "brainstorm", "plan"):
+                return {"success": False, "error": "Phase gate blocked: brainstorm → plan", "workflow": wf.to_dict()}
             await self._phase_plan(wf)
+            if not self._check_phase_gate(wf, "plan", "execute"):
+                return {"success": False, "error": "Phase gate blocked: plan → execute", "workflow": wf.to_dict()}
             await self._phase_execute(wf)
+            if not self._check_phase_gate(wf, "execute", "validate"):
+                return {"success": False, "error": "Phase gate blocked: execute → validate", "workflow": wf.to_dict()}
             await self._phase_validate(wf)
             await self._phase_document(wf)
 
@@ -222,6 +229,23 @@ class TaskWorkflowService:
             self._emit("task_failed", wf, error=str(e))
             logger.error("Workflow %s failed: %s", workflow_id, e)
             return {"success": False, "error": str(e), "workflow": wf.to_dict()}
+
+    def _check_phase_gate(self, wf, from_phase: str, to_phase: str) -> bool:
+        """Check CEO phase gate if available. Returns True if passed or no reviewer."""
+        if not self.ceo_reviewer:
+            return True
+        result = self.ceo_reviewer.validate_phase_gate(
+            mission_id=wf.workflow_id,
+            from_phase=from_phase,
+            to_phase=to_phase,
+        )
+        if not result.passed:
+            wf.phase = WorkflowPhase.FAILED
+            wf.error = f"Phase gate blocked: {', '.join(result.blockers)}"
+            wf.updated_at = datetime.now(timezone.utc)
+            self._emit("task_failed", wf, error=wf.error)
+            logger.warning("Workflow %s blocked at phase gate %s → %s: %s", wf.workflow_id, from_phase, to_phase, result.blockers)
+        return result.passed
 
     def get_workflow(self, workflow_id: str) -> dict[str, Any] | None:
         wf = self._workflows.get(workflow_id)
