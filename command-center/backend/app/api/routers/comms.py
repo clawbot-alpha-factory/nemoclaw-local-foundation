@@ -182,61 +182,74 @@ async def send_message(
                 response_data["dispatch"] = dispatch_result
                 response_data["workflow_id"] = dispatch_result.get("workflow_id")
 
-    # Trigger agent response for DM and group lanes
+    # Trigger agent response(s) for DM and group/broadcast lanes
     if lane.lane_type in ("dm", "group", "broadcast") and lane.participants:
         try:
-            # Select which agent responds
             if lane.lane_type == "dm":
-                responder_id = lane.participants[0]
+                # DM: single agent responds
+                responders = [lane.participants[0]]
+            elif lane.lane_type == "broadcast":
+                # All-hands: ALL participants respond (each agent speaks)
+                responders = list(lane.participants)
             else:
-                # Group/broadcast: pick most relevant agent
-                responder_id = await agent_service.select_relevant_agent(
+                # Group: pick most relevant agent
+                picked = await agent_service.select_relevant_agent(
                     body.content, lane.participants
                 )
+                responders = [picked] if picked else []
 
-            if responder_id:
+            agent_messages = []
+            for responder_id in responders:
+                if not responder_id:
+                    continue
                 agent = agent_service.get_agent(responder_id)
-                if agent:
-                    # Get context messages for the agent
-                    context = store.get_context_messages(lane_id)
+                if not agent:
+                    continue
 
-                    # Generate agent response
-                    agent_response = await agent_service.generate_response(
-                        agent_id=responder_id,
-                        user_message=body.content,
-                        context_messages=context,
+                # Get context messages for the agent
+                context = store.get_context_messages(lane_id)
+
+                # Generate agent response
+                agent_response = await agent_service.generate_response(
+                    agent_id=responder_id,
+                    user_message=body.content,
+                    context_messages=context,
+                )
+
+                if agent_response:
+                    agent_metadata = {
+                        "trigger": "auto",
+                        "source": "agent",
+                        "responding_to": user_msg.id,
+                    }
+
+                    agent_msg = store.add_message(
+                        lane_id=lane_id,
+                        sender_id=responder_id,
+                        sender_name=agent.display_name,
+                        sender_type=SenderType.AGENT,
+                        content=agent_response,
+                        message_type=MessageType.CHAT,
+                        metadata=agent_metadata,
                     )
 
-                    if agent_response:
-                        # Audit: tag agent messages with auto trigger
-                        agent_metadata = {
-                            "trigger": "auto",
-                            "source": "agent",
-                            "responding_to": user_msg.id,
-                        }
-
-                        agent_msg = store.add_message(
-                            lane_id=lane_id,
-                            sender_id=responder_id,
-                            sender_name=agent.display_name,
-                            sender_type=SenderType.AGENT,
-                            content=agent_response,
-                            message_type=MessageType.CHAT,
-                            metadata=agent_metadata,
+                    if agent_msg and ws_manager:
+                        await ws_manager.broadcast_chat_message(
+                            agent_msg.to_ws_payload()
                         )
 
-                        if agent_msg and ws_manager:
-                            await ws_manager.broadcast_chat_message(
-                                agent_msg.to_ws_payload()
-                            )
+                    agent_messages.append(agent_msg)
 
-                        response_data["agent_message"] = (
-                            agent_msg.model_dump(mode="json") if agent_msg else None
-                        )
-                        response_data["responder"] = {
-                            "id": agent.id,
-                            "name": agent.display_name,
-                            "role": agent.role,
+            response_data["agent_messages"] = [
+                m.model_dump(mode="json") for m in agent_messages if m
+            ]
+            if agent_messages:
+                response_data["agent_message"] = agent_messages[0].model_dump(mode="json")
+                first_agent = agent_service.get_agent(responders[0])
+                response_data["responder"] = {
+                    "id": first_agent.id if first_agent else responders[0],
+                    "name": first_agent.display_name if first_agent else responders[0],
+                    "role": first_agent.role if first_agent else "",
                         }
 
         except Exception as e:
