@@ -94,22 +94,23 @@ providers:
     notes: 30B MoE, 1M context. Free fallback for tier 2/3.
 
 routing_rules:
-  # Tier 1 — Fast but capable (Sonnet for general, mini for structured only)
-  structured_short:   cheap_openai        # gpt-5.4-mini OK for classification/JSON
-  general_short:      reasoning_claude    # Sonnet 4.6 — quality matters here
-  vision:             cheap_google        # Gemini Flash — best multimodal value
+  # ALL TIERS use only Opus 4.6 + GPT-5.4 — maximum quality, cost is no issue
+  # Tier 1 — Fast
+  structured_short:   reasoning_openai    # GPT-5.4 for classification/JSON
+  general_short:      premium_claude      # Opus 4.6 — quality over speed
+  vision:             cheap_google        # Gemini Flash — only Google has vision
 
-  # Tier 2 — Workhorse (Sonnet everywhere)
-  moderate:           reasoning_claude    # Sonnet 4.6 — the default for real work
-  long_document:      reasoning_google    # Gemini Pro — 1M context window
+  # Tier 2 — Workhorse
+  moderate:           premium_claude      # Opus 4.6 — quality default
+  long_document:      reasoning_google    # Gemini Pro — 1M context window (needed)
 
-  # Tier 3 — Advanced (chain-routed + Claude Code/Codex for agentic)
-  complex_reasoning:  reasoning_claude    # Sonnet 4.6 — top reasoning
-  code:               reasoning_claude    # Sonnet 4.6 — #1 coding model (benchmarks)
+  # Tier 3 — Advanced
+  complex_reasoning:  premium_claude      # Opus 4.6 — top reasoning
+  code:               premium_claude      # Opus 4.6 — best coding
   agentic:            reasoning_openai    # GPT-5.4 — fastest for agent loops
-  deep_reasoning:     reasoning_o3        # o3 — purpose-built for STEM/logic
+  deep_reasoning:     premium_claude      # Opus 4.6 — replaces o3
 
-  # Tier 4 — Strategic (Opus + chain routing with Claude Code/Codex executors)
+  # Tier 4 — Strategic
   premium:            premium_claude      # Opus 4.6 — best quality
   strategic:          premium_claude      # Opus 4.6 — best quality
 
@@ -127,7 +128,7 @@ tier_mapping:
   strategic:          4
 
 defaults:
-  default_alias: reasoning_claude   # Sonnet 4.6 is the default — quality first
+  default_alias: premium_claude     # Opus 4.6 is the default — maximum quality
   active_provider: anthropic
   fallback_chain:
     - fallback_openai    # gpt-5.4-mini if Anthropic fails
