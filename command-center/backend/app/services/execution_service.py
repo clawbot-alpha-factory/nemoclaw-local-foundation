@@ -95,6 +95,10 @@ class ExecutionService:
         # Delegation: injected post-init via main.py
         self.skill_agent_mapping = None  # SkillAgentMappingService (set after E-9 init)
 
+        # Observability: injected post-init via main.py
+        self.circuit_breaker = None   # SkillCircuitBreaker (set after E-2b init)
+        self.skill_metrics = None     # SkillMetrics (set after E-2b init)
+
         # Concurrency maxed for all modes
         self._concurrency = {
             ExecutionMode.CONSERVATIVE: 4,
@@ -271,6 +275,17 @@ class ExecutionService:
         execution.status = ExecutionStatus.RUNNING
         execution.started_at = datetime.utcnow()
 
+        # Circuit breaker gate — skip if skill is tripped
+        if self.circuit_breaker and not self.circuit_breaker.can_execute_skill(execution.skill_id):
+            execution.status = ExecutionStatus.FAILED
+            execution.error = f"Circuit breaker OPEN for {execution.skill_id}"
+            execution.completed_at = datetime.utcnow()
+            self.active.pop(execution.execution_id, None)
+            self.history.append(execution)
+            self._daily_failed += 1
+            logger.warning("Circuit breaker blocked %s (skill=%s)", execution.execution_id[:8], execution.skill_id)
+            return
+
         # Check for better agent before executing
         self._try_delegate(execution)
 
@@ -298,6 +313,15 @@ class ExecutionService:
                     execution.output_path,
                     execution.cost,
                 )
+                # Record success in observability
+                if self.circuit_breaker:
+                    self.circuit_breaker.record_skill_result(execution.skill_id, True)
+                if self.skill_metrics:
+                    _dur = int((datetime.utcnow() - execution.started_at).total_seconds() * 1000) if execution.started_at else 0
+                    self.skill_metrics.track_execution(
+                        skill_id=execution.skill_id, agent_id=execution.agent_id,
+                        success=True, duration_ms=_dur, cost_usd=execution.cost or 0.0,
+                    )
             else:
                 execution.retry_count += 1
                 if execution.retry_count >= execution.max_retries:
@@ -306,6 +330,15 @@ class ExecutionService:
                     execution.error = result.get("error", "Unknown error")
                     self._move_to_dead_letter(execution, result.get("error", ""))
                     self._daily_failed += 1
+                    # Record terminal failure in observability
+                    if self.circuit_breaker:
+                        self.circuit_breaker.record_skill_result(execution.skill_id, False)
+                    if self.skill_metrics:
+                        _dur = int((datetime.utcnow() - execution.started_at).total_seconds() * 1000) if execution.started_at else 0
+                        self.skill_metrics.track_execution(
+                            skill_id=execution.skill_id, agent_id=execution.agent_id,
+                            success=False, duration_ms=_dur,
+                        )
                 else:
                     # Re-queue for retry
                     execution.status = ExecutionStatus.QUEUED
@@ -329,6 +362,15 @@ class ExecutionService:
                 execution.status = ExecutionStatus.DEAD_LETTER
                 self._move_to_dead_letter(execution, str(e))
                 self._daily_failed += 1
+                # Record terminal failure in observability
+                if self.circuit_breaker:
+                    self.circuit_breaker.record_skill_result(execution.skill_id, False)
+                if self.skill_metrics:
+                    _dur = int((datetime.utcnow() - execution.started_at).total_seconds() * 1000) if execution.started_at else 0
+                    self.skill_metrics.track_execution(
+                        skill_id=execution.skill_id, agent_id=execution.agent_id,
+                        success=False, duration_ms=_dur,
+                    )
             else:
                 execution.status = ExecutionStatus.QUEUED
                 self.queue.appendleft(execution)

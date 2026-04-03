@@ -92,9 +92,11 @@ class AgentNotificationService:
         self,
         message_store,
         activity_log_service=None,
+        message_pool=None,
     ):
         self.message_store = message_store
         self.activity_log = activity_log_service
+        self.message_pool = message_pool
         # Rate limiting: agent_id -> last broadcast timestamp
         self._last_broadcast: dict[str, float] = {}
         # Dedup: set of (agent_id, content_hash) -> timestamp
@@ -295,6 +297,9 @@ class AgentNotificationService:
             return {"success": False, "reason": "Failed to write to all-hands lane"}
 
         self._record_broadcast(agent_id)
+        # Also publish to shared message pool for cross-agent awareness
+        if self.message_pool:
+            self.message_pool.publish(agent_id, category, message)
         logger.info("broadcast_all_hands: %s → all-hands [%s/%s]", agent_id, category, priority)
         return {"success": True, "message_id": msg.id}
 

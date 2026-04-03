@@ -70,6 +70,7 @@ from app.services.agent_memory_service import AgentMemoryService
 from app.services.scheduler_service import SchedulerService
 from app.services.checkpoint_service import CheckpointService
 from app.services.agent_notification_service import AgentNotificationService
+from app.services.message_pool_service import MessagePoolService
 from app.services.task_workflow_service import TaskWorkflowService
 from app.api.routers import engine as engine_router
 
@@ -381,6 +382,15 @@ async def lifespan(app: FastAPI):
     await app.state.execution_service.start()
     logger.info("E-2: ExecutionService + SkillChainRunner started")
 
+    # ── E-2b: Execution Observability ──
+    from lib.circuit_breaker import SkillCircuitBreaker
+    from lib.skill_metrics import SkillMetrics
+    app.state.circuit_breaker = SkillCircuitBreaker(failure_threshold=5, recovery_timeout=60)
+    app.state.skill_metrics = SkillMetrics()
+    app.state.execution_service.circuit_breaker = app.state.circuit_breaker
+    app.state.execution_service.skill_metrics = app.state.skill_metrics
+    logger.info("E-2b: CircuitBreaker + SkillMetrics wired to execution")
+
     # ── E-14: Research Service ──
     from app.services.research_service import ResearchService
     app.state.research_service = ResearchService(app.state.chain_runner)
@@ -391,9 +401,11 @@ async def lifespan(app: FastAPI):
     app.state.agent_memory_service = AgentMemoryService()
     app.state.scheduler_service = SchedulerService()
     app.state.checkpoint_service = CheckpointService()
+    app.state.message_pool = MessagePoolService()
     app.state.notification_service = AgentNotificationService(
         message_store=message_store,
         activity_log_service=getattr(app.state, "activity_log_service", None),
+        message_pool=app.state.message_pool,
     )
     app.state.agent_loop_service = AgentLoopService(
         execution_service=app.state.execution_service,
@@ -413,6 +425,10 @@ async def lifespan(app: FastAPI):
     app.state.project_service.notification_service = app.state.notification_service
     if hasattr(app.state, "planning_service"):
         app.state.planning_service.notification_service = app.state.notification_service
+        app.state.planning_service.execution_service = app.state.execution_service
+
+    # Wire message pool into agent loops for peer awareness
+    app.state.agent_loop_service.message_pool = app.state.message_pool
 
     # ── E-4b: Agent Collaboration ──
     app.state.protocol_service = AgentProtocolService()
@@ -472,6 +488,7 @@ async def lifespan(app: FastAPI):
         project_service=app.state.project_service,
         team_service=app.state.team_service,
         execution_service=app.state.execution_service,
+        message_store=message_store,
     )
     logger.info("E-13: MegaProjectService initialized")
 
@@ -560,8 +577,9 @@ async def lifespan(app: FastAPI):
     # ── Wire event_bus + work_log into AgentLoopService (post-wire: E-10/E-11 created after E-4a) ──
     app.state.agent_loop_service.event_bus = app.state.event_bus
     app.state.agent_loop_service.work_log_service = app.state.work_log_service
+    app.state.agent_loop_service.message_pool = app.state.message_pool
     app.state.agent_loop_service.subscribe_events()
-    logger.info("Event bus wired to AgentLoopService (8 event subscriptions)")
+    logger.info("Event bus + message_pool wired to AgentLoopService (9 event subscriptions)")
 
     # ── E-4a+: TaskWorkflowService (structured task execution) ──
     app.state.task_workflow_service = TaskWorkflowService(

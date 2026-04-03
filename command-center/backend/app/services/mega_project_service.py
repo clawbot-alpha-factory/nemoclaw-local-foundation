@@ -197,11 +197,13 @@ class MegaProjectService:
         project_service: Any = None,
         team_service: Any = None,
         execution_service: Any = None,
+        message_store: Any = None,
     ):
         self.repo_root = Path(repo_root)
         self.project_service = project_service
         self.team_service = team_service
         self.execution_service = execution_service
+        self.message_store = message_store
         self.data_dir: Path = self.repo_root / "command-center" / "backend" / "data"
         self.data_file: Path = self.data_dir / "mega_projects.json"
         self.mega_projects: dict[str, dict[str, Any]] = {}
@@ -353,6 +355,29 @@ class MegaProjectService:
         self.mega_projects[project_id] = mega
         self._save()
         log.info(f"Created mega project '{name}' ({project_id}) from template '{template_id}'")
+
+        # Auto-create collaboration channel and post kickoff message
+        team_agent_ids = [t["agent_id"] for t in team]
+        if self.message_store and team_agent_ids:
+            from app.domain.comms_models import LaneType, MessageType, SenderType
+            self.message_store.create_lane(
+                lane_id=f"project-{project_id}",
+                name=f"Project: {name}",
+                lane_type=LaneType.GROUP,
+                participants=team_agent_ids,
+            )
+            lead_id = team[0]["agent_id"] if team else "system"
+            agent_names = ", ".join(team_agent_ids)
+            self.message_store.add_message(
+                lane_id=f"project-{project_id}",
+                sender_id=lead_id,
+                sender_name=lead_id,
+                sender_type=SenderType.AGENT,
+                content=f"{lead_id} started project: {name}. Team: {agent_names}",
+                message_type=MessageType.TEXT,
+            )
+            log.info(f"Created project channel 'project-{project_id}' with {len(team_agent_ids)} participants")
+
         return mega
 
     def list_mega_projects(

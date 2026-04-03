@@ -197,9 +197,11 @@ class AgentLoopService:
         self.task_workflow_service = task_workflow_service
         self.activity_log_service = activity_log_service
         self.vector_memory = vector_memory
+        self.message_pool = None  # Wired post-init from main.py
         self.loops: dict[str, AgentLoop] = {}
         self._shutdown = False
         self._skill_failure_counts: dict[str, int] = {}
+        self._last_proactive_tick: dict[str, int] = {}  # Rate limit: 1 proactive task per 10 ticks
 
         logger.info(
             "AgentLoopService initialized (%d eligible agents)",
@@ -494,6 +496,24 @@ class AgentLoopService:
                         f"Last error: {data.get('error', 'unknown')[:200]}",
                 priority="high",
             )
+            # Queue failure recovery engine
+            if self.execution_service:
+                from app.domain.engine_models import ExecutionRequest, LLMTier
+                recovery_request = ExecutionRequest(
+                    skill_id="ops-01-failure-recovery-engine",
+                    inputs={
+                        "failed_skill_id": skill_id,
+                        "failure_count": count,
+                        "last_error": data.get("error", "unknown")[:500],
+                        "agent_id": data.get("agent_id", "system"),
+                    },
+                    agent_id="operations_lead",
+                    tier=LLMTier.STANDARD,
+                    priority=1,
+                )
+                self.execution_service.submit(recovery_request)
+                logger.info("Queued ops-01-failure-recovery-engine for %s (%d failures)", skill_id, count)
+
             # Reset counter after escalation
             self._skill_failure_counts[skill_id] = 0
             logger.warning("Skill %s escalated after %d failures → %s", skill_id, count, lane_id)
@@ -757,6 +777,11 @@ class AgentLoopService:
             except Exception:
                 context["past_experience"] = []
 
+        # Check shared message pool for peer requests and updates
+        if self.message_pool:
+            pool_msgs = self.message_pool.get_messages(loop.agent_id, limit=5)
+            context["pool_messages"] = pool_msgs
+
         return context
 
     async def _decide(self, loop: AgentLoop, context: dict[str, Any]) -> dict[str, Any] | None:
@@ -901,6 +926,12 @@ class AgentLoopService:
                     category="task_complete",
                     message=f"Completed [{skill_id or 'task'}]: {description}",
                 )
+            # Publish completion to shared message pool for peer awareness
+            if self.message_pool and skill_id:
+                self.message_pool.publish(
+                    loop.agent_id, "completion",
+                    f"Completed {skill_id}: {description}",
+                )
             # Store success in vector memory for future recall
             if self.vector_memory:
                 try:
@@ -955,8 +986,93 @@ class AgentLoopService:
                     pass
 
     async def _idle_hunt(self, loop: AgentLoop):
-        """Idle: silently wait for work. No broadcasting, no peer spam."""
-        logger.debug(
-            "Agent %s idle hunt #%d: %s",
-            loop.agent_id, loop.idle_hunts, loop.idle_behavior,
-        )
+        """Proactive idle behavior: hunt for work, help peers, generate tasks."""
+        # Rate limit: max 1 proactive action per 10 ticks per agent
+        last_tick = self._last_proactive_tick.get(loop.agent_id, 0)
+        if loop.ticks - last_tick < 10:
+            logger.debug("Agent %s idle (rate-limited, next hunt at tick %d)", loop.agent_id, last_tick + 10)
+            return
+
+        logger.debug("Agent %s idle hunt #%d: %s", loop.agent_id, loop.idle_hunts, loop.idle_behavior)
+
+        # ── Step A: Check message pool for peer "request_help" messages ──
+        if self.message_pool:
+            try:
+                messages = self.message_pool.get_messages(loop.agent_id, limit=5)
+                help_requests = [m for m in messages if m.get("type") == "request_help"]
+                if help_requests and self.execution_service:
+                    msg = help_requests[0]
+                    logger.info("Agent %s picking up help request from %s: %s",
+                                loop.agent_id, msg.get("agent_id"), msg.get("content", "")[:80])
+                    from app.domain.engine_models import ExecutionRequest, LLMTier
+                    request = ExecutionRequest(
+                        skill_id=msg.get("tags", [""])[0] if msg.get("tags") else "",
+                        inputs={"context": msg.get("content", ""), "source_agent": msg.get("agent_id", "")},
+                        agent_id=loop.agent_id,
+                        tier=LLMTier.LIGHTWEIGHT,
+                        priority=3,
+                    )
+                    if request.skill_id:
+                        self.execution_service.submit(request)
+                        self._last_proactive_tick[loop.agent_id] = loop.ticks
+                        return
+            except Exception as e:
+                logger.debug("Agent %s message pool check failed: %s", loop.agent_id, e)
+
+        # ── Step B: Query vector memory for missed opportunities ──
+        if self.vector_memory:
+            try:
+                insights = self.vector_memory.search(
+                    "agent_memory",
+                    f"missed opportunities and patterns for {loop.agent_id}",
+                    n_results=2,
+                )
+                if insights:
+                    logger.info("Agent %s found %d memory insights during idle hunt", loop.agent_id, len(insights))
+            except Exception:
+                pass
+
+        # ── Step C: Browser task for browser-capable agents ──
+        BROWSER_AGENTS = {"social_media_lead", "marketing_campaigns_lead", "sales_outreach_lead", "growth_revenue_lead"}
+        if self.tool_access_service and loop.agent_id in BROWSER_AGENTS:
+            try:
+                browse_result, error = await self.tool_access_service.run_browser_task(
+                    agent_id=loop.agent_id,
+                    url="",  # Lightweight: just check tool health
+                    actions=[{"kind": "snapshot"}],
+                )
+                if not error:
+                    logger.debug("Agent %s browser health check OK", loop.agent_id)
+            except Exception:
+                pass
+
+        # ── Step D: Generate ONE proactive task via LLM ──
+        if self.execution_service and loop.idle_behavior:
+            try:
+                from lib.routing import call_llm
+                prompt = (
+                    f"You are agent '{loop.agent_id}' in a business automation system.\n"
+                    f"Your idle behavior directive: {loop.idle_behavior}\n"
+                    f"Current tick: {loop.ticks}, idle hunts: {loop.idle_hunts}\n\n"
+                    f"Generate ONE specific, actionable micro-task you should do right now.\n"
+                    f"Reply with ONLY the task description in one sentence. No explanation."
+                )
+                messages = [{"role": "user", "content": prompt}]
+                result, err = await asyncio.to_thread(
+                    call_llm, messages, "structured_short", 200
+                )
+                if result and not err:
+                    task_desc = str(result).strip()[:200]
+                    logger.info("Agent %s generated proactive task: %s", loop.agent_id, task_desc)
+                    # Store the proactive idea in vector memory for future reference
+                    if self.vector_memory:
+                        self.vector_memory.add_memory(
+                            "agent_memory",
+                            f"Proactive idea (tick {loop.ticks}): {task_desc}",
+                            {"agent_id": loop.agent_id, "type": "proactive_idea"},
+                            agent_id=loop.agent_id,
+                        )
+            except Exception as e:
+                logger.debug("Agent %s proactive task generation failed: %s", loop.agent_id, e)
+
+        self._last_proactive_tick[loop.agent_id] = loop.ticks

@@ -51,11 +51,13 @@ class PlanningService:
         project_service: Any = None,
         approval_service: Any = None,
         notification_service: Any = None,
+        execution_service: Any = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.project_service = project_service
         self.approval_service = approval_service
         self.notification_service = notification_service
+        self.execution_service = execution_service
         self.data_dir: Path = self.repo_root / "command-center" / "backend" / "data"
         self.data_file: Path = self.data_dir / "plans.json"
         self.plans: dict[str, dict[str, Any]] = {}
@@ -97,6 +99,30 @@ class PlanningService:
     @staticmethod
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    # Milestone title → skill ID mapping for auto-execution
+    _TITLE_SKILL_MAP = {
+        "analysis": "a01-arch-spec-writer",
+        "synthesis": "a01-arch-spec-writer",
+        "recommendation": "k55-seo-keyword-researcher",
+        "implementation": "a01-arch-spec-writer",
+        "testing": "a01-arch-spec-writer",
+        "qa": "a01-arch-spec-writer",
+        "deployment": "a01-arch-spec-writer",
+        "monitoring": "k61-weekly-client-reporter",
+        "performance review": "k61-weekly-client-reporter",
+        "retrospective": "k61-weekly-client-reporter",
+        "planning": "a01-arch-spec-writer",
+        "iteration": "a01-arch-spec-writer",
+    }
+
+    def _infer_skill_from_title(self, title: str) -> str:
+        """Map a milestone title to a skill ID via keyword matching."""
+        title_lower = title.lower()
+        for keyword, skill_id in self._TITLE_SKILL_MAP.items():
+            if keyword in title_lower:
+                return skill_id
+        return ""
 
     # ── Core API ──────────────────────────────────────────────────────
 
@@ -231,6 +257,20 @@ class PlanningService:
             "created_at": now,
         }
         self._save()
+
+        # Submit follow-up tasks for execution (closes the loop)
+        if self.execution_service and created_milestones:
+            from app.domain.engine_models import ExecutionRequest
+            for ms in created_milestones:
+                skill_id = self._infer_skill_from_title(ms.get("title", ""))
+                if skill_id:
+                    self.execution_service.submit(ExecutionRequest(
+                        skill_id=skill_id,
+                        inputs={"project_id": project_id, "milestone_id": ms.get("id", "")},
+                        agent_id="operations_lead",
+                        priority=5,
+                    ))
+            log.info("Submitted %d follow-up tasks for execution", len(created_milestones))
 
         log.info(
             "Created %d follow-up milestones for project %s (template: %s)",

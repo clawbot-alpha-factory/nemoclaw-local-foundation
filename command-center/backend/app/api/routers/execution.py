@@ -90,6 +90,37 @@ async def get_engine_status(request: Request) -> dict[str, Any]:
 
 
 
+# ── Observability ─────────────────────────────────────────────────────
+
+
+def _get_circuit_breaker(request: Request):
+    cb = getattr(request.app.state, "circuit_breaker", None)
+    if cb is None:
+        raise HTTPException(503, "CircuitBreaker not initialized")
+    return cb
+
+
+def _get_skill_metrics(request: Request):
+    sm = getattr(request.app.state, "skill_metrics", None)
+    if sm is None:
+        raise HTTPException(503, "SkillMetrics not initialized")
+    return sm
+
+
+@router.get("/circuit-breakers")
+async def get_circuit_breakers(request: Request) -> dict[str, Any]:
+    """Get circuit breaker states for all tracked skills."""
+    cb = _get_circuit_breaker(request)
+    return {"states": cb.get_all_states(), "stats": cb.get_stats()}
+
+
+@router.get("/skill-metrics")
+async def get_skill_metrics(request: Request) -> dict[str, Any]:
+    """Get aggregated skill execution metrics."""
+    sm = _get_skill_metrics(request)
+    return sm.get_all_stats()
+
+
 # ── Dead Letter Queue ─────────────────────────────────────────────────
 
 
