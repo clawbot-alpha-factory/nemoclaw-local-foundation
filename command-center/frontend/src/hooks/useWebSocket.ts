@@ -5,12 +5,47 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 // CC-2: AI Brain
 import { useStore } from '../lib/store';
 import type { SystemState } from '@/lib/types';
-import { WS_BASE } from '@/lib/config';
+import { WS_BASE, API_BASE } from '@/lib/config';
 
 const WS_URL = `${WS_BASE}/ws`;
 const WS_CHAT_URL = `${WS_BASE}/ws/chat`;
 const RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_DELAY = 30000;
+
+// ── REST fallback: fetch state when WS is unavailable ──
+async function fetchStateViaRest(token: string): Promise<SystemState | null> {
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/api/state`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      return data as SystemState;
+    }
+  } catch { /* fallback silently */ }
+  return null;
+}
+
+// ── Auto-resolve token: try API /api/settings/token, then known local token ──
+async function resolveToken(): Promise<string> {
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('cc-token') || '' : '';
+  if (stored) return stored;
+
+  // Try fetching token from settings API (unauthenticated endpoint on local)
+  try {
+    const res = await fetch(`${API_BASE}/api/settings/token`);
+    if (res.ok) {
+      const data = await res.json();
+      const token = data?.token || '';
+      if (token && typeof window !== 'undefined') {
+        localStorage.setItem('cc-token', token);
+      }
+      return token;
+    }
+  } catch { /* ignore */ }
+
+  return stored;
+}
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -33,12 +68,36 @@ export function useWebSocket(): UseWebSocketReturn {
   const chatReconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const lastVersion = useRef(0);
 
-  const connect = useCallback(() => {
+  // REST polling fallback when WS is unavailable
+  const restPollRef = useRef<ReturnType<typeof setInterval>>();
+  const tokenRef = useRef<string>('');
+
+  const startRestPolling = useCallback((token: string) => {
+    if (restPollRef.current) return; // already polling
+    const poll = async () => {
+      const s = await fetchStateViaRest(token);
+      if (s) {
+        setState(s);
+        setLastUpdate(new Date());
+        if (status === 'connecting') setStatus('connected');
+      }
+    };
+    poll(); // immediate first fetch
+    restPollRef.current = setInterval(poll, 10000); // poll every 10s
+  }, [status]);
+
+  const stopRestPolling = useCallback(() => {
+    if (restPollRef.current) {
+      clearInterval(restPollRef.current);
+      restPollRef.current = undefined;
+    }
+  }, []);
+
+  const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('cc-token') || ''
-      : '';
+    const token = await resolveToken();
+    tokenRef.current = token;
 
     const url = token ? `${WS_URL}?token=${token}` : WS_URL;
     const ws = new WebSocket(url);
@@ -48,6 +107,7 @@ export function useWebSocket(): UseWebSocketReturn {
     ws.onopen = () => {
       setStatus('connected');
       reconnectDelay.current = RECONNECT_DELAY;
+      stopRestPolling(); // WS is live, no need for REST polling
     };
 
     ws.onmessage = (event) => {
@@ -116,6 +176,7 @@ export function useWebSocket(): UseWebSocketReturn {
     ws.onclose = () => {
       setStatus('disconnected');
       wsRef.current = null;
+      startRestPolling(tokenRef.current); // fallback to REST while WS reconnects
       reconnectTimer.current = setTimeout(() => {
         reconnectDelay.current = Math.min(
           reconnectDelay.current * 1.5,
@@ -127,15 +188,14 @@ export function useWebSocket(): UseWebSocketReturn {
 
     ws.onerror = () => {
       setStatus('error');
+      startRestPolling(tokenRef.current); // fallback to REST on error
     };
-  }, []);
+  }, [startRestPolling, stopRestPolling]);
 
-  const connectChat = useCallback(() => {
+  const connectChat = useCallback(async () => {
     if (chatWsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('cc-token') || ''
-      : '';
+    const token = tokenRef.current || await resolveToken();
 
     const url = token ? `${WS_CHAT_URL}?token=${token}` : WS_CHAT_URL;
     const ws = new WebSocket(url);
@@ -194,10 +254,11 @@ export function useWebSocket(): UseWebSocketReturn {
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (chatReconnectTimer.current) clearTimeout(chatReconnectTimer.current);
+      stopRestPolling();
       wsRef.current?.close();
       chatWsRef.current?.close();
     };
-  }, [connect, connectChat]);
+  }, [connect, connectChat, stopRestPolling]);
 
   return { state, status, lastUpdate, refresh };
 }

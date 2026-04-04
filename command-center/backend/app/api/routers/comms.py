@@ -253,6 +253,38 @@ async def send_message(
 
     response_data = {"user_message": user_msg.model_dump(mode="json")}
 
+    # ── Asana Sync: create task for agent-directed messages ──────────
+    asana_bridge = getattr(request.app.state, "asana_bridge", None)
+    if asana_bridge and lane.lane_type in ("dm", "group") and lane.participants:
+        import asyncio as _aio
+        async def _sync_to_asana():
+            try:
+                target = lane.participants[0] if lane.participants else "unknown"
+                # Find or create the NemoClaw Operations project
+                project_gid = getattr(request.app.state, "_asana_project_gid", None)
+                if not project_gid:
+                    # Search for existing project
+                    ws = await asana_bridge.get_workspaces()
+                    if ws:
+                        workspace_gid = ws[0]["gid"]
+                        project_gid = await asana_bridge.find_or_create_project(
+                            workspace_gid, "NemoClaw Operations"
+                        )
+                        request.app.state._asana_project_gid = project_gid
+
+                if project_gid:
+                    task_name = body.content[:120] if body.content else "Agent task"
+                    await asana_bridge.create_task(
+                        project_gid=project_gid,
+                        name=f"[{target}] {task_name}",
+                        notes=f"Agent: {target}\nFull prompt:\n{body.content[:2000]}",
+                        assignee_name=target,
+                    )
+                    logger.info("Asana: task created for %s in project %s", target, project_gid)
+            except Exception as e:
+                logger.warning("Asana sync failed (non-blocking): %s", e)
+        _aio.ensure_future(_sync_to_asana())
+
     # ── Intent Classification ────────────────────────────────────────
     # Classify user intent via LLM before generating agent response
     intent_result = None

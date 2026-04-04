@@ -107,12 +107,36 @@ class AsanaBridge:
             "sections": section_map,
         }
 
+    async def find_or_create_project(
+        self,
+        workspace_gid: str,
+        name: str,
+    ) -> str | None:
+        """Find an existing project by name or create it. Returns project GID."""
+        try:
+            result = await self._get("/projects", {"workspace": workspace_gid})
+            projects = result.get("data", [])
+            for p in projects:
+                if p.get("name") == name:
+                    logger.info("Found existing Asana project: %s (%s)", name, p["gid"])
+                    return p["gid"]
+            # Create with default sections
+            created = await self.create_project(
+                workspace_gid, name,
+                sections=["Backlog", "In Progress", "Under Review", "Completed"],
+            )
+            logger.info("Created Asana project: %s (%s)", name, created["gid"])
+            return created["gid"]
+        except Exception as e:
+            logger.error("find_or_create_project failed: %s", e)
+            return None
+
     async def create_task(
         self,
         project_gid: str,
-        section_gid: str | None,
         name: str,
         notes: str = "",
+        section_gid: str | None = None,
         assignee_name: str | None = None,
     ) -> dict[str, Any]:
         """Create a task in a project/section. Returns task data with gid."""

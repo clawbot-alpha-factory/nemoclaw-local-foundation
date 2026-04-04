@@ -204,7 +204,7 @@ class CodexBackend(ExecutionBackend):
         self,
         prompt: str,
         workdir: str | Path,
-        model: str = "o4-mini",
+        model: str = "gpt-5.4",
         max_turns: int = 10,
         timeout: int = 300,
     ) -> dict[str, Any]:

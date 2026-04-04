@@ -247,6 +247,33 @@ async def lifespan(app: FastAPI):
     _data_dir.mkdir(parents=True, exist_ok=True)
 
     message_store = MessageStore(persist_path=str(_data_dir / "messages.json"))
+
+    # ── SQLite persistence (Litestream-backed, ~1s RPO) ──
+    from app.services.backup.sqlite_store import SQLiteStore
+    _sqlite_store = SQLiteStore()  # ~/.nemoclaw/nemoclaw.db
+    app.state.sqlite_store = _sqlite_store
+
+    # Run migration on first boot (idempotent)
+    if _sqlite_store.get_message_count() == 0 and (_data_dir / "messages.json").exists():
+        from app.services.backup.migrate_json_to_sqlite import run_migration
+        _mig = run_migration()
+        logger.info("SQLite: First-boot migration complete: %s", _mig)
+    else:
+        logger.info("SQLite: DB ready (%d messages, %d lanes)",
+                     _sqlite_store.get_message_count(), _sqlite_store.get_lane_count())
+
+    # Hook: dual-write to SQLite on every message
+    _original_add = message_store.add_message
+    def _dual_write_add(*args, **kwargs):
+        result = _original_add(*args, **kwargs)
+        if result:
+            try:
+                _sqlite_store.add_message(result.model_dump(mode="json") if hasattr(result, "model_dump") else result)
+            except Exception as e:
+                logger.warning("SQLite dual-write failed: %s", e)
+        return result
+    message_store.add_message = _dual_write_add
+
     agent_chat_service = AgentChatService()
 
     # Pre-create DM lanes for all agents
@@ -319,6 +346,11 @@ async def lifespan(app: FastAPI):
             await _brain_asyncio.sleep(_insight_interval)
 
     _brain_asyncio.ensure_future(_auto_insight_loop())
+
+    # ── Backup: Litestream handles real-time replication (~1s RPO) ──
+    # Old 6-hour cron replaced. SQLite WAL → Litestream → S3/local replica.
+    # Run: litestream replicate -config ~/.nemoclaw/litestream.yml
+    logger.info("Backup: SQLite + Litestream architecture (RPO ~1s). Run litestream separately.")
 
     # Expose services on app.state
     app.state.ws_manager = ws_manager

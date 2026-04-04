@@ -216,6 +216,9 @@ class ExecutionService:
             tier=request.tier,
             priority=request.priority,
             trace=trace,
+            backend=request.backend,
+            backend_model=request.backend_model,
+            max_turns=request.max_turns,
         )
 
         self.queue.append(execution)
@@ -224,11 +227,12 @@ class ExecutionService:
         self.queue = deque(sorted_q)
 
         logger.info(
-            "Queued execution %s: skill=%s agent=%s tier=%s",
+            "Queued execution %s: skill=%s agent=%s tier=%s backend=%s",
             execution.execution_id[:8],
             execution.skill_id,
             execution.agent_id,
             execution.tier.value,
+            execution.backend,
         )
         return execution
 
@@ -506,10 +510,19 @@ class ExecutionService:
             if input_parts:
                 prompt += " " + " ".join(input_parts)
 
-            logger.debug("Invoking via %s backend: %s", backend_name, execution.skill_id)
+            # Resolve agent workspace for CLI execution
+            agent_workspace = Path.home() / ".nemoclaw" / "workspaces" / execution.agent_id
+            if not agent_workspace.exists():
+                agent_workspace = self.repo_root
+
+            logger.info("🔧 Routing to %s backend (model=%s): %s for agent %s → %s",
+                        backend_name, execution.backend_model, execution.skill_id,
+                        execution.agent_id, agent_workspace)
             result = await backend.execute(
                 prompt=prompt,
-                workdir=str(self.repo_root),
+                workdir=str(agent_workspace),
+                model=execution.backend_model or "sonnet",
+                max_turns=execution.max_turns,
                 timeout=int(os.environ.get("SKILL_EXECUTION_TIMEOUT", 900)),
             )
 

@@ -128,6 +128,11 @@ class TaskExecution(BaseModel):
     priority: int = 5
     trace: TraceContext = Field(default_factory=TraceContext)
 
+    # Execution backend (claude_code | codex | api | subprocess)
+    backend: str = "subprocess"
+    backend_model: str = ""
+    max_turns: int = 10
+
     # Lifecycle timestamps
     queued_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: datetime | None = None
