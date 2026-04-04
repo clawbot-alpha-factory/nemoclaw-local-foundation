@@ -39,8 +39,8 @@ export default function BrainSidebar() {
   // ------------------------------------------------------------------
 
   useEffect(() => {
-    // Try to load token from sessionStorage
-    const stored = sessionStorage.getItem('cc-auth-token');
+    // Token priority: localStorage (shared with main app) > URL param > auto-fetch
+    const stored = localStorage.getItem('cc-token');
     if (stored) {
       setToken(stored);
     } else {
@@ -49,14 +49,36 @@ export default function BrainSidebar() {
       const urlToken = params.get('token');
       if (urlToken) {
         setToken(urlToken);
-        sessionStorage.setItem('cc-auth-token', urlToken);
+        localStorage.setItem('cc-token', urlToken);
+      } else {
+        // Auto-fetch token from backend (same as useWebSocket resolveToken)
+        fetch('/api/settings/token')
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data?.token) {
+              setToken(data.token);
+              localStorage.setItem('cc-token', data.token);
+            }
+          })
+          .catch(() => {});
       }
     }
+
+    // Listen for token changes from main app (e.g., useWebSocket resolved it)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'cc-token' && e.newValue) {
+        setToken(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   function saveToken(newToken: string) {
     setToken(newToken);
-    sessionStorage.setItem('cc-auth-token', newToken);
+    localStorage.setItem('cc-token', newToken);
+    // Also clear old sessionStorage key (migration from old behavior)
+    sessionStorage.removeItem('cc-auth-token');
     setShowTokenInput(false);
     fetchBrainStatus(newToken);
   }

@@ -174,6 +174,64 @@ async def update_brain_interval(
     }
 
 
+@router.post("/brain/api-key")
+async def update_brain_api_key(
+    request: Request,
+    _=Depends(require_auth),
+):
+    """Update Brain LLM API key at runtime. Reinitializes BrainService."""
+    import json as _json
+    body = await request.json()
+    provider = body.get("provider", "anthropic")
+    api_key = body.get("api_key", "")
+
+    if not api_key or len(api_key) < 10:
+        raise HTTPException(status_code=400, detail="Invalid API key")
+
+    # Map provider to env var name
+    env_map = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "google": "GOOGLE_API_KEY",
+    }
+    env_var = env_map.get(provider)
+    if not env_var:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    # Update environment variable at runtime
+    import os
+    os.environ[env_var] = api_key
+
+    # Also update config/.env file for persistence across restarts
+    from pathlib import Path
+    env_path = Path(__file__).resolve().parents[4] / "config" / ".env"
+    if env_path.exists():
+        lines = env_path.read_text().splitlines()
+        updated = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{env_var}="):
+                lines[i] = f"{env_var}={api_key}"
+                updated = True
+                break
+        if not updated:
+            lines.append(f"{env_var}={api_key}")
+        env_path.write_text("\n".join(lines) + "\n")
+
+    # Reinitialize BrainService if available
+    brain = getattr(request.app.state, "brain_service", None)
+    if brain and hasattr(brain, "reinitialize"):
+        brain.reinitialize(provider=provider, api_key=api_key)
+        log.info("Brain API key updated for %s, service reinitialized", provider)
+    else:
+        log.info("Brain API key updated for %s (restart required for full effect)", provider)
+
+    return {
+        "provider": provider,
+        "key_prefix": api_key[:8] + "...",
+        "message": f"{provider} API key updated. Brain reinitialized.",
+    }
+
+
 @router.get("/nvidia/health")
 async def nvidia_health():
     """Live health check for NVIDIA NIM API models."""

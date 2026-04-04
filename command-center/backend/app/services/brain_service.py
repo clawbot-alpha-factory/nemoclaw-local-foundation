@@ -171,6 +171,21 @@ class BrainService:
     def is_available(self) -> bool:
         return self._available
 
+    def reinitialize(self, provider: str = "", api_key: str = "") -> None:
+        """Re-initialize Brain with a new API key at runtime."""
+        if provider:
+            self._provider = provider
+        if api_key:
+            self._api_key = api_key
+        # Re-run initialization logic
+        self._load_api_key()
+        if self._api_key:
+            self._available = True
+            logger.info("Brain reinitialized: provider=%s available=%s", self._provider, self._available)
+        else:
+            self._available = False
+            logger.warning("Brain reinitialize failed: no API key")
+
     @property
     def provider_info(self) -> dict:
         return {

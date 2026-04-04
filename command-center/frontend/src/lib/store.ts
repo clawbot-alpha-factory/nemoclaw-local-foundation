@@ -2,6 +2,39 @@
 
 import { create } from 'zustand';
 
+// ── Persistence helpers ──────────────────────────────────────────────
+const PERSIST_KEY = 'nc-store';
+
+function loadPersistedState(): Partial<AppStore> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    return {
+      activeTab: data.activeTab || 'home',
+      brainMessages: data.brainMessages || [],
+      brainSidebarOpen: data.brainSidebarOpen || false,
+      healthAlerts: data.healthAlerts || [],
+      activeConversationType: data.activeConversationType || 'dm',
+    };
+  } catch { return {}; }
+}
+
+function persistState(state: Partial<AppStore>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const data = {
+      activeTab: state.activeTab,
+      brainMessages: (state.brainMessages || []).slice(-50), // keep last 50
+      brainSidebarOpen: state.brainSidebarOpen,
+      healthAlerts: (state.healthAlerts || []).slice(-20),
+      activeConversationType: state.activeConversationType,
+    };
+    localStorage.setItem(PERSIST_KEY, JSON.stringify(data));
+  } catch { /* quota exceeded — silently fail */ }
+}
+
 // ------------------------------------------------------------------
 // Types
 // ------------------------------------------------------------------
@@ -88,23 +121,25 @@ interface AppStore {
   clearHealthAlerts: () => void;
 }
 
+const _persisted = loadPersistedState();
+
 export const useStore = create<AppStore>((set) => ({
-  // ----- Initial state -----
+  // ----- Initial state (merge with persisted) -----
   systemState: null,
   wsStatus: 'connecting',
   lastUpdate: null,
   stateVersion: 0,
 
-  brainMessages: [],
-  brainSidebarOpen: false,
+  brainMessages: _persisted.brainMessages || [],
+  brainSidebarOpen: _persisted.brainSidebarOpen || false,
   brainLoading: false,
   brainStatus: null,
 
-  activeTab: 'home',
+  activeTab: _persisted.activeTab || 'home',
 
   circuitBreakers: {},
-  activeConversationType: 'dm' as ConversationType,
-  healthAlerts: [],
+  activeConversationType: (_persisted.activeConversationType as ConversationType) || 'dm',
+  healthAlerts: _persisted.healthAlerts || [],
 
   // ----- System state actions -----
   setSystemState: (state) => set({ systemState: state }),
@@ -145,3 +180,8 @@ export const useStore = create<AppStore>((set) => ({
     })),
   clearHealthAlerts: () => set({ healthAlerts: [] }),
 }));
+
+// Auto-persist selected state to localStorage on every change
+useStore.subscribe((state) => {
+  persistState(state);
+});
