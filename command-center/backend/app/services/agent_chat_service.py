@@ -54,7 +54,7 @@ def _resolve_chat_model():
         return "gpt-5.4"
 
 DEFAULT_MODEL = _resolve_chat_model()
-DEFAULT_MAX_TOKENS = 800
+DEFAULT_MAX_TOKENS = 4096
 CONTEXT_MESSAGES_LIMIT = 15
 
 
