@@ -399,6 +399,15 @@ async def lifespan(app: FastAPI):
     app.state.execution_service.skill_metrics = app.state.skill_metrics
     logger.info("E-2b: CircuitBreaker + SkillMetrics wired to execution")
 
+    # ── E-2c: CLI Execution Backends ──
+    from lib.executor_backends import ClaudeCodeBackend, CodexBackend
+    app.state.execution_service.register_backend("claude_code", ClaudeCodeBackend())
+    app.state.execution_service.register_backend("codex", CodexBackend())
+    logger.info(
+        "E-2c: ClaudeCodeBackend + CodexBackend registered (%d backends total)",
+        len(app.state.execution_service.backend_registry),
+    )
+
     # ── E-14: Research Service ──
     from app.services.research_service import ResearchService
     app.state.research_service = ResearchService(app.state.chain_runner)
