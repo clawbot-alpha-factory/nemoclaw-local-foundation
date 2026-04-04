@@ -1,0 +1,114 @@
+# NemoClaw Workflow: Operations Audit & Process Improvement
+# System audit → Gap analysis → Process design → Implementation → Verification
+# Owner: operations_lead (Khalid) | Support: executive_operator (Tariq), engineering_lead (Faisal)
+
+name: operations-audit
+version: "1.0"
+description: "Full operations audit: system health → process gaps → workflow redesign → implementation → monitoring setup → documentation"
+category: operations
+tier: 3
+estimated_duration_hours: 36
+ceo_gates: [after_audit, after_redesign, after_implementation]
+
+phases:
+  - phase: 1_system_audit
+    name: "Comprehensive System Audit"
+    agents: [operations_lead, engineering_lead]
+    skills:
+      - ops-01-failure-recovery-engine     # Failure pattern analysis
+      - k54-dashboard-reader              # Extract system metrics
+      - k56-seo-technical-auditor         # Technical health audit
+    deliverables:
+      - system-health-report.md            # Full health assessment
+      - bottleneck-analysis.md             # Performance bottlenecks identified
+      - dependency-map.json                # Service dependency graph
+      - risk-register.md                   # Operational risks ranked
+    success_criteria:
+      - "Every service/skill audited for health"
+      - "Top 5 bottlenecks identified with metrics"
+      - "Risk register with impact × probability scores"
+
+  - phase: 2_gap_analysis
+    name: "Process Gap Analysis & Benchmarking"
+    agents: [operations_lead, strategy_lead]
+    skills:
+      - e08-comp-intel-synth               # Best practice benchmarking
+      - int-04-reality-check-engine        # Assumption validation
+      - e12-tech-trend-scanner             # Industry trend scan
+    deliverables:
+      - gap-analysis.md                    # Current vs desired state
+      - process-inventory.json             # All processes with maturity scores
+      - benchmark-report.md                # Industry comparison
+      - improvement-priority.json          # Ranked improvement opportunities
+    success_criteria:
+      - "Every process scored on maturity (1-5)"
+      - "Gap between current and target state quantified"
+      - "Improvements ranked by ROI"
+    ceo_gate: true
+
+  - phase: 3_process_redesign
+    name: "Process Redesign & Workflow Optimization"
+    agents: [operations_lead, product_architect, executive_operator]
+    skills:
+      - a01-arch-spec-writer               # Process architecture
+      - c07-runbook-author                 # Operational procedures
+      - c07-decision-record-writer         # Decision documentation
+    deliverables:
+      - redesigned-processes.md            # New process definitions
+      - workflow-diagrams.md               # Process flow diagrams
+      - runbooks.md                        # Step-by-step operational procedures
+      - automation-opportunities.json      # What can be automated
+    success_criteria:
+      - "Every redesigned process has clear owner"
+      - "Runbooks specific enough for any agent to follow"
+      - "Automation ROI calculated"
+    ceo_gate: true
+
+  - phase: 4_implementation
+    name: "Implementation & Automation"
+    agents: [operations_lead, engineering_lead]
+    skills:
+      - b05-script-automator               # Automation scripts
+      - b06-cicd-designer                  # Pipeline improvements
+      - ops-02-event-bus                   # Event-driven automation
+    deliverables:
+      - implementation-log.md              # Changes made with dates
+      - automation-scripts/                # New automation code
+      - monitoring-config.json             # Alerting + dashboards
+      - rollback-plan.md                   # How to revert changes
+    success_criteria:
+      - "All approved changes implemented"
+      - "Monitoring covers every critical path"
+      - "Rollback tested for each change"
+    ceo_gate: true
+
+  - phase: 5_verification
+    name: "Verification & Documentation"
+    agents: [operations_lead, executive_operator]
+    skills:
+      - c07-setup-guide-writer             # Updated documentation
+      - k61-weekly-client-reporter         # Metrics report
+    deliverables:
+      - verification-report.md             # Before/after metrics comparison
+      - updated-documentation.md           # All docs refreshed
+      - lessons-learned.md                 # What went well/wrong
+      - ongoing-monitoring.md              # What to watch going forward
+    success_criteria:
+      - "Measurable improvement in key metrics"
+      - "Documentation updated to reflect changes"
+      - "Monitoring alerts configured"
+
+shared_context:
+  required_fields: [audit_findings, gap_analysis, redesigned_processes, implementation_log]
+  memory_keys: [operational_patterns, process_maturity, automation_recipes, failure_modes]
+
+cost_controls:
+  max_budget_usd: 25
+  max_turns_total: 120
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: halt      # Implementation errors cascade
+  phase_5: retry

@@ -1,0 +1,115 @@
+# NemoClaw Workflow: Financial Operations & Reporting
+# Data Collection → Analysis → Forecasting → Budgeting → Reporting
+# Owner: growth_revenue_lead (Omar) | Support: operations_lead (Khalid), executive_operator (Tariq)
+
+name: financial-reporting
+version: "1.0"
+description: "Financial operations: revenue tracking → cost analysis → forecasting → budget allocation → P&L report → board-ready deck"
+category: data_analysis
+tier: 3
+estimated_duration_hours: 12
+ceo_gates: [after_analysis, after_budget]
+schedule: monthly
+
+phases:
+  - phase: 1_data_collection
+    name: "Revenue & Cost Data Collection"
+    agents: [growth_revenue_lead, operations_lead]
+    skills:
+      - k54-dashboard-reader               # Extract metrics from dashboards
+      - rev-03-revenue-attribution-analyzer # Revenue by channel
+      - k43-pipeline-analyzer              # Pipeline health
+      - k43-sales-forecast-modeler         # Sales forecast
+    deliverables:
+      - revenue-data.json                  # MRR, ARR, churn, expansion
+      - cost-data.json                     # COGS, marketing spend, infra, tools
+      - pipeline-data.json                 # Deal stages, velocity, conversion
+      - provider-costs.json                # LLM API costs per provider
+    success_criteria:
+      - "All revenue streams captured"
+      - "Costs categorized by department"
+      - "Pipeline data current (< 24h old)"
+
+  - phase: 2_analysis
+    name: "Financial Analysis & Trends"
+    agents: [growth_revenue_lead, strategy_lead]
+    skills:
+      - rev-05-funnel-analyzer             # Funnel economics
+      - rev-13-experiment-decisioner       # ROI of experiments
+      - scl-08-revenue-dashboard-generator # Visual dashboard
+      - int-02-demand-pattern-analyzer     # Demand trends
+    deliverables:
+      - unit-economics.md                  # CAC, LTV, payback, margins
+      - trend-analysis.md                  # MoM/QoQ trends with explanations
+      - channel-roi.json                   # ROI per marketing/sales channel
+      - anomalies.md                       # Unusual patterns flagged
+    success_criteria:
+      - "Unit economics calculated per segment"
+      - "3-month trend with directional commentary"
+      - "Anomalies explained (not just flagged)"
+    ceo_gate: true
+
+  - phase: 3_forecasting
+    name: "Revenue Forecasting & Scenario Planning"
+    agents: [growth_revenue_lead, strategy_lead]
+    skills:
+      - k43-sales-forecast-modeler         # Statistical forecasting
+      - rev-09-resource-allocator          # Resource planning
+      - k45-budget-allocator               # Budget optimization
+    deliverables:
+      - forecast.json                      # 3/6/12 month revenue forecast
+      - scenarios.md                       # Bull/base/bear cases
+      - resource-plan.md                   # Headcount + tool needs
+      - sensitivity-analysis.md            # What moves the needle most
+    success_criteria:
+      - "3 scenarios with probability-weighted forecast"
+      - "Sensitivity analysis on top 5 variables"
+
+  - phase: 4_budget_allocation
+    name: "Budget Allocation & Optimization"
+    agents: [growth_revenue_lead, executive_operator, operations_lead]
+    skills:
+      - k45-budget-allocator               # Budget optimization
+      - rev-09-resource-allocator          # Resource allocation
+      - rev-23-resource-allocation-engine  # System-wide allocation
+    deliverables:
+      - budget-allocation.json             # Department budgets
+      - optimization-recommendations.md   # Where to increase/decrease spend
+      - approval-requests.json             # Budget items needing human approval
+    success_criteria:
+      - "Budget allocated to all departments"
+      - "Optimization recommendations with expected impact"
+    ceo_gate: true
+    human_gate: true  # Budget decisions need human approval
+
+  - phase: 5_reporting
+    name: "Financial Report Generation"
+    agents: [growth_revenue_lead, operations_lead]
+    skills:
+      - k61-weekly-client-reporter         # Report generation
+      - scl-08-revenue-dashboard-generator # Dashboard
+      - c07-decision-record-writer         # Decision documentation
+    deliverables:
+      - monthly-report.md                  # Full P&L + commentary
+      - executive-summary.md               # 1-page board summary
+      - dashboard.json                     # Interactive dashboard data
+      - kpi-scorecard.json                 # Red/yellow/green per KPI
+    success_criteria:
+      - "P&L with variance to forecast"
+      - "Executive summary under 500 words"
+      - "KPI scorecard with trend arrows"
+
+shared_context:
+  required_fields: [revenue_data, cost_data, forecast, budget_allocation]
+  memory_keys: [financial_history, forecast_accuracy, budget_utilization, unit_economics_trends]
+
+cost_controls:
+  max_budget_usd: 15
+  max_turns_total: 80
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: halt      # Budget errors have real consequences
+  phase_5: retry

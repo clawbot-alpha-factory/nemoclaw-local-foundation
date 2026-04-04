@@ -1,0 +1,148 @@
+# NemoClaw Workflow: Sales & Revenue Pipeline
+# Full deal lifecycle from lead discovery to closed-won
+# Owner: growth_revenue_lead (Omar) | Support: sales_outreach_lead (Hassan), strategy_lead (Nadia)
+
+name: sales-revenue-pipeline
+version: "1.0"
+description: "End-to-end sales pipeline: ICP definition → lead sourcing → qualification → outreach → negotiation → close → onboarding handoff"
+category: sales_revenue
+tier: 4
+estimated_duration_hours: 48
+ceo_gates: [after_icp, after_qualification, after_proposal, before_close]
+
+phases:
+  - phase: 1_icp_definition
+    name: "ICP & Market Targeting"
+    agents: [strategy_lead, growth_revenue_lead]
+    skills:
+      - e12-market-research-analyst     # Market sizing + segmentation
+      - int-02-demand-pattern-analyzer  # Demand signal detection
+      - j36-biz-idea-validator          # Validate target market fit
+    deliverables:
+      - icp-definition.md              # Ideal Customer Profile with firmographics
+      - market-segments.json           # Scored segments with TAM/SAM/SOM
+      - demand-signals.md              # Active buying signals detected
+    success_criteria:
+      - "3+ distinct ICP segments defined with scoring rubric"
+      - "TAM/SAM/SOM calculated per segment"
+      - "At least 5 demand signals identified"
+    ceo_gate: true
+    auto_approve_if_score_above: 8
+
+  - phase: 2_lead_sourcing
+    name: "Lead Generation & Enrichment"
+    agents: [sales_outreach_lead, marketing_campaigns_lead]
+    skills:
+      - rev-08-lead-source-aggregator   # Multi-source lead discovery
+      - k52-lead-enricher               # Data enrichment
+      - k47-lead-scoring-engine         # ICP fit scoring
+      - int-05-cross-platform-scraper   # Social signal scraping
+    deliverables:
+      - leads-raw.json                  # Raw lead list (100+ leads)
+      - leads-enriched.json            # Enriched with firmographics + signals
+      - leads-scored.json              # Scored against ICP (0-100)
+    success_criteria:
+      - "100+ leads sourced and enriched"
+      - "All leads scored against ICP rubric"
+      - "Top 20 hot leads identified (score > 70)"
+    ceo_gate: false
+
+  - phase: 3_qualification
+    name: "Lead Qualification & Prioritization"
+    agents: [growth_revenue_lead, sales_outreach_lead]
+    skills:
+      - rev-02-lead-qualification-engine  # Multi-dimensional scoring
+      - rev-05-funnel-analyzer            # Pipeline stage analysis
+      - k43-pipeline-analyzer             # Deal velocity metrics
+    deliverables:
+      - qualified-leads.json              # MQL → SQL conversion
+      - pipeline-forecast.md              # Revenue forecast by stage
+      - priority-matrix.md                # Action priority per lead
+    success_criteria:
+      - "Clear MQL/SQL/opportunity categorization"
+      - "Revenue forecast with confidence intervals"
+      - "Top 10 priority leads with next-action defined"
+    ceo_gate: true
+    auto_approve_if_score_above: 7
+
+  - phase: 4_outreach_execution
+    name: "Multi-Channel Outreach Campaigns"
+    agents: [sales_outreach_lead, narrative_content_lead, social_media_lead]
+    skills:
+      - out-01-multi-touch-sequencer      # Campaign sequence design
+      - out-02-cold-email-crafter         # Personalized cold emails
+      - out-03-linkedin-connector         # LinkedIn outreach
+      - out-05-personalization-engine     # Dynamic personalization
+      - out-06-campaign-optimizer         # A/B testing + optimization
+      - d11-copywriting-specialist        # Copy for outreach
+    deliverables:
+      - outreach-sequences.json           # Multi-touch sequences per segment
+      - email-templates.md                # 5+ email templates (A/B variants)
+      - linkedin-messages.md              # Connection + follow-up templates
+      - campaign-schedule.json            # Execution timeline
+    success_criteria:
+      - "5-touch sequence per segment (email + LinkedIn + follow-up)"
+      - "Personalization tokens for each lead"
+      - "A/B variants for subject lines and openers"
+    ceo_gate: true  # External communication requires CEO approval
+    human_gate: false  # CEO approves, not human (unless email sending)
+
+  - phase: 5_proposal_negotiation
+    name: "Proposal Generation & Negotiation"
+    agents: [growth_revenue_lead, product_architect]
+    skills:
+      - biz-01-proposal-generator         # Structured proposals
+      - f09-pricing-strategist            # Pricing optimization
+      - rev-04-offer-optimizer            # Offer packaging
+      - rev-06-service-packaging-engine   # Service tier design
+    deliverables:
+      - proposal-template.md              # Modular proposal document
+      - pricing-matrix.json               # Tiered pricing with rationale
+      - objection-playbook.md             # Top 10 objections + responses
+      - negotiation-guide.md              # BATNA + concession strategy
+    success_criteria:
+      - "3-tier pricing structure validated"
+      - "Proposal template with dynamic sections"
+      - "10+ objection responses documented"
+    ceo_gate: true
+
+  - phase: 6_close_handoff
+    name: "Deal Close & Client Onboarding Handoff"
+    agents: [growth_revenue_lead, client_success_lead, operations_lead]
+    skills:
+      - rev-01-sales-closer-engine        # Close execution
+      - biz-04-client-onboarding-sequence # Onboarding design
+      - biz-02-contract-drafter           # Contract generation
+      - k59-subscription-manager          # Subscription setup
+    deliverables:
+      - close-checklist.md                # Pre-close requirements
+      - contract-draft.md                 # Contract template
+      - onboarding-plan.md                # 30-day onboarding sequence
+      - handoff-brief.md                  # Client context for CS team
+    success_criteria:
+      - "Contract template ready for signature"
+      - "Onboarding sequence with day-by-day plan"
+      - "Full handoff brief for client success"
+    ceo_gate: true
+    human_gate: true  # Contract signing requires human approval
+
+shared_context:
+  required_fields: [icp_segments, target_leads, qualified_pipeline, outreach_sequences, proposal_template]
+  memory_keys: [icp_definition, lead_scores, pipeline_forecast, outreach_results, close_rate]
+
+cost_controls:
+  max_budget_usd: 50
+  max_turns_total: 200
+  circuit_breakers:
+    - type: cost_ceiling
+      threshold: 50
+    - type: step_limit
+      per_phase: 40
+
+failure_handling:
+  phase_1: halt       # Bad ICP = bad everything
+  phase_2: retry      # Lead sourcing can retry with different sources
+  phase_3: retry      # Qualification can re-score
+  phase_4: halt       # Bad outreach damages brand
+  phase_5: retry      # Proposals can iterate
+  phase_6: halt       # Contracts need human oversight

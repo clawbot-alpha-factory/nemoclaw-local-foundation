@@ -1,0 +1,124 @@
+# NemoClaw Workflow: Agent Self-Improvement & Performance Review
+# Audit → Analyze → Improve → Cross-Reference → Verify
+# Owner: executive_operator (Tariq) | ALL 11 agents participate
+
+name: agent-self-improvement
+version: "1.0"
+description: "Agent performance review cycle: self-audit → cross-agent peer review → skill gap analysis → improvement implementation → knowledge sharing → verification"
+category: operations
+tier: 3
+estimated_duration_hours: 12
+ceo_gates: [after_audit, after_improvements]
+schedule: weekly
+
+phases:
+  - phase: 1_self_audit
+    name: "Agent Self-Assessment"
+    agents: [executive_operator, strategy_lead, operations_lead, product_architect, growth_revenue_lead, narrative_content_lead, engineering_lead, sales_outreach_lead, marketing_campaigns_lead, client_success_lead, social_media_lead]
+    skills:
+      - ops-01-failure-recovery-engine      # Failure pattern analysis
+      - k54-dashboard-reader               # Extract performance metrics
+    deliverables:
+      - self-assessments.json              # Per-agent: strengths, weaknesses, scores
+      - task-history-analysis.md           # What each agent did this week
+      - failure-log.md                     # What went wrong and why
+      - improvement-proposals.json         # Each agent's self-improvement plan
+    success_criteria:
+      - "ALL 11 agents submit self-assessment"
+      - "Each assessment includes: 3 strengths, 3 weaknesses, 1 metric"
+      - "Improvement proposals are specific and actionable"
+
+  - phase: 2_peer_review
+    name: "Cross-Agent Peer Review"
+    agents: [executive_operator, strategy_lead, operations_lead, product_architect, growth_revenue_lead, narrative_content_lead, engineering_lead, sales_outreach_lead, marketing_campaigns_lead, client_success_lead, social_media_lead]
+    skills:
+      - int-04-reality-check-engine        # Validate peer claims
+      - c07-decision-record-writer         # Document review decisions
+    deliverables:
+      - peer-reviews.json                  # Each agent reviews 2 peers
+      - cross-reference-insights.md        # Patterns across all reviews
+      - collaboration-gaps.md              # Where handoffs are failing
+      - best-practices.md                  # What top performers do differently
+    success_criteria:
+      - "Each agent reviewed by at least 2 peers"
+      - "Constructive feedback (not just praise)"
+      - "Cross-agent patterns identified"
+    review_pairs:
+      - [executive_operator, operations_lead]
+      - [strategy_lead, growth_revenue_lead]
+      - [product_architect, engineering_lead]
+      - [narrative_content_lead, social_media_lead]
+      - [sales_outreach_lead, marketing_campaigns_lead]
+      - [client_success_lead, strategy_lead]
+      - [operations_lead, executive_operator]
+      - [growth_revenue_lead, product_architect]
+      - [engineering_lead, narrative_content_lead]
+      - [social_media_lead, sales_outreach_lead]
+      - [marketing_campaigns_lead, client_success_lead]
+    ceo_gate: true
+
+  - phase: 3_skill_gap_analysis
+    name: "Skill Gap Analysis & Training Plan"
+    agents: [executive_operator, operations_lead, strategy_lead]
+    skills:
+      - e12-tech-trend-scanner             # What new capabilities are needed
+      - e08-comp-intel-synth               # What competitors' agents can do
+    deliverables:
+      - skill-gap-matrix.json              # Per-agent: current vs needed capabilities
+      - training-plan.md                   # What each agent needs to learn
+      - new-skills-needed.json             # Skills to build or acquire
+      - priority-improvements.json         # Ranked by business impact
+    success_criteria:
+      - "Gap matrix covers all 11 agents"
+      - "Training plan with specific actions per agent"
+      - "New skills tied to revenue impact"
+
+  - phase: 4_improvement_implementation
+    name: "Implement Improvements"
+    agents: [executive_operator, operations_lead, engineering_lead]
+    skills:
+      - g26-skill-spec-writer              # Define new skills
+      - g26-skill-template-gen             # Generate skill templates
+      - b05-script-automator               # Automation improvements
+      - c07-runbook-author                 # Updated procedures
+    deliverables:
+      - improvements-log.md                # Changes made per agent
+      - new-skills-created.json            # Any new skills built
+      - updated-prompts.md                 # Improved system prompts
+      - updated-workflows.md               # Improved workflow templates
+    success_criteria:
+      - "Top 3 improvements per agent implemented"
+      - "System prompts updated with peer feedback"
+      - "At least 1 new skill created if gap identified"
+    ceo_gate: true
+
+  - phase: 5_knowledge_sharing
+    name: "Knowledge Sharing & Memory Update"
+    agents: [executive_operator, operations_lead]
+    skills:
+      - e08-kb-article-writer              # Knowledge base articles
+      - c07-decision-record-writer         # Decision documentation
+    deliverables:
+      - knowledge-updates.md               # What was learned and shared
+      - updated-agent-profiles.json        # Updated capabilities per agent
+      - performance-baseline.json          # New baseline metrics for next cycle
+      - improvement-report.md              # Summary for CEO/human
+    success_criteria:
+      - "All learnings indexed in vector memory"
+      - "Agent profiles updated with new capabilities"
+      - "Baseline metrics set for next review cycle"
+
+shared_context:
+  required_fields: [self_assessments, peer_reviews, skill_gaps, improvements]
+  memory_keys: [agent_performance_history, peer_feedback, skill_evolution, improvement_patterns]
+
+cost_controls:
+  max_budget_usd: 20
+  max_turns_total: 100
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: retry
+  phase_5: retry      # All phases can retry — this is internal improvement

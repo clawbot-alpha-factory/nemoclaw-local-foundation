@@ -1,0 +1,103 @@
+# NemoClaw Workflow: Outreach Campaign (Multi-Channel)
+# Target → Personalize → Execute → Track → Optimize
+# Owner: sales_outreach_lead (Hassan) | Support: narrative_content_lead (Yasmin), marketing_campaigns_lead (Rania)
+
+name: outreach-campaign
+version: "1.0"
+description: "Multi-channel outreach campaign: audience targeting → message crafting → personalization → execution across email/LinkedIn/WhatsApp → tracking → optimization"
+category: outreach
+tier: 3
+estimated_duration_hours: 48
+ceo_gates: [after_messaging, before_execution]
+
+phases:
+  - phase: 1_targeting
+    name: "Audience Targeting & List Building"
+    agents: [sales_outreach_lead, growth_revenue_lead]
+    skills:
+      - rev-08-lead-source-aggregator      # Multi-source lead discovery
+      - k52-lead-enricher                  # Data enrichment
+      - k47-lead-scoring-engine            # Scoring against ICP
+      - int-06-intent-score-aggregator     # Buying intent signals
+    deliverables:
+      - target-list.json                   # Enriched, scored lead list
+      - segmentation.md                    # Segments with messaging angle per segment
+      - exclusion-criteria.md              # Who NOT to target (existing clients, competitors)
+    success_criteria:
+      - "200+ targeted leads enriched and scored"
+      - "3+ segments with distinct messaging angles"
+      - "Exclusion list applied"
+
+  - phase: 2_messaging
+    name: "Message Crafting & Personalization"
+    agents: [sales_outreach_lead, narrative_content_lead]
+    skills:
+      - out-02-cold-email-crafter          # Cold email sequences
+      - out-03-linkedin-connector          # LinkedIn messages
+      - out-05-personalization-engine      # Dynamic personalization
+      - out-07-whatsapp-outreach-crafter   # WhatsApp templates
+      - d11-copywriting-specialist         # Professional copy
+      - i35-tone-calibrator               # Tone matching per channel
+    deliverables:
+      - email-sequences.md                 # 5-touch email sequence per segment
+      - linkedin-sequences.md              # Connection + 3 follow-up messages
+      - whatsapp-templates.md              # WhatsApp message templates
+      - personalization-matrix.json        # Tokens: {company}, {pain_point}, {metric}
+      - subject-line-variants.md           # 10+ A/B variants
+    success_criteria:
+      - "5-touch sequence per channel per segment"
+      - "Personalization tokens for each lead"
+      - "A/B variants for cold email subject lines"
+    ceo_gate: true  # Outbound messaging needs CEO review
+
+  - phase: 3_execution
+    name: "Campaign Execution & Delivery"
+    agents: [sales_outreach_lead, operations_lead]
+    skills:
+      - out-01-multi-touch-sequencer       # Sequence orchestration
+      - scl-07-cross-channel-scheduler     # Cross-channel timing
+      - out-08-comment-conversion-engine   # Social comment engagement
+    deliverables:
+      - execution-schedule.json            # Send times per lead per channel
+      - delivery-log.jsonl                 # Sent/delivered/bounced tracking
+      - daily-stats.json                   # Opens, clicks, replies per day
+    success_criteria:
+      - "All sequences scheduled with spacing rules"
+      - "Delivery rate > 95%"
+      - "Daily stats tracked from day 1"
+    ceo_gate: true
+    human_gate: true  # Sending emails requires human approval
+
+  - phase: 4_tracking_optimization
+    name: "Response Tracking & Optimization"
+    agents: [sales_outreach_lead, growth_revenue_lead, marketing_campaigns_lead]
+    skills:
+      - out-06-campaign-optimizer          # A/B testing + optimization
+      - rev-05-funnel-analyzer             # Conversion funnel analysis
+      - rev-11-follow-up-enforcer          # Follow-up compliance
+      - cnt-07-content-performance-analyzer # Message performance
+    deliverables:
+      - campaign-report.md                 # Full performance report
+      - ab-test-results.json               # Winner variants identified
+      - reply-analysis.md                  # Categorized replies (interested/not now/not interested)
+      - optimization-recommendations.md    # What to change for next campaign
+      - pipeline-generated.json            # Qualified leads generated
+    success_criteria:
+      - "Reply rate benchmarked against industry"
+      - "All positive replies categorized and actioned"
+      - "Optimization recommendations for next iteration"
+    ceo_gate: true
+
+shared_context:
+  required_fields: [target_list, messaging_sequences, execution_schedule, campaign_results]
+  memory_keys: [outreach_benchmarks, message_performance, reply_patterns, icp_refinements]
+
+cost_controls:
+  max_budget_usd: 25
+  max_turns_total: 100
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: halt      # Bad execution damages sender reputation
+  phase_4: retry

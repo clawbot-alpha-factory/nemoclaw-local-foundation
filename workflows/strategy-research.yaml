@@ -1,0 +1,104 @@
+# NemoClaw Workflow: Strategy & Research
+# Deep research → Analysis → Recommendations → Decision Framework
+# Owner: strategy_lead (Nadia) | Support: growth_revenue_lead (Omar), executive_operator (Tariq)
+
+name: strategy-research
+version: "1.0"
+description: "Strategic research mission: problem framing → multi-source research → synthesis → competitive positioning → recommendation deck → CEO decision"
+category: strategic_reasoning
+tier: 4
+estimated_duration_hours: 24
+ceo_gates: [after_framing, after_synthesis, after_recommendations]
+
+phases:
+  - phase: 1_problem_framing
+    name: "Problem Definition & Research Brief"
+    agents: [strategy_lead, executive_operator]
+    skills:
+      - research-brief                     # Structured research brief
+      - j36-biz-idea-validator             # Validate the question is worth researching
+    deliverables:
+      - research-brief.md                  # Problem statement, scope, constraints
+      - hypothesis.md                      # 3 testable hypotheses
+      - research-plan.md                   # Sources, methods, timeline
+    success_criteria:
+      - "Clear problem statement with success metrics"
+      - "3+ testable hypotheses"
+      - "Research plan with 5+ source types"
+    ceo_gate: true
+
+  - phase: 2_data_collection
+    name: "Multi-Source Data Collection"
+    agents: [strategy_lead, marketing_campaigns_lead, social_media_lead]
+    skills:
+      - e12-market-research-analyst        # Market data
+      - e12-tech-trend-scanner             # Technology trends
+      - e08-comp-intel-synth               # Competitive intelligence
+      - int-01-comment-signal-scraper      # Social sentiment
+      - int-05-cross-platform-scraper      # Cross-platform data
+      - k50-web-researcher                 # Web research
+      - k51-competitor-scraper             # Competitor deep dive
+      - k55-seo-keyword-researcher         # Search demand data
+    deliverables:
+      - market-data.json                   # Market size, growth, trends
+      - competitor-matrix.md               # Feature/pricing/positioning comparison
+      - trend-analysis.md                  # Technology + market trends
+      - sentiment-data.json                # Social media sentiment
+      - search-demand.json                 # Keyword volumes + trends
+    success_criteria:
+      - "Data from 5+ distinct source types"
+      - "Competitor matrix with 10+ dimensions"
+      - "Quantitative data (not just opinions)"
+
+  - phase: 3_synthesis
+    name: "Analysis & Synthesis"
+    agents: [strategy_lead, growth_revenue_lead]
+    skills:
+      - int-02-demand-pattern-analyzer     # Pattern detection
+      - int-06-intent-score-aggregator     # Signal scoring
+      - rev-03-revenue-attribution-analyzer # Revenue impact analysis
+      - int-04-reality-check-engine        # Assumption validation
+    deliverables:
+      - synthesis.md                       # Key findings (evidence-backed)
+      - hypothesis-results.md              # Each hypothesis: confirmed/rejected + evidence
+      - opportunity-map.json               # Opportunities ranked by impact × feasibility
+      - risk-assessment.md                 # Threats and mitigations
+    success_criteria:
+      - "Every finding backed by data source"
+      - "All 3 hypotheses tested with clear verdict"
+      - "Opportunities scored on 2x2 (impact × feasibility)"
+    ceo_gate: true
+
+  - phase: 4_recommendations
+    name: "Strategic Recommendations & Decision Framework"
+    agents: [strategy_lead, executive_operator, product_architect]
+    skills:
+      - j36-mvp-scope-definer             # Scope definition for chosen path
+      - f09-pricing-strategist             # Pricing if revenue-related
+      - rev-09-resource-allocator          # Resource allocation
+    deliverables:
+      - recommendations.md                 # 3 strategic options with pros/cons/risks
+      - decision-framework.md              # Criteria matrix for choosing
+      - implementation-roadmap.md          # 90-day plan for top recommendation
+      - executive-summary.md               # 1-page brief for human
+    success_criteria:
+      - "3 options with clear trade-offs"
+      - "Weighted decision matrix"
+      - "90-day roadmap with milestones"
+      - "Executive summary under 500 words"
+    ceo_gate: true
+    human_gate: true  # Strategic decisions need human sign-off
+
+shared_context:
+  required_fields: [research_brief, hypotheses, raw_data, synthesis, recommendations]
+  memory_keys: [market_intelligence, competitor_insights, strategic_decisions, research_methods]
+
+cost_controls:
+  max_budget_usd: 40
+  max_turns_total: 160
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry      # Can retry with different sources
+  phase_3: retry
+  phase_4: halt       # Bad recommendations need human intervention

@@ -1,0 +1,178 @@
+# NemoClaw Workflow: Engineering Build (Full SDLC)
+# Requirements → Architecture → Build → Test → Deploy → Monitor
+# Owner: engineering_lead (Faisal) | Support: product_architect (Layla), operations_lead (Khalid)
+
+name: engineering-build
+version: "1.0"
+description: "Full software development lifecycle: requirements → research → architecture → scaffolding → backend → frontend → review → deploy → stress test"
+category: coding
+tier: 4
+estimated_duration_hours: 120
+ceo_gates: [after_requirements, after_architecture, before_deploy, after_stress_test]
+
+phases:
+  - phase: 1_requirements
+    name: "Requirements Analysis & Spec"
+    agents: [executive_operator, product_architect]
+    skills:
+      - research-brief                     # Structured requirements
+      - a01-arch-spec-writer               # Technical spec
+    deliverables:
+      - requirements.md                    # Functional + non-functional requirements
+      - success-criteria.md                # Acceptance criteria per feature
+      - scope-definition.md                # In scope / out of scope
+    success_criteria:
+      - "Every requirement has acceptance criteria"
+      - "Scope explicitly defines what's NOT included"
+      - "Priority: P0/P1/P2 for every feature"
+    ceo_gate: true
+
+  - phase: 2_research
+    name: "Tech Scan & OSS Discovery"
+    agents: [strategy_lead, engineering_lead]
+    skills:
+      - e12-tech-trend-scanner             # Technology landscape
+      - k50-web-researcher                 # Best practices research
+      - e08-comp-intel-synth               # Existing solutions analysis
+    deliverables:
+      - tech-scan.md                       # Technology options evaluated
+      - oss-references.json                # Open source libraries to use
+      - best-practices.md                  # Industry patterns to follow
+    success_criteria:
+      - "3+ technology options compared"
+      - "OSS libraries vetted for maintenance + license"
+
+  - phase: 3_architecture
+    name: "System Architecture & API Design"
+    agents: [product_architect, engineering_lead]
+    skills:
+      - a01-arch-spec-writer               # Architecture document
+      - a01-api-surface-designer           # API contract design
+      - a01-sys-context-mapper             # System context diagram
+    deliverables:
+      - architecture.md                    # System design + component diagram
+      - api-spec.yaml                      # OpenAPI specification
+      - db-schema.sql                      # Database schema
+      - implementation-plan.md             # Sprint breakdown
+    success_criteria:
+      - "Architecture diagram with all components"
+      - "API spec with request/response schemas"
+      - "DB schema normalized, indexed"
+    ceo_gate: true
+
+  - phase: 4_scaffolding
+    name: "Project Scaffolding"
+    agents: [engineering_lead]
+    backend: codex  # Code-heavy — use Codex
+    skills:
+      - b05-scaffold-gen                   # Project structure generation
+      - b06-cicd-designer                  # CI/CD pipeline
+    deliverables:
+      - github-repo-url.txt               # Repository link
+      - project-structure.md               # Directory layout
+      - ci-pipeline.yaml                   # GitHub Actions / CI config
+    success_criteria:
+      - "Clean project structure matching architecture"
+      - "CI pipeline runs on push"
+      - "Linting + type checking configured"
+
+  - phase: 5_backend
+    name: "Backend Implementation"
+    agents: [engineering_lead]
+    backend: codex
+    skills:
+      - b05-feature-impl-writer            # Feature implementation
+      - b05-script-automator               # Utility scripts
+      - c07-api-doc-gen                    # API documentation
+    deliverables:
+      - backend-code/                      # All backend source code
+      - unit-tests/                        # Test suite
+      - api-docs.md                        # Generated API docs
+    success_criteria:
+      - "All API endpoints from spec implemented"
+      - "Unit test coverage > 80%"
+      - "All tests passing"
+
+  - phase: 6_frontend
+    name: "Frontend Implementation"
+    agents: [engineering_lead, social_media_lead]
+    backend: codex
+    skills:
+      - b05-feature-impl-writer            # UI implementation
+      - k42-landing-page-optimizer         # Landing page design
+    deliverables:
+      - frontend-code/                     # All frontend source code
+      - component-tests/                   # Component test suite
+    success_criteria:
+      - "All pages from architecture implemented"
+      - "Responsive design (mobile + desktop)"
+      - "Connected to backend APIs"
+
+  - phase: 7_review_qa
+    name: "Code Review & QA"
+    agents: [product_architect, engineering_lead, operations_lead]
+    skills:
+      - b05-bug-fix-impl                   # Bug fixing
+      - c07-decision-record-writer         # Document decisions
+    deliverables:
+      - review-report.md                   # Code review findings
+      - bug-fixes.md                       # Issues found and fixed
+      - test-results.md                    # Full test suite results
+    success_criteria:
+      - "Zero critical bugs"
+      - "All code review comments addressed"
+      - "Integration tests passing"
+
+  - phase: 8_deployment
+    name: "Deployment & Infrastructure"
+    agents: [engineering_lead, operations_lead]
+    backend: codex
+    skills:
+      - b06-cicd-designer                  # Deployment pipeline
+      - c07-runbook-author                 # Operations runbook
+      - c07-setup-guide-writer             # Setup documentation
+    deliverables:
+      - deployment-report.md               # Live URLs + infra details
+      - runbook.md                         # Operations procedures
+      - env-setup.md                       # Environment configuration
+    success_criteria:
+      - "Application accessible at production URL"
+      - "Health checks passing"
+      - "Monitoring configured"
+    ceo_gate: true
+    human_gate: true  # Production deploy needs human approval
+
+  - phase: 9_stress_test
+    name: "Stress Test & Security Scan"
+    agents: [engineering_lead, operations_lead]
+    skills:
+      - k56-seo-technical-auditor          # Technical audit
+      - b05-bug-fix-impl                   # Fix issues found
+    deliverables:
+      - stress-test-report.md              # Load test results
+      - security-scan.md                   # Security findings
+      - performance-baseline.json          # Baseline metrics
+    success_criteria:
+      - "Handles target concurrent users"
+      - "No critical security vulnerabilities"
+      - "Response times under SLA"
+    ceo_gate: true
+
+shared_context:
+  required_fields: [requirements, architecture, api_spec, db_schema, repo_url, deploy_url]
+  memory_keys: [tech_decisions, code_patterns, deployment_configs, test_strategies]
+
+cost_controls:
+  max_budget_usd: 80
+  max_turns_total: 300
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: halt       # Bad architecture cascades everywhere
+  phase_4: retry
+  phase_5: retry
+  phase_6: retry
+  phase_7: retry
+  phase_8: halt       # Deployment failures are critical
+  phase_9: retry

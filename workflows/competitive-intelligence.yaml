@@ -1,0 +1,79 @@
+# NemoClaw Workflow: Competitive Intelligence
+# Monitor → Collect → Analyze → Brief → Action
+# Owner: strategy_lead (Nadia) | Support: marketing_campaigns_lead (Rania), social_media_lead (Zara)
+
+name: competitive-intelligence
+version: "1.0"
+description: "Ongoing competitive monitoring: competitor identification → data collection → analysis → strategic brief → actionable recommendations"
+category: research
+tier: 3
+estimated_duration_hours: 12
+ceo_gates: [after_analysis]
+schedule: weekly  # Can run as recurring cron mission
+
+phases:
+  - phase: 1_competitor_scan
+    name: "Competitor Identification & Monitoring"
+    agents: [strategy_lead, social_media_lead]
+    skills:
+      - biz-07-competitive-intelligence-monitor  # Ongoing monitoring
+      - k51-competitor-scraper                   # Deep competitor data
+      - int-05-cross-platform-scraper            # Social presence scan
+      - k55-seo-keyword-researcher               # SEO competitive analysis
+    deliverables:
+      - competitor-list.json                # Tracked competitors with metadata
+      - new-entrants.md                     # New competitors detected
+      - social-presence.json                # Per-competitor social metrics
+      - seo-landscape.json                  # Keyword overlap + gaps
+    success_criteria:
+      - "10+ competitors tracked with current data"
+      - "New market entrants flagged"
+      - "SEO keyword gap analysis complete"
+
+  - phase: 2_deep_analysis
+    name: "Deep Competitive Analysis"
+    agents: [strategy_lead, growth_revenue_lead, product_architect]
+    skills:
+      - e08-comp-intel-synth                # Competitive synthesis
+      - e12-market-research-analyst         # Market context
+      - int-02-demand-pattern-analyzer      # What customers want
+      - int-04-reality-check-engine         # Validate our assumptions
+    deliverables:
+      - competitive-matrix.md               # Feature/price/positioning comparison
+      - swot-analysis.md                    # Per-competitor SWOT
+      - market-shifts.md                    # Trends changing the landscape
+      - opportunity-gaps.md                 # Where competitors are weak
+    success_criteria:
+      - "Competitive matrix with 15+ dimensions"
+      - "SWOT for top 5 competitors"
+      - "3+ actionable opportunity gaps"
+    ceo_gate: true
+
+  - phase: 3_strategic_brief
+    name: "Strategic Brief & Recommendations"
+    agents: [strategy_lead, executive_operator]
+    skills:
+      - c07-decision-record-writer          # Documented decisions
+      - research-brief                      # Structured output
+    deliverables:
+      - intel-brief.md                      # Executive summary (1 page)
+      - detailed-analysis.md                # Full analysis with evidence
+      - action-items.json                   # Specific actions per team
+      - watch-list.md                       # What to monitor next cycle
+    success_criteria:
+      - "Executive brief under 500 words"
+      - "Every recommendation tied to evidence"
+      - "Action items assigned to specific agents"
+
+shared_context:
+  required_fields: [competitor_list, competitive_matrix, opportunity_gaps]
+  memory_keys: [competitor_history, market_trends, strategic_gaps, competitive_moves]
+
+cost_controls:
+  max_budget_usd: 15
+  max_turns_total: 80
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry

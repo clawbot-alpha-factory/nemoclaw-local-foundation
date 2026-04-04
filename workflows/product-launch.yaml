@@ -1,0 +1,158 @@
+# NemoClaw Workflow: Product Launch
+# Positioning → Build → Content → Channels → Launch → Post-Launch
+# Owner: executive_operator (Tariq) | All 11 agents participate
+
+name: product-launch
+version: "1.0"
+description: "Full product launch: positioning → MVP build → content creation → channel setup → launch execution → post-launch analysis. Involves ALL 11 agents."
+category: strategic_reasoning
+tier: 4
+estimated_duration_hours: 168  # 1 week
+ceo_gates: [after_positioning, after_mvp, before_launch, after_launch]
+
+phases:
+  - phase: 1_positioning
+    name: "Market Positioning & Go-To-Market Strategy"
+    agents: [strategy_lead, growth_revenue_lead, executive_operator]
+    skills:
+      - e12-market-research-analyst        # Market analysis
+      - e08-comp-intel-synth               # Competitive landscape
+      - f09-pricing-strategist             # Pricing strategy
+      - j36-biz-idea-validator             # Product-market fit validation
+      - j36-mvp-scope-definer             # MVP scope
+    deliverables:
+      - positioning-doc.md                 # Value prop, messaging, differentiators
+      - competitive-map.md                 # Where we sit vs competitors
+      - pricing-strategy.md                # Pricing tiers + rationale
+      - gtm-strategy.md                    # Go-to-market plan
+      - mvp-scope.md                       # What's in V1 vs V2
+    success_criteria:
+      - "Clear positioning statement (for X who Y, unlike Z)"
+      - "Pricing validated against 5+ competitors"
+      - "MVP scope with explicit V2 parking lot"
+    ceo_gate: true
+
+  - phase: 2_mvp_build
+    name: "MVP Development"
+    agents: [engineering_lead, product_architect, operations_lead]
+    backend: codex  # Code-heavy
+    skills:
+      - a01-arch-spec-writer               # Architecture
+      - a01-api-surface-designer           # API design
+      - b05-scaffold-gen                   # Project setup
+      - b05-feature-impl-writer            # Implementation
+      - b06-cicd-designer                  # CI/CD
+    deliverables:
+      - architecture.md
+      - api-spec.yaml
+      - github-repo-url.txt
+      - deployment-url.txt
+      - test-results.md
+    success_criteria:
+      - "MVP deployed and accessible"
+      - "Core features working end-to-end"
+      - "Tests passing"
+    ceo_gate: true
+
+  - phase: 3_launch_content
+    name: "Launch Content Production"
+    agents: [narrative_content_lead, social_media_lead, marketing_campaigns_lead]
+    skills:
+      - cnt-01-viral-hook-generator        # Viral hooks
+      - cnt-02-instagram-reel-script-writer # Video scripts
+      - cnt-05-youtube-script-writer       # YouTube content
+      - cnt-06-content-calendar-builder    # Content calendar
+      - cnt-14-caption-generator           # Social captions
+      - d11-copywriting-specialist         # Landing page copy
+      - d11-video-script-writer            # Product demo script
+      - k42-landing-page-optimizer         # Landing page
+      - k48-ad-creative-writer             # Ad copy
+      - k48-blog-post-writer              # Launch blog post
+    deliverables:
+      - landing-page-copy.md               # Full landing page
+      - launch-blog-post.md                # Announcement post
+      - social-content.json                # 30+ social posts
+      - video-scripts.md                   # Demo + explainer scripts
+      - ad-creatives.md                    # Paid ad copy (5+ variants)
+      - email-announcement.md              # Launch email
+    success_criteria:
+      - "Landing page copy complete with clear CTA"
+      - "30+ social posts scheduled"
+      - "Video script for product demo"
+      - "5+ ad variants for paid channels"
+
+  - phase: 4_channel_setup
+    name: "Distribution Channel Setup"
+    agents: [marketing_campaigns_lead, social_media_lead, sales_outreach_lead]
+    skills:
+      - k41-ppc-campaign-architect         # Google Ads
+      - k42-paid-social-planner            # Social ads
+      - out-01-multi-touch-sequencer       # Outreach sequences
+      - cnt-08-cross-channel-distributor   # Multi-platform distribution
+      - scl-07-cross-channel-scheduler     # Scheduling
+    deliverables:
+      - ad-campaign-structure.json         # All paid campaigns
+      - outreach-sequences.json            # Launch outreach
+      - distribution-schedule.json         # When + where everything posts
+      - tracking-setup.md                  # Analytics + attribution
+    success_criteria:
+      - "All paid channels configured"
+      - "Attribution tracking live"
+      - "Launch sequence scheduled"
+    ceo_gate: true
+
+  - phase: 5_launch_execution
+    name: "Launch Day Execution"
+    agents: [executive_operator, social_media_lead, marketing_campaigns_lead, sales_outreach_lead]
+    skills:
+      - cnt-09-social-posting-executor     # Live posting
+      - out-01-multi-touch-sequencer       # Outreach go-live
+      - cnt-08-cross-channel-distributor   # Distribution execution
+    deliverables:
+      - launch-checklist.md                # Pre-launch verification
+      - launch-log.jsonl                   # Real-time launch log
+      - day1-metrics.json                  # First 24h metrics
+    success_criteria:
+      - "All channels live within launch window"
+      - "No broken links or errors"
+      - "First 24h metrics captured"
+    ceo_gate: true
+    human_gate: true  # Launch requires human go/no-go
+
+  - phase: 6_post_launch
+    name: "Post-Launch Analysis & Iteration"
+    agents: [growth_revenue_lead, marketing_campaigns_lead, strategy_lead, operations_lead]
+    skills:
+      - rev-03-revenue-attribution-analyzer # Revenue attribution
+      - rev-05-funnel-analyzer             # Funnel analysis
+      - cnt-07-content-performance-analyzer # Content performance
+      - cnt-10-viral-pattern-analyzer      # What went viral
+      - scl-08-revenue-dashboard-generator # Dashboard
+      - k61-weekly-client-reporter         # Launch report
+    deliverables:
+      - launch-report.md                   # Full launch performance report
+      - attribution-analysis.md            # What channels drove signups
+      - iteration-plan.md                  # What to improve for week 2
+      - revenue-dashboard.md               # Revenue metrics
+      - lessons-learned.md                 # Team retrospective
+    success_criteria:
+      - "Clear attribution: which channels drove what"
+      - "Week 2 iteration plan with priorities"
+      - "Revenue tracked against projections"
+    ceo_gate: true
+
+shared_context:
+  required_fields: [positioning, mvp_url, launch_content, channel_config, launch_metrics]
+  memory_keys: [launch_playbook, channel_performance, content_winners, pricing_learnings]
+
+cost_controls:
+  max_budget_usd: 100
+  max_turns_total: 400
+
+failure_handling:
+  phase_1: retry
+  phase_2: halt       # Can't launch without MVP
+  phase_3: retry
+  phase_4: retry
+  phase_5: halt       # Launch errors are public
+  phase_6: retry

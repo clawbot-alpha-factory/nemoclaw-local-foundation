@@ -1,0 +1,119 @@
+# NemoClaw Workflow: Client Success Lifecycle
+# Onboarding → Health Monitoring → Expansion → Retention → Reporting
+# Owner: client_success_lead (Amira) | Support: growth_revenue_lead (Omar), operations_lead (Khalid)
+
+name: client-success-lifecycle
+version: "1.0"
+description: "Full client lifecycle: onboarding → health monitoring → upsell detection → churn prevention → expansion → quarterly review"
+category: client_success
+tier: 3
+estimated_duration_hours: 168  # Ongoing, first cycle = 1 week
+ceo_gates: [after_onboarding, before_upsell, before_churn_intervention]
+
+phases:
+  - phase: 1_onboarding
+    name: "Client Onboarding & Activation"
+    agents: [client_success_lead, operations_lead]
+    skills:
+      - biz-04-client-onboarding-sequence  # Onboarding workflow design
+      - c07-setup-guide-writer             # Setup documentation
+      - d11-copywriting-specialist          # Welcome emails + guides
+    deliverables:
+      - onboarding-checklist.md            # Day-by-day activation plan (30 days)
+      - welcome-sequence.md                # 7-email welcome drip
+      - setup-guide.md                     # Product setup walkthrough
+      - success-milestones.json            # Key activation events to track
+    success_criteria:
+      - "30-day onboarding plan with daily touchpoints"
+      - "Welcome email sequence with personalization tokens"
+      - "3+ activation milestones defined"
+    ceo_gate: true
+
+  - phase: 2_health_monitoring
+    name: "Client Health Scoring & Monitoring"
+    agents: [client_success_lead, growth_revenue_lead]
+    skills:
+      - biz-05-client-health-monitor        # Health score calculation
+      - rev-05-funnel-analyzer              # Usage funnel analysis
+      - k54-dashboard-reader               # Extract usage metrics
+      - cnt-07-content-performance-analyzer # Engagement analysis
+    deliverables:
+      - health-scorecard.json              # Per-client health score (0-100)
+      - usage-report.md                    # Feature adoption breakdown
+      - risk-flags.json                    # At-risk clients with reasons
+      - engagement-trends.md               # Engagement trajectory
+    success_criteria:
+      - "Health score formula defined with 5+ dimensions"
+      - "At-risk clients flagged within 48h of signal"
+      - "Weekly trend report auto-generated"
+
+  - phase: 3_expansion_detection
+    name: "Upsell & Cross-Sell Opportunity Detection"
+    agents: [client_success_lead, growth_revenue_lead, sales_outreach_lead]
+    skills:
+      - biz-06-upsell-opportunity-detector  # Pattern-based opportunity detection
+      - rev-04-offer-optimizer              # Package optimization
+      - rev-06-service-packaging-engine     # Service tier recommendations
+      - k47-account-expansion-planner      # Account growth strategy
+    deliverables:
+      - expansion-opportunities.json        # Scored opportunities per client
+      - upsell-playbook.md                 # Approach strategy per opportunity type
+      - package-recommendations.json       # Suggested tier upgrades
+      - roi-calculator.md                  # Value justification for upgrades
+    success_criteria:
+      - "Every active client scored for expansion readiness"
+      - "Top 5 upsell opportunities with dollar value"
+      - "ROI talking points per upgrade tier"
+    ceo_gate: true
+
+  - phase: 4_churn_prevention
+    name: "Churn Prevention & Win-Back"
+    agents: [client_success_lead, narrative_content_lead, operations_lead]
+    skills:
+      - biz-05-client-health-monitor        # Churn signal detection
+      - out-04-follow-up-optimizer          # Re-engagement sequences
+      - d11-copywriting-specialist          # Retention messaging
+      - k60-refund-dispute-handler          # Dispute resolution
+    deliverables:
+      - churn-risk-matrix.md               # Risk tiers with triggers
+      - retention-playbook.md              # Intervention strategy per risk level
+      - win-back-sequences.md              # Email sequences for churned clients
+      - escalation-protocol.md             # When to involve CEO/human
+    success_criteria:
+      - "Risk tiers defined: green/yellow/red with trigger conditions"
+      - "Intervention playbook for each tier"
+      - "Win-back sequence for recently churned"
+    ceo_gate: true
+
+  - phase: 5_quarterly_review
+    name: "Quarterly Business Review & Reporting"
+    agents: [client_success_lead, growth_revenue_lead, operations_lead]
+    skills:
+      - k61-weekly-client-reporter          # Report generation
+      - scl-08-revenue-dashboard-generator  # Revenue dashboard
+      - k46-case-study-writer              # Success story documentation
+      - biz-08-social-proof-engine          # Testimonial collection
+    deliverables:
+      - qbr-template.md                    # Quarterly review presentation
+      - client-portfolio-report.md         # Portfolio-level metrics
+      - case-studies.md                    # 2-3 success stories
+      - nps-analysis.md                    # NPS scores + verbatim analysis
+    success_criteria:
+      - "QBR template with data-driven insights"
+      - "Portfolio churn rate, expansion rate, NPS"
+      - "At least 1 publishable case study"
+
+shared_context:
+  required_fields: [client_list, health_scores, expansion_pipeline, churn_risks]
+  memory_keys: [client_health_history, expansion_wins, churn_patterns, qbr_insights]
+
+cost_controls:
+  max_budget_usd: 20
+  max_turns_total: 120
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: halt      # Wrong churn intervention can accelerate churn
+  phase_5: retry

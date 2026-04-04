@@ -1,0 +1,92 @@
+# NemoClaw Workflow: Legal & Contracts
+# Draft → Review → Negotiate → Finalize → Archive
+# Owner: operations_lead (Khalid) | Support: growth_revenue_lead (Omar), executive_operator (Tariq)
+
+name: legal-contracts
+version: "1.0"
+description: "Contract lifecycle: needs assessment → drafting → internal review → negotiation support → finalization → archival"
+category: legal_contracts
+tier: 3
+estimated_duration_hours: 24
+ceo_gates: [after_draft, before_finalization]
+human_gates: [before_finalization]  # All contracts need human sign-off
+
+phases:
+  - phase: 1_needs_assessment
+    name: "Contract Needs Assessment"
+    agents: [operations_lead, growth_revenue_lead]
+    skills:
+      - research-brief                     # Understand the deal context
+    deliverables:
+      - contract-brief.md                  # What type, parties, key terms, timeline
+      - risk-factors.md                    # Legal risks to address
+      - precedent-search.md                # Similar contracts from KB
+    success_criteria:
+      - "Contract type and parties clearly defined"
+      - "Key commercial terms listed"
+      - "Risk factors identified"
+
+  - phase: 2_drafting
+    name: "Contract Drafting"
+    agents: [operations_lead, narrative_content_lead]
+    skills:
+      - biz-02-contract-drafter            # Contract generation
+      - k57-nda-generator                  # NDA if needed
+      - k58-contract-template-engine       # Template-based generation
+      - d11-copywriting-specialist         # Clear legal language
+    deliverables:
+      - contract-draft.md                  # Full contract document
+      - nda.md                             # NDA if applicable
+      - terms-summary.md                   # Plain-language summary of key terms
+      - negotiation-boundaries.md          # Walk-away points + concession ranges
+    success_criteria:
+      - "All required clauses present"
+      - "Plain-language summary for stakeholders"
+      - "Negotiation boundaries defined"
+    ceo_gate: true
+
+  - phase: 3_review_negotiation
+    name: "Internal Review & Negotiation Support"
+    agents: [executive_operator, growth_revenue_lead, operations_lead]
+    skills:
+      - c07-decision-record-writer         # Document review decisions
+      - int-04-reality-check-engine        # Validate assumptions in terms
+    deliverables:
+      - review-comments.md                 # Internal review feedback
+      - revised-draft.md                   # Updated contract
+      - negotiation-playbook.md            # Response to expected counterpoints
+    success_criteria:
+      - "All internal review comments addressed"
+      - "Negotiation playbook covers top 5 likely pushbacks"
+
+  - phase: 4_finalization
+    name: "Finalization & Archival"
+    agents: [operations_lead, executive_operator]
+    skills:
+      - c07-decision-record-writer         # Final decision record
+      - biz-03-invoice-generator           # Invoice if payment terms
+    deliverables:
+      - final-contract.md                  # Execution-ready contract
+      - signature-checklist.md             # Who signs, when, how
+      - contract-summary.json              # Metadata for archival
+      - invoice.md                         # If applicable
+    success_criteria:
+      - "Contract ready for signature"
+      - "All parties and signature requirements listed"
+      - "Archived with searchable metadata"
+    ceo_gate: true
+    human_gate: true  # Contracts ALWAYS need human sign-off
+
+shared_context:
+  required_fields: [contract_type, parties, key_terms, risk_factors]
+  memory_keys: [contract_templates, negotiation_patterns, legal_precedents]
+
+cost_controls:
+  max_budget_usd: 15
+  max_turns_total: 80
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: halt      # Contract errors have legal consequences

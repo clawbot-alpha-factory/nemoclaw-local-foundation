@@ -1,0 +1,144 @@
+# NemoClaw Workflow: Marketing Campaign (Full Lifecycle)
+# Strategy → Creative → Distribution → Optimization → Reporting
+# Owner: marketing_campaigns_lead (Rania) | Support: narrative_content_lead (Yasmin), social_media_lead (Zara)
+
+name: marketing-campaign
+version: "1.0"
+description: "Full marketing campaign lifecycle: audience research → strategy → creative production → channel setup → launch → optimization → reporting"
+category: marketing
+tier: 3
+estimated_duration_hours: 72
+ceo_gates: [after_strategy, before_launch, after_reporting]
+
+phases:
+  - phase: 1_audience_research
+    name: "Audience Research & Competitive Scan"
+    agents: [strategy_lead, marketing_campaigns_lead]
+    skills:
+      - e12-market-research-analyst       # Market + audience research
+      - e08-comp-intel-synth              # Competitive intelligence
+      - int-02-demand-pattern-analyzer    # What audiences want now
+      - k51-competitor-scraper            # Competitor campaign analysis
+    deliverables:
+      - audience-personas.md              # 3-5 detailed personas with pain points
+      - competitor-campaigns.md           # Top 10 competitor campaigns analyzed
+      - channel-opportunity.md            # Best channels per persona
+      - keyword-research.json             # High-value keywords + search volume
+    success_criteria:
+      - "3+ personas with jobs-to-be-done framework"
+      - "10+ competitor campaigns analyzed with takeaways"
+      - "Channel recommendations with expected CPM/CPC"
+
+  - phase: 2_campaign_strategy
+    name: "Campaign Strategy & Creative Brief"
+    agents: [marketing_campaigns_lead, growth_revenue_lead]
+    skills:
+      - k44-content-strategy-planner      # Content strategy
+      - f09-pricing-strategist            # Offer positioning
+      - rev-04-offer-optimizer            # Offer packaging for campaign
+    deliverables:
+      - campaign-brief.md                 # Objective, KPIs, budget, timeline
+      - creative-brief.md                 # Messaging hierarchy, tone, visuals
+      - channel-plan.json                 # Budget allocation per channel
+      - offer-structure.md                # What we're promoting + pricing
+    success_criteria:
+      - "SMART objectives defined (specific, measurable)"
+      - "Budget allocated across channels with expected ROAS"
+      - "Creative brief specific enough for designer/copywriter"
+    ceo_gate: true
+
+  - phase: 3_creative_production
+    name: "Creative Assets & Copy"
+    agents: [narrative_content_lead, social_media_lead, marketing_campaigns_lead]
+    skills:
+      - d11-copywriting-specialist        # Ad copy + landing page copy
+      - cnt-01-viral-hook-generator       # Attention-grabbing hooks
+      - cnt-14-caption-generator          # Social captions
+      - k48-ad-creative-writer            # Ad-specific copy (FB/Google/LinkedIn)
+      - k42-landing-page-optimizer        # Landing page wireframe + copy
+      - cnt-02-instagram-reel-script-writer  # Video ad scripts
+      - cnt-13-thumbnail-generator        # Visual concepts
+    deliverables:
+      - ad-copy-variants.md               # 5+ ad copy variants per channel
+      - landing-page-copy.md              # Full landing page (headline, sub, CTA, sections)
+      - social-posts.json                 # 20+ social media posts
+      - video-scripts.md                  # 3+ video ad scripts (15s, 30s, 60s)
+      - visual-concepts.md                # Thumbnail/banner concepts + specs
+    success_criteria:
+      - "5+ ad variants per channel (A/B ready)"
+      - "Landing page copy with clear value prop + CTA"
+      - "Video scripts in 3 durations"
+
+  - phase: 4_channel_setup
+    name: "Ad Platform Setup & Targeting"
+    agents: [marketing_campaigns_lead, operations_lead]
+    skills:
+      - k41-ppc-campaign-architect        # Google Ads campaign structure
+      - k42-paid-social-planner           # Facebook/Instagram/LinkedIn ads
+      - k45-seo-audit-writer              # SEO optimization for landing page
+      - k55-seo-keyword-researcher        # Keyword targeting
+    deliverables:
+      - google-ads-structure.json         # Campaigns, ad groups, keywords, bids
+      - social-ads-structure.json         # Facebook/Instagram/LinkedIn targeting
+      - seo-optimization.md               # On-page SEO checklist
+      - tracking-setup.md                 # UTM parameters, conversion pixels
+    success_criteria:
+      - "Campaign structure matches channel plan budget"
+      - "Targeting matches persona definitions"
+      - "Conversion tracking configured"
+    ceo_gate: true  # Before spending money
+
+  - phase: 5_launch_monitor
+    name: "Campaign Launch & Monitoring"
+    agents: [marketing_campaigns_lead, social_media_lead, operations_lead]
+    skills:
+      - cnt-08-cross-channel-distributor  # Multi-platform posting
+      - cnt-07-content-performance-analyzer  # Performance tracking
+      - out-06-campaign-optimizer         # Real-time optimization
+      - scl-07-cross-channel-scheduler    # Scheduling
+    deliverables:
+      - launch-checklist.md               # Pre-launch verification
+      - daily-performance.jsonl           # Daily metrics log
+      - optimization-log.md               # Changes made + impact
+    success_criteria:
+      - "All channels live within 24h of launch"
+      - "Daily performance tracked from day 1"
+      - "First optimization within 48h"
+    ceo_gate: true  # Launch approval
+    human_gate: true  # Ad spend requires human approval
+
+  - phase: 6_optimization_reporting
+    name: "Performance Optimization & ROI Report"
+    agents: [marketing_campaigns_lead, growth_revenue_lead, operations_lead]
+    skills:
+      - rev-03-revenue-attribution-analyzer  # Attribution modeling
+      - rev-05-funnel-analyzer              # Funnel conversion analysis
+      - scl-08-revenue-dashboard-generator  # Dashboard generation
+      - k61-weekly-client-reporter          # Report generation
+      - k54-dashboard-reader               # Data extraction
+    deliverables:
+      - campaign-report.md                # Full performance report
+      - attribution-analysis.md           # Which channels drove what
+      - roi-calculation.json              # ROAS, CPA, LTV:CAC
+      - recommendations.md                # Scale/kill/optimize decisions
+    success_criteria:
+      - "Clear ROAS per channel"
+      - "Attribution model showing customer journey"
+      - "Actionable recommendations for next campaign"
+    ceo_gate: true
+
+shared_context:
+  required_fields: [personas, campaign_brief, creative_assets, channel_targeting, performance_data]
+  memory_keys: [audience_insights, campaign_performance, channel_benchmarks, creative_learnings]
+
+cost_controls:
+  max_budget_usd: 30
+  max_turns_total: 150
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: retry
+  phase_4: halt      # Wrong targeting wastes budget
+  phase_5: halt      # Live campaign errors are costly
+  phase_6: retry

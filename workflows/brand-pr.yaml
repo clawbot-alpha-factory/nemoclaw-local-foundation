@@ -1,0 +1,126 @@
+# NemoClaw Workflow: Brand & PR Campaign
+# Narrative → Content → Distribution → Media → Measurement
+# Owner: narrative_content_lead (Yasmin) | Support: social_media_lead (Zara), strategy_lead (Nadia)
+
+name: brand-pr
+version: "1.0"
+description: "Brand building and PR: narrative development → content production → media outreach → social amplification → reputation monitoring → impact measurement"
+category: content
+tier: 3
+estimated_duration_hours: 48
+ceo_gates: [after_narrative, before_media_outreach]
+
+phases:
+  - phase: 1_narrative_development
+    name: "Brand Narrative & Messaging"
+    agents: [narrative_content_lead, strategy_lead, executive_operator]
+    skills:
+      - d11-copywriting-specialist          # Brand copy
+      - e08-comp-intel-synth               # Competitive positioning
+      - research-brief                      # Market context
+    deliverables:
+      - brand-positioning.md               # Positioning statement + messaging hierarchy
+      - brand-voice.md                     # Tone, personality, do/don't guidelines
+      - key-messages.md                    # 5 core messages with proof points
+      - founder-story.md                   # Origin narrative for press
+      - boilerplate.md                     # Company description (25/50/100/250 words)
+    success_criteria:
+      - "Positioning statement follows: For X who Y, unlike Z"
+      - "Voice guidelines with 5+ examples"
+      - "Every key message has a proof point"
+    ceo_gate: true
+
+  - phase: 2_content_production
+    name: "PR Content & Asset Creation"
+    agents: [narrative_content_lead, social_media_lead, marketing_campaigns_lead]
+    skills:
+      - d11-copywriting-specialist          # Press releases, bylines
+      - d11-video-script-writer            # Video content scripts
+      - cnt-01-viral-hook-generator        # Attention hooks
+      - k48-blog-post-writer              # Thought leadership articles
+      - k46-case-study-writer             # Case studies
+      - cnt-05-youtube-script-writer       # YouTube content
+      - biz-08-social-proof-engine         # Testimonials + proof
+    deliverables:
+      - press-release.md                   # Launch/news press release
+      - thought-leadership.md              # 3 byline articles
+      - case-studies.md                    # 2-3 customer success stories
+      - media-kit.md                       # Fact sheet, bios, logos, images
+      - social-content.json                # 20+ posts for PR amplification
+      - video-scripts.md                   # Founder interview + product demo
+    success_criteria:
+      - "Press release follows AP style"
+      - "3 thought leadership articles (800+ words each)"
+      - "Media kit complete with all assets listed"
+
+  - phase: 3_media_outreach
+    name: "Media & Influencer Outreach"
+    agents: [narrative_content_lead, sales_outreach_lead, social_media_lead]
+    skills:
+      - out-02-cold-email-crafter          # Media pitches
+      - out-03-linkedin-connector          # LinkedIn outreach to journalists
+      - out-05-personalization-engine      # Personalized pitches
+      - k50-web-researcher                 # Journalist research
+    deliverables:
+      - media-list.json                    # 50+ journalists/outlets targeted
+      - pitch-templates.md                 # 5 pitch angles per audience
+      - influencer-targets.json            # Tech influencers to engage
+      - outreach-schedule.json             # Timing + sequence
+    success_criteria:
+      - "50+ media targets with beat + contact"
+      - "5 distinct pitch angles"
+      - "Personalized outreach for top 20 targets"
+    ceo_gate: true
+    human_gate: true  # Media outreach represents the company publicly
+
+  - phase: 4_social_amplification
+    name: "Social Media Amplification"
+    agents: [social_media_lead, marketing_campaigns_lead]
+    skills:
+      - cnt-08-cross-channel-distributor   # Multi-platform posting
+      - cnt-09-social-posting-executor     # Direct posting
+      - scl-05-community-growth-engine     # Community engagement
+      - scl-07-cross-channel-scheduler     # Scheduling
+      - cnt-11-agent-self-promo-generator  # AI-native promotional content
+    deliverables:
+      - amplification-plan.md              # How to amplify each piece
+      - community-engagement.md            # Comment/reply strategy
+      - hashtag-strategy.md                # Platform-specific hashtags
+      - posting-schedule.json              # Coordinated timing
+    success_criteria:
+      - "Every PR asset has social amplification plan"
+      - "Posting coordinated with media coverage"
+
+  - phase: 5_measurement
+    name: "Impact Measurement & Reputation Tracking"
+    agents: [narrative_content_lead, marketing_campaigns_lead, strategy_lead]
+    skills:
+      - cnt-07-content-performance-analyzer # Content metrics
+      - cnt-10-viral-pattern-analyzer      # Viral analysis
+      - k54-review-monitor                 # Reputation monitoring
+      - int-01-comment-signal-scraper      # Sentiment tracking
+    deliverables:
+      - pr-impact-report.md                # Coverage, reach, sentiment
+      - media-coverage-log.json            # Every mention tracked
+      - sentiment-analysis.md              # Brand perception shift
+      - sov-analysis.md                    # Share of voice vs competitors
+      - recommendations.md                 # What to do more/less
+    success_criteria:
+      - "Every media mention logged"
+      - "Sentiment measured (positive/neutral/negative)"
+      - "Share of voice compared to 3 competitors"
+
+shared_context:
+  required_fields: [brand_positioning, key_messages, media_list, coverage_log]
+  memory_keys: [brand_narrative, media_relationships, pr_performance, messaging_winners]
+
+cost_controls:
+  max_budget_usd: 25
+  max_turns_total: 120
+
+failure_handling:
+  phase_1: retry
+  phase_2: retry
+  phase_3: halt      # Bad media outreach damages reputation
+  phase_4: retry
+  phase_5: retry
